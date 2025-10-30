@@ -175,10 +175,10 @@ openfront-marketplace/
 ## Deployment
 
 ### Deploy to Vercel
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fopenship-org%2Fopenfront-marketplace)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fopenshiporg%2Fmarketplace)
 
 ### Deploy to Railway
-[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/template/openfront-marketplace)
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/marketplaceopenshiporg)
 
 ### Environment Variables
 
