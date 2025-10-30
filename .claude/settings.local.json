@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "Bash(mkdir:*)",
+      "Bash(curl:*)",
+      "Bash(node -e:*)",
+      "mcp__github__get_file_contents",
+      "WebFetch(domain:github.com)",
+      "Read(//Users/junaid/code/osb2/components/ui/**)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
