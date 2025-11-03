@@ -97,13 +97,13 @@ export function CartsDropdown({
         <button
           type="button"
           disabled={disabled || isLoading}
-          className="inline-flex items-center justify-center whitespace-nowrap text-sm font-medium transition-[color,box-shadow] disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive text-secondary-foreground shadow-xs hover:bg-secondary/80 dark:border-none gap-1.5 px-3 has-[>svg]:px-4 border-border dark:bg-secondary h-8 rounded-full border bg-transparent"
+          className="inline-flex items-center justify-center whitespace-nowrap text-sm font-medium transition-[color,box-shadow] disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive text-secondary-foreground shadow-xs hover:bg-secondary/80 dark:border-none border-border dark:bg-secondary h-8 rounded-full border bg-transparent w-auto p-1 pl-1.5 pr-1.5 sm:pr-3"
         >
-          <div className="flex -space-x-1.5 mr-1">
-            {carts.slice(0, 4).map((cart, index) => (
+          <div className="flex -space-x-2 mr-1.5">
+            {carts.slice(0, 2).map((cart, index) => (
               <div
                 key={cart.storeId}
-                className="bg-muted/40 rounded-full border ring-1 ring-background flex items-center justify-center overflow-hidden"
+                className="w-6 h-6 rounded-full ring-2 ring-background flex items-center justify-center overflow-hidden"
                 style={{
                   backgroundColor: cart.logoColor || "#000",
                 }}
@@ -111,7 +111,7 @@ export function CartsDropdown({
                 {cart.logoIcon ? (
                   <div
                     dangerouslySetInnerHTML={{ __html: cart.logoIcon }}
-                    className="w-4 h-4"
+                    className="w-4 h-4 flex items-center justify-center"
                     style={{
                       filter: `hue-rotate(${cart.logoColor || "0"}deg)`,
                     }}
@@ -122,9 +122,15 @@ export function CartsDropdown({
               </div>
             ))}
           </div>
-           <p className="text-sm text-muted-foreground whitespace-nowrap">
-            <strong className="font-medium text-foreground">{totalStores}</strong> {totalStores === 1 ? 'cart' : 'carts'}
-          </p>
+          {totalStores > 2 ? (
+            <span className="text-xs text-muted-foreground">
+              +{totalStores - 2}
+            </span>
+          ) : (
+            <span className="hidden sm:inline text-sm text-muted-foreground whitespace-nowrap">
+              <strong className="font-medium text-foreground">{totalStores}</strong> {totalStores === 1 ? 'cart' : 'carts'}
+            </span>
+          )}
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-80 p-2">
