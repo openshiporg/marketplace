@@ -50,47 +50,49 @@ export function generateOpenFrontCartUI(params: {
     const total = formatPrice(item.total || 0, currencyCode);
 
     return `
-      <div class="cart-item flex gap-4 p-4 border-b">
-        ${thumbnailUrl ? `
-          <img src="${thumbnailUrl}" alt="${productTitle}"
-               class="w-16 h-16 object-cover rounded border">
-        ` : `
-          <div class="w-16 h-16 bg-gray-200 rounded border flex items-center justify-center">
-            <span class="text-xs text-gray-400">No image</span>
-          </div>
-        `}
-
-        <div class="flex-1">
-          <h4 class="font-semibold text-sm">${productTitle}</h4>
-          ${variantTitle ? `<p class="text-xs text-gray-600">${variantTitle}</p>` : ''}
-
-          <div class="flex items-center gap-3 mt-2">
-            <div class="flex items-center gap-2 border rounded">
-              <button
-                onclick="updateQuantity('${item.id}', ${item.quantity - 1})"
-                class="px-2 py-1 hover:bg-gray-100 ${item.quantity <= 1 ? 'opacity-50 cursor-not-allowed' : ''}"
-                ${item.quantity <= 1 ? 'disabled' : ''}>
-                −
-              </button>
-              <span class="px-2 font-medium">${item.quantity}</span>
-              <button
-                onclick="updateQuantity('${item.id}', ${item.quantity + 1})"
-                class="px-2 py-1 hover:bg-gray-100">
-                +
-              </button>
+      <div class="cart-item p-4 border-b">
+        <div class="flex gap-3 mb-3">
+          ${thumbnailUrl ? `
+            <img src="${thumbnailUrl}" alt="${productTitle}"
+                 class="w-16 h-16 object-cover rounded border flex-shrink-0">
+          ` : `
+            <div class="w-16 h-16 bg-gray-200 rounded border flex items-center justify-center flex-shrink-0">
+              <span class="text-xs text-gray-400">No image</span>
             </div>
+          `}
 
-            <button
-              onclick="removeItem('${item.id}')"
-              class="text-xs text-red-600 hover:text-red-800">
-              Remove
-            </button>
+          <div class="flex-1 min-w-0">
+            <h4 class="font-semibold text-sm">${productTitle}</h4>
+            ${variantTitle ? `<p class="text-xs text-gray-600 mt-0.5">${variantTitle}</p>` : ''}
+            <p class="text-sm text-gray-600 mt-1">${unitPrice} each</p>
+          </div>
+
+          <div class="text-right flex-shrink-0">
+            <p class="font-semibold text-base">${total}</p>
           </div>
         </div>
 
-        <div class="text-right">
-          <p class="text-sm text-gray-600">${unitPrice} each</p>
-          <p class="font-semibold">${total}</p>
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2 border rounded">
+            <button
+              onclick="updateQuantity('${item.id}', ${item.quantity - 1})"
+              class="px-3 py-1.5 hover:bg-gray-100 ${item.quantity <= 1 ? 'opacity-50 cursor-not-allowed' : ''}"
+              ${item.quantity <= 1 ? 'disabled' : ''}>
+              −
+            </button>
+            <span class="px-2 font-medium min-w-[2rem] text-center">${item.quantity}</span>
+            <button
+              onclick="updateQuantity('${item.id}', ${item.quantity + 1})"
+              class="px-3 py-1.5 hover:bg-gray-100">
+              +
+            </button>
+          </div>
+
+          <button
+            onclick="removeItem('${item.id}')"
+            class="text-sm text-red-600 hover:text-red-800 font-medium">
+            Remove
+          </button>
         </div>
       </div>
     `;
@@ -196,7 +198,7 @@ export function generateOpenFrontCartUI(params: {
 
             <!-- Address Tab -->
             <div id="content-address" class="tab-content hidden">
-              <h3 class="font-semibold text-lg mb-4">Shipping Address</h3>
+              <h3 class="font-semibold text-lg mb-2">Shipping Address</h3>
               ${cart.shippingAddress || cart.email ? `
                 <div class="bg-gray-50 p-4 rounded-md mb-4">
                   ${cart.email ? `<p class="text-sm font-medium text-gray-900 mb-2">📧 ${cart.email}</p>` : ''}
@@ -208,8 +210,13 @@ export function generateOpenFrontCartUI(params: {
                   ` : ''}
                 </div>
               ` : `
-                <p class="text-sm text-gray-500 mb-4">No shipping address or email set. Feel free to paste your address into the chat and the AI will set it.</p>
+                <p class="text-sm text-gray-500 mb-3">Paste your shipping address, email, and phone number below in any format. The AI will figure out the country and structure.</p>
               `}
+              <textarea
+                id="address-input"
+                placeholder="Example:&#10;John Doe&#10;john@email.com&#10;123 Main St&#10;New York, NY 10001&#10;USA&#10;+1 (555) 123-4567"
+                class="w-full border border-gray-300 rounded-md p-3 text-sm mb-3 resize-none focus:outline-none focus:ring-2 focus:ring-gray-900"
+                rows="6"></textarea>
               <button onclick="requestAddressFromAI()" class="w-full bg-gray-900 text-white py-2 px-4 rounded-md hover:bg-gray-800">
                 ${cart.shippingAddress ? 'Change Address and Email' : 'Add Address and Email'}
               </button>
@@ -226,7 +233,7 @@ export function generateOpenFrontCartUI(params: {
                     return `
                     <button
                       onclick="selectShippingMethod('${option.id}', '${option.name}')"
-                      class="w-full border rounded-md p-4 text-left hover:border-gray-900 transition-colors ${isSelected ? 'border-gray-900 bg-gray-50' : 'border-gray-300'}">
+                      class="w-full border rounded-md p-4 text-left hover:border-gray-900 transition-colors ${isSelected ? 'border-gray-900 bg-white' : 'border-gray-300 bg-white'}">
                       <div class="flex justify-between items-center">
                         <div class="flex items-center gap-4">
                           <div class="w-4 h-4 border-2 rounded-full flex items-center justify-center ${isSelected ? 'border-gray-900' : 'border-gray-300'}">
@@ -259,7 +266,7 @@ export function generateOpenFrontCartUI(params: {
                   ${storeInfo?.paymentProviders && storeInfo.paymentProviders.length > 0 ? storeInfo.paymentProviders.map((provider: any) => `
                     <button
                       onclick="selectPaymentProvider('${provider.provider}')"
-                      class="payment-method-btn w-full border rounded-md p-4 text-left hover:border-gray-900 transition-colors"
+                      class="payment-method-btn w-full border rounded-md p-4 text-left hover:border-gray-900 transition-colors bg-white border-gray-300"
                       data-provider="${provider.provider}">
                       <div class="flex justify-between items-center">
                         <div class="flex items-center gap-4">
@@ -279,7 +286,7 @@ export function generateOpenFrontCartUI(params: {
                   <!-- Checkout on Store Option -->
                   <button
                     onclick="selectPaymentProvider('checkout')"
-                    class="payment-method-btn w-full border rounded-md p-4 text-left hover:border-gray-900 transition-colors"
+                    class="payment-method-btn w-full border rounded-md p-4 text-left hover:border-gray-900 transition-colors bg-white border-gray-300"
                     data-provider="checkout">
                     <div class="flex justify-between items-center">
                       <div class="flex items-center gap-4">
@@ -524,10 +531,20 @@ export function generateOpenFrontCartUI(params: {
         }
 
         function requestAddressFromAI() {
+          const addressInput = document.getElementById('address-input');
+          const addressText = addressInput ? addressInput.value.trim() : '';
+
+          if (!addressText) {
+            // If no address is provided, ask the user to paste their address
+            alert('Please paste your shipping address and email in the text area above.');
+            return;
+          }
+
+          // Send the address with storeId to the AI
           window.parent.postMessage({
             type: 'prompt',
             payload: {
-              prompt: 'Please help me set my shipping address and email for this cart.'
+              prompt: \`Please set this address for ${storeDisplayName} (storeId: \${storeId}): \${addressText}\`
             }
           }, '*');
         }
@@ -582,13 +599,13 @@ export function generateOpenFrontCartUI(params: {
             const radioInner = btn.querySelector('.payment-radio');
             if (btn.dataset.provider === provider) {
               btn.classList.remove('border-gray-300');
-              btn.classList.add('border-gray-900', 'bg-gray-50');
+              btn.classList.add('border-gray-900');
               radioOuter.classList.remove('border-gray-300');
               radioOuter.classList.add('border-gray-900');
               radioInner.classList.remove('w-0', 'h-0');
               radioInner.classList.add('w-2', 'h-2', 'bg-gray-900');
             } else {
-              btn.classList.remove('border-gray-900', 'bg-gray-50');
+              btn.classList.remove('border-gray-900');
               btn.classList.add('border-gray-300');
               radioOuter.classList.remove('border-gray-900');
               radioOuter.classList.add('border-gray-300');
@@ -900,8 +917,8 @@ export function generateOpenFrontEmailConflictUI(params: {
               class="option-btn bg-gray-100 border border-gray-300 rounded-lg p-4 text-left hover:bg-gray-200 transition-colors flex flex-col justify-center gap-1 min-h-[120px]"
               data-option="signin">
               <div>
-                <span class="font-medium block text-sm mb-0.5">Sign in with this account here</span>
-                <span class="text-xs text-gray-600">Login to continue with this email</span>
+                <span class="font-medium block text-sm mb-0.5 leading-tight">Sign in with this account here</span>
+                <span class="text-xs text-gray-600 leading-tight">Login to continue with this email</span>
               </div>
             </button>
 
@@ -910,8 +927,8 @@ export function generateOpenFrontEmailConflictUI(params: {
               class="option-btn bg-gray-100 border border-gray-300 rounded-lg p-4 text-left hover:bg-gray-200 transition-colors flex flex-col justify-center gap-1 min-h-[120px]"
               data-option="different-email">
               <div>
-                <span class="font-medium block text-sm mb-0.5">Use a different email for this order</span>
-                <span class="text-xs text-gray-600">Provide a different email address</span>
+                <span class="font-medium block text-sm mb-0.5 leading-tight">Use a different email for this order</span>
+                <span class="text-xs text-gray-600 leading-tight">Provide a different email address</span>
               </div>
             </button>
 
@@ -920,8 +937,8 @@ export function generateOpenFrontEmailConflictUI(params: {
               class="option-btn bg-gray-100 border border-gray-300 rounded-lg p-4 text-left hover:bg-gray-200 transition-colors flex flex-col justify-center gap-1 min-h-[120px]"
               data-option="checkout-store">
               <div>
-                <span class="font-medium block text-sm mb-0.5">Continue checkout on ${storeName}</span>
-                <span class="text-xs text-gray-600">Complete your purchase on the store website</span>
+                <span class="font-medium block text-sm mb-0.5 leading-tight">Continue checkout on ${storeName}</span>
+                <span class="text-xs text-gray-600 leading-tight">Complete your purchase on the store website</span>
               </div>
             </button>
           </div>

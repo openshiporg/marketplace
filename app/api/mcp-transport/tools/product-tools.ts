@@ -1338,7 +1338,7 @@ export async function handleProductTools(name: string, args: any, cookie: string
                           const htmlEscaped = value.replace(/'/g, "\\'").replace(/"/g, '&quot;');
                           return `
                             <button
-                              class="option-btn text-xs px-3 py-1.5 rounded border transition-all ring-1 ring-gray-300 text-gray-700 bg-white hover:ring-gray-400"
+                              class="option-btn text-xs px-2 py-1 rounded-lg transition-all border ring-gray-300 text-gray-700 bg-white hover:ring-gray-400"
                               data-product-index="${storeIndex}-${productIndex}"
                               data-store-index="${storeIndex}"
                               data-option-id="${option.id}"
@@ -1356,7 +1356,7 @@ export async function handleProductTools(name: string, args: any, cookie: string
               }
 
               return `
-                <div class="product-card flex-shrink-0 w-80 border rounded-lg p-4 bg-white shadow-sm hover:shadow-md transition-shadow self-start"
+                <div class="product-card flex-shrink-0 w-72 border rounded-lg p-3.5 bg-white shadow-sm self-start"
                      data-product-index="${storeIndex}-${productIndex}"
                      data-store-index="${storeIndex}">
                   ${hasImages ? `
@@ -1428,8 +1428,8 @@ export async function handleProductTools(name: string, args: any, cookie: string
             }).join('');
 
             return `
-              <div class="store-section border rounded-lg bg-gray-50 shadow-sm p-6 mb-6">
-                <div class="flex items-center gap-3 mb-6">
+              <div class="store-section border rounded-lg bg-gray-50 shadow-sm">
+                <div class="flex items-center gap-3 px-4 pt-4">
                   ${storeData.logoIcon ? `
                     <div class="w-10 h-10 rounded-lg flex items-center justify-center text-white text-xl font-bold"
                          style="background-color: ${storeData.logoColor || '#000'}; filter: hue-rotate(${storeData.logoColor || '0'}deg);">
@@ -1444,7 +1444,7 @@ export async function handleProductTools(name: string, args: any, cookie: string
                   </div>
                 </div>
 
-                <div class="horizontal-scroll flex gap-4 pb-4">
+                <div class="horizontal-scroll flex gap-4 p-4">
                   ${productCardsHTML}
                 </div>
               </div>
