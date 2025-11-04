@@ -3,7 +3,7 @@
 import { ArrowUpRight } from "lucide-react";
 import { CombinedLogo } from "@/components/CombinedLogo";
 
-export default function EthosV8Page() {
+export default function EthosV9Page() {
   return (
     <div className="min-h-screen">
       {/* Hero Section */}
@@ -23,7 +23,7 @@ export default function EthosV8Page() {
                 An Openship initiative <ArrowUpRight className="size-4 ml-1"/>
               </a>
               <h1 className="text-4xl sm:text-5xl md:text-6xl font-light mb-6 tracking-tight bg-gradient-to-br from-foreground to-foreground/60 bg-clip-text text-transparent font-instrument-serif">
-                the / marketplace
+                A Market Without Masters
               </h1>
             </div>
           </div>
@@ -75,30 +75,49 @@ export default function EthosV8Page() {
           </div>
 
           <div>
-            <h2 className="text-4xl font-semibold mb-4 font-instrument-serif">What if discovery didn't cost anything?</h2>
+            <h2 className="text-4xl font-semibold mb-4 font-instrument-serif">Building Openfront</h2>
             <p className="text-fd-muted-foreground leading-relaxed mb-4">
-              Traditional marketplaces charge 10-30% per transaction because they built massive infrastructure: payment
-              processing, cart systems, checkout flows, databases, fraud detection. All that overhead requires revenue.
+              We built Openfront: open source e-commerce platforms for every vertical. Retail stores, restaurants,
+              salons, barbershops, hotels. Each one comes with the complete source code, can be self-hosted or
+              hosted with us, and includes built-in AI that understands your entire business.
             </p>
             <p className="text-fd-muted-foreground leading-relaxed mb-4">
-              But what if stores already had that infrastructure? What if every store already had their own cart,
-              checkout, and payment processor? Then the marketplace wouldn't need to build anything. It would just
-              make those stores discoverable.
+              Businesses fork the code, run it themselves, modify it however they want. True ownership. When you
+              deploy Openfront, you're not renting infrastructure. You're owning it.
             </p>
             <p className="text-fd-muted-foreground leading-relaxed">
-              That's what this is. A marketplace that works like a directory, connecting you to independent stores
-              right here, in the conversation. Ask for a product, it appears. Pick options, add to cart, enter shipping,
-              complete payment. All conversationally. When you checkout, payment goes directly to the store's account.
-              We don't touch it. We don't see it. We don't take a cut. Zero transaction fees.
+              Openfront isn't required to use this marketplace. But it's our answer to what businesses should
+              run if they want complete independence. Together, Openfront and this marketplace create fully
+              decentralized commerce: businesses own their platforms, marketplaces provide discovery without rent,
+              and customers know their data stays with the stores they trust.
             </p>
           </div>
 
           <div>
-            <h2 className="text-4xl font-semibold mb-4 font-instrument-serif">The chat is the store</h2>
+            <h2 className="text-4xl font-semibold mb-4 font-instrument-serif">Discovery Without Rent</h2>
             <p className="text-fd-muted-foreground leading-relaxed mb-4">
-              Shopping doesn't need pages anymore. The entire experience (products, cart, checkout, payment) happens
-              in a conversation. This is powered by MCP UI (Model Context Protocol UI), which lets AI render
-              interactive store interfaces directly in chat.
+              Discovery doesn't have to cost a percentage. Traditional platforms charge 10-30% to finance
+              infrastructure they insist on owning: carts, checkouts, fraud tooling, data lakes. If stores
+              already run all of that, a marketplace doesn't need to rebuild it.
+            </p>
+            <p className="text-fd-muted-foreground leading-relaxed mb-4">
+              That's what this is. A marketplace that works like a directory, connecting you to independent stores
+              right here, in the conversation. Ask for a product, it appears. Pick options, add to cart, enter shipping,
+              complete payment. All conversationally. When you checkout, payment goes directly to the store's account.
+              We don't touch it. We don't see it. We don't take a cut.
+            </p>
+            <p className="text-fd-muted-foreground leading-relaxed">
+              When the marketplace stops building rails it doesn't need, the rationale for transaction taxes disappears.
+              Connect to what exists, don't replicate it.
+            </p>
+          </div>
+
+          <div>
+            <h2 className="text-4xl font-semibold mb-4 font-instrument-serif">The Conversation Is the Store</h2>
+            <p className="text-fd-muted-foreground leading-relaxed mb-4">
+              Pages are optional now. The full shopping flow (browse, options, cart, shipping, payment) happens
+              inside a conversation and it's still the store's flow, not ours. Protocols like MCP UI make it
+              possible to render a store's components directly in chat without copying state.
             </p>
             <p className="text-fd-muted-foreground leading-relaxed mb-4">
               We took a complete e-commerce storefront and broke it down into conversational components. Product
@@ -113,15 +132,15 @@ export default function EthosV8Page() {
           </div>
 
           <div>
-            <h2 className="text-4xl font-semibold mb-4 font-instrument-serif">Your data goes to one store, period</h2>
+            <h2 className="text-4xl font-semibold mb-4 font-instrument-serif">Privacy Without Loopholes</h2>
             <p className="text-fd-muted-foreground leading-relaxed mb-4">
-              When you checkout on Amazon, your data goes into their database. They use it to recommend products,
-              target ads, and decide what to sell under Amazon Basics. Your data is Amazon's most valuable asset.
+              Privacy is consent practiced, not promised. Each checkout is scoped to a single store. When you
+              buy something, your email, shipping address, and payment details go directly to that store's system.
+              Not to us. Not to a shared database. Just to that one store.
             </p>
             <p className="text-fd-muted-foreground leading-relaxed mb-4">
-              This marketplace works differently. When you buy something, your email, shipping address, and payment
-              details go directly to that store's system. Not to us. Not to a shared database. Just to that one
-              store. We literally can't track your behavior across stores because we don't store it.
+              We literally can't track your behavior across stores because we don't store it. There are no
+              cross-store identifiers, no shadow profiles, no quiet "personalization" that bleeds across contexts.
             </p>
             <p className="text-fd-muted-foreground leading-relaxed">
               Each transaction is independent. Buy from three stores? That's three separate checkouts. No cross-store
@@ -131,10 +150,11 @@ export default function EthosV8Page() {
           </div>
 
           <div>
-            <h2 className="text-4xl font-semibold mb-4 font-instrument-serif">List once, appear everywhere</h2>
+            <h2 className="text-4xl font-semibold mb-4 font-instrument-serif">Standardize the Interface</h2>
             <p className="text-fd-muted-foreground leading-relaxed mb-4">
-              We're standardizing the interface. Every store exposes the same API structure: products, cart, checkout,
-              payment. Every marketplace uses the same protocol to query those stores. It's like RSS for commerce.
+              Interoperability is the moat everyone can share. Stores expose a small, vendor-agnostic surface:
+              catalog, offer, cart, checkout, payment, order status. Marketplaces speak the same spec. It's like
+              RSS for commerce.
             </p>
             <p className="text-fd-muted-foreground leading-relaxed mb-4">
               For merchants: set up your store once, and it automatically works with every marketplace using this
@@ -155,28 +175,25 @@ export default function EthosV8Page() {
           </div>
 
           <div>
-            <h2 className="text-4xl font-semibold mb-4 font-instrument-serif">Building Openfront: the universe before the apple pie</h2>
+            <h2 className="text-4xl font-semibold mb-4 font-instrument-serif">Curation Is the Service</h2>
             <p className="text-fd-muted-foreground leading-relaxed mb-4">
-              This marketplace works with any e-commerce platform: Shopify, WooCommerce, whatever. But for this
-              model to truly work, stores need to own their infrastructure. If every store runs on proprietary
-              platforms, they're dependent. Rules can change. Fees can rise. Integrations can disappear.
+              Infrastructure is not what buyers come for. Taste is. The real value a marketplace provides is
+              the editorial layer that helps buyers trust what they find. Operators do the work: test orders,
+              customer service checks, warranty clarity, fulfillment reliability. That signal is the product.
             </p>
             <p className="text-fd-muted-foreground leading-relaxed mb-4">
-              Before we could build an open source decentralized marketplace, we had to first invent the universe.
-              We built Openfront: open source e-commerce platforms for every vertical including retail, restaurants,
-              salons, barbershops, and hotels. Businesses fork the code, run it themselves, modify it however they
-              want. True ownership.
+              The stores in this marketplace are in our configuration file, which you can view on GitHub. We've personally
+              used these stores, checked their shipping, verified their customer service. That's what we provide:
+              a signal that these stores are worth your time.
             </p>
             <p className="text-fd-muted-foreground leading-relaxed">
-              Openfront isn't required to use this marketplace. But it's our answer to "what should businesses
-              run if they want complete independence." Together, Openfront and this marketplace create fully
-              decentralized commerce: businesses own their platforms, marketplaces provide discovery without rent,
-              and customers know their data stays with the stores they trust.
+              If you find a store here and later buy directly from them, that's success, not leakage. Discovery
+              should compound for the merchant, not for the middleman.
             </p>
           </div>
 
           <div>
-            <h2 className="text-4xl font-semibold mb-4 font-instrument-serif">Anyone can run their own marketplace</h2>
+            <h2 className="text-4xl font-semibold mb-4 font-instrument-serif">Anyone Can Run Their Own Marketplace</h2>
             <p className="text-fd-muted-foreground leading-relaxed mb-4">
               This is fully open source. Fork the code, add your own stores to a configuration file, deploy your
               own marketplace. No permission required. No fees. No platform approval.
@@ -191,61 +208,52 @@ export default function EthosV8Page() {
               with Amazon because they have millions of sellers and customers. The network is the moat.
             </p>
             <p className="text-fd-muted-foreground leading-relaxed">
-              But when stores aren't locked in, when there's no central database, when anyone can fork the code, network
-              effects work differently. Stores exist independently. Customers can find them through any marketplace.
-              Multiple marketplaces can list the same stores for different audiences. Power distributes instead of
-              concentrating. Domain expertise becomes the moat, not infrastructure.
+              When stores aren't locked in and anyone can fork the code, network effects change shape. The same store
+              can list on multiple marketplaces serving different audiences. Your competitive advantage becomes knowing
+              which stores to trust, not controlling the infrastructure.
             </p>
           </div>
 
           <div>
-            <h2 className="text-4xl font-semibold mb-4 font-instrument-serif">What we actually provide</h2>
-            <p className="text-fd-muted-foreground leading-relaxed mb-4">
-              Marketplaces claim they provide value through infrastructure: payment processing, fraud detection,
-              customer service. But that's just overhead they built to justify their fees. The real value is curation.
-            </p>
-            <p className="text-fd-muted-foreground leading-relaxed mb-4">
-              When customers come to a trusted marketplace, they're more likely to trust the stores listed there.
-              Marketplaces signal which stores are legitimate, which have been vetted, which are worth your time.
-              That's the actual value.
-            </p>
-            <p className="text-fd-muted-foreground leading-relaxed">
-              The stores in this marketplace are in our configuration file, which you can view on GitHub. We've personally
-              used these stores, checked their shipping, verified their customer service. That's what we provide:
-              a signal that these stores are worth your time. If you find a store here and later buy directly from
-              them, we don't get a cut. We're not rent-seeking. We're providing discovery.
-            </p>
-          </div>
-
-          <div>
-            <h2 className="text-4xl font-semibold mb-4 font-instrument-serif">Addressing the obvious questions</h2>
+            <h2 className="text-4xl font-semibold mb-4 font-instrument-serif">How We Get Paid (and How We Don't)</h2>
             <p className="text-fd-muted-foreground leading-relaxed mb-4">
               <strong>"If you charge zero fees, how do you make money?"</strong>
             </p>
             <p className="text-fd-muted-foreground leading-relaxed mb-4">
-              We sell the software. Our business is Openfront: open source e-commerce platforms for every vertical
-              that businesses can truly own. Retail stores, restaurants, salons, barbershops, hotels. Each one comes
-              with the complete source code, can be self-hosted or hosted with us, and includes built-in AI that
-              understands your entire business.
+              We sell the software. Openfront is open source e-commerce platforms for every vertical: retail stores,
+              restaurants, salons, barbershops, hotels. Businesses get the complete source code, self-host or host
+              with us, and own their entire commerce stack. That's our business. That's what we sell.
             </p>
             <p className="text-fd-muted-foreground leading-relaxed mb-4">
-              This marketplace doesn't charge transaction fees because it doesn't need to. The infrastructure already
-              exists in the stores themselves. We're providing discovery, not infrastructure. That changes the economics
-              entirely. We may add flat listing fees for stores or affiliate commissions in the future, but transaction
-              fees aren't necessary when you're not building and maintaining the entire commerce stack.
+              This marketplace connects to stores running their own stack. Because they already have cart, checkout,
+              payment processing, the marketplace just provides discovery. No infrastructure to build means no transaction
+              fees required. We're not capturing payments. We're connecting to stores that process their own.
             </p>
             <p className="text-fd-muted-foreground leading-relaxed mb-4">
-              Our revenue comes from selling Openfront platforms to businesses who want true ownership. The marketplace
-              demonstrates what's possible when businesses own their infrastructure: decentralized commerce that works
-              without rent-seeking middlemen. The more businesses that run Openfront, the more powerful this model becomes.
+              Marketplace operators who fork this can charge flat listing fees, affiliate commissions, or subscriptions.
+              The model works because discovery is separate from infrastructure. What operators can't do: skim payments,
+              sell behavioral data, or hide listings behind pay-to-play algorithms.
             </p>
+            <p className="text-fd-muted-foreground leading-relaxed">
+              Our revenue: selling Openfront platforms. The more businesses that own their stack, the more valuable
+              this decentralized model becomes. Marketplaces provide discovery. Stores own everything else.
+            </p>
+          </div>
+
+          <div>
+            <h2 className="text-4xl font-semibold mb-4 font-instrument-serif">Governance With a Built-In Exit</h2>
             <p className="text-fd-muted-foreground leading-relaxed mb-4">
               <strong>"What stops you from becoming the next Amazon?"</strong>
             </p>
             <p className="text-fd-muted-foreground leading-relaxed mb-4">
-              The code is open source. If we started charging 15% or playing algorithmic favorites, anyone could
-              fork and launch a competing marketplace in an afternoon. Stores aren't locked in. They don't lose
-              reviews or rankings by connecting to a different marketplace. The power is structural, not just philosophical.
+              Our moat is making sure stores never get trapped by moats. The code is open source. If we start
+              playing games, anyone can fork and compete. That's the point.
+            </p>
+            <p className="text-fd-muted-foreground leading-relaxed mb-4">
+              When new marketplaces appear, stores connect effortlessly. No new dashboards to learn. No new platforms
+              to log into. Orders from every marketplace flow directly into their existing system. A store running
+              Openfront processes orders the same way whether they come from this marketplace, ten other marketplaces,
+              or their own direct site. One system. One workflow. Infinite discovery channels.
             </p>
             <p className="text-fd-muted-foreground leading-relaxed mb-4">
               <strong>"Why would stores trust this?"</strong>
@@ -261,7 +269,7 @@ export default function EthosV8Page() {
           <div>
             <h2 className="text-4xl font-semibold mb-4 font-instrument-serif">The Path Forward</h2>
             <p className="text-fd-muted-foreground leading-relaxed mb-4">
-              The office chair story doesn't have to be yours. The $567,000 in fees doesn't have to be yours.
+              The office chair story doesn't have to be yours.
             </p>
             <p className="text-fd-muted-foreground leading-relaxed mb-4">
               <strong>If you're a merchant:</strong> Deploy Openfront or run any platform that exposes the standard
@@ -285,8 +293,19 @@ export default function EthosV8Page() {
             <p className="text-fd-muted-foreground leading-relaxed">
               This is commerce where merchants own the infrastructure, customers control their data, and discovery
               happens through open protocols instead of closed algorithms. No landlords. No gatekeepers. No one can
-              copy your success and crush you with it. Discovery doesn't have to cost anything. The question isn't
-              "can this work?" It's "why are we still paying rent?"
+              copy your success and crush you with it. Discovery doesn't have to cost anything.
+            </p>
+          </div>
+
+          <div>
+            <h2 className="text-4xl font-semibold mb-4 font-instrument-serif">The Pledge</h2>
+            <p className="text-fd-muted-foreground leading-relaxed mb-4">
+              Protocol, not permission. Discovery without rent. Exit without regret.
+            </p>
+            <p className="text-fd-muted-foreground leading-relaxed">
+              If you sell, expose the interface, keep your processor, and carry your reputation wherever you list.
+              If you curate, stand up a directory, publish your criteria, and let your taste be your advantage.
+              If you build, harden the spec, write adapters, improve tests, and fork without drama when you must.
             </p>
           </div>
         </div>

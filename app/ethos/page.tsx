@@ -1,3 +1,3 @@
-import EthosV8Page from "./v8/page";
+import EthosV9Page from "./v9/page";
 
-export default EthosV8Page;
+export default EthosV9Page;
