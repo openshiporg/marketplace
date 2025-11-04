@@ -40,6 +40,10 @@ export function generateOpenFrontCartUI(params: {
   // Generate HTML for cart items
   const cartItemsHTML = cart.lineItems?.map((item: any) => {
     const thumbnail = item.thumbnail || item.productVariant?.product?.thumbnail;
+    // Prepend store URL if thumbnail is a relative path (starts with /)
+    const thumbnailUrl = thumbnail && thumbnail.startsWith('/')
+      ? `${storeInfo.url}${thumbnail}`
+      : thumbnail;
     const productTitle = item.title || item.productVariant?.product?.title;
     const variantTitle = item.productVariant?.title;
     const unitPrice = formatPrice(item.unitPrice || 0, currencyCode);
@@ -47,8 +51,8 @@ export function generateOpenFrontCartUI(params: {
 
     return `
       <div class="cart-item flex gap-4 p-4 border-b">
-        ${thumbnail ? `
-          <img src="${thumbnail}" alt="${productTitle}"
+        ${thumbnailUrl ? `
+          <img src="${thumbnailUrl}" alt="${productTitle}"
                class="w-16 h-16 object-cover rounded border">
         ` : `
           <div class="w-16 h-16 bg-gray-200 rounded border flex items-center justify-center">
@@ -125,7 +129,7 @@ export function generateOpenFrontCartUI(params: {
     </head>
     <body>
       <div class="max-w-4xl mx-auto">
-        <div class="bg-white rounded-lg shadow border">
+        <div class="bg-gray-50 rounded-lg shadow border">
           <!-- Store Logo & Header -->
           <div class="border-b p-6">
             <p class="text-sm text-gray-500 mb-2">Your cart from</p>
@@ -165,7 +169,7 @@ export function generateOpenFrontCartUI(params: {
                 <h3 class="font-semibold text-lg">Shopping Cart</h3>
                 <p class="text-sm text-gray-600" style="opacity: 0.6;">${cart.lineItems?.length || 0} items</p>
               </div>
-              <div class="divide-y mb-6">
+              <div class="divide-y mb-6 bg-white rounded-lg border">
                 ${cartItemsHTML}
               </div>
               ${cart.lineItems?.length > 0 ? `

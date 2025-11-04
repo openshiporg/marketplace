@@ -31,16 +31,18 @@ const POPULAR_MODELS = [
 
 interface AIModelSelectorProps {
   disabled?: boolean;
+  globalModel?: string;
 }
 
-export function AIModelSelector({ disabled = false }: AIModelSelectorProps) {
+export function AIModelSelector({ disabled = false, globalModel }: AIModelSelectorProps) {
   const { config, setConfig } = useAiConfig();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [inputValue, setInputValue] = useState("");
+
   const currentModel =
     config.keyMode === "local"
       ? config.localKeys?.model || "openai/gpt-4o-mini"
-      : process.env.NEXT_PUBLIC_OPENROUTER_MODEL || "openai/gpt-4o-mini";
+      : globalModel || "openai/gpt-4o-mini";
 
   const handleModelChange = (modelSlug: string) => {
     if (config.keyMode === "local") {

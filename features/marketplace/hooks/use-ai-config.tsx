@@ -21,16 +21,24 @@ interface AiConfig {
   localKeys?: LocalKeys
 }
 
+interface SharedKeys {
+  apiKey: string
+  model: string
+  maxTokens: number
+}
+
 interface AiConfigProviderProps {
   children: React.ReactNode
   defaultConfig?: Partial<AiConfig>
   storageKey?: string
+  sharedKeys?: SharedKeys | null
 }
 
 interface AiConfigProviderState {
   config: AiConfig
   setConfig: (config: Partial<AiConfig> | ((prev: AiConfig) => Partial<AiConfig>)) => void
   isHydrated: boolean
+  sharedKeys?: SharedKeys | null
 }
 
 const isServer = typeof window === "undefined"
@@ -41,19 +49,18 @@ const AiConfigContext = React.createContext<AiConfigProviderState | undefined>(
 const defaultAiConfig: AiConfig = {
   enabled: false,
   onboarded: false,
-  keyMode: "env",
+  keyMode: "local",
   chatMode: "chatbox",
   localKeys: undefined,
 }
 
 const saveToLS = (storageKey: string, config: AiConfig) => {
   try {
-    // Save individual keys for backward compatibility
     localStorage.setItem("aiChatEnabled", config.enabled.toString())
     localStorage.setItem("aiChatOnboarded", config.onboarded.toString())
     localStorage.setItem("aiKeyMode", config.keyMode)
     localStorage.setItem("aiChatMode", config.chatMode)
-    
+
     if (config.localKeys) {
       localStorage.setItem("aiProvider", config.localKeys.provider)
       localStorage.setItem("openRouterApiKey", config.localKeys.apiKey)
@@ -63,11 +70,9 @@ const saveToLS = (storageKey: string, config: AiConfig) => {
         localStorage.setItem("aiCustomEndpoint", config.localKeys.customEndpoint)
       }
     }
-    
-    // Also save the complete config as JSON for easier future management
+
     localStorage.setItem(storageKey, JSON.stringify(config))
   } catch {
-    // Unsupported
   }
 }
 
@@ -75,22 +80,19 @@ const loadFromLS = (storageKey: string, defaultConfig: AiConfig): AiConfig => {
   if (isServer) return defaultConfig
 
   try {
-    // Try to load from new JSON format first
     const savedConfig = localStorage.getItem(storageKey)
     if (savedConfig) {
       const parsed = JSON.parse(savedConfig) as AiConfig
-      // Merge with defaultConfig but KEEP enabled/onboarded from defaultConfig if they're explicitly set to true
+      const shouldUseEnvMode = defaultConfig.keyMode === "env"
       return {
         ...defaultConfig,
         ...parsed,
-        // Override with defaultConfig if it has enabled/onboarded explicitly set
         enabled: defaultConfig.enabled || parsed.enabled,
         onboarded: defaultConfig.onboarded || parsed.onboarded,
+        keyMode: shouldUseEnvMode ? "env" : parsed.keyMode,
       }
     }
 
-    // Fallback to legacy individual keys for backward compatibility
-    // If defaultConfig has enabled/onboarded set, use those, otherwise check localStorage
     const enabled = defaultConfig.enabled || localStorage.getItem("aiChatEnabled") === "true"
     const onboarded = defaultConfig.onboarded || localStorage.getItem("aiChatOnboarded") === "true"
     const keyMode = (localStorage.getItem("aiKeyMode") as KeyMode) || defaultConfig.keyMode
@@ -112,7 +114,6 @@ const loadFromLS = (storageKey: string, defaultConfig: AiConfig): AiConfig => {
       localKeys,
     }
 
-    // Migrate to new format
     saveToLS(storageKey, config)
 
     return config
@@ -133,6 +134,7 @@ const AiConfigRoot = ({
   storageKey = "ai-config",
   defaultConfig: providedDefaults,
   children,
+  sharedKeys,
 }: AiConfigProviderProps) => {
   const defaultConfig = React.useMemo(() => ({
     ...defaultAiConfig,
@@ -163,14 +165,11 @@ const AiConfigRoot = ({
     [storageKey]
   )
 
-  // localStorage event handling for cross-tab synchronization
   React.useEffect(() => {
     const handleStorage = (e: StorageEvent) => {
       if (e.key !== storageKey && !e.key?.startsWith("ai") && !e.key?.startsWith("openRouter")) {
         return
       }
-
-      // Reload config from localStorage when it changes in another tab
       const newConfig = loadFromLS(storageKey, defaultConfig)
       setConfigState(newConfig)
     }
@@ -179,7 +178,6 @@ const AiConfigRoot = ({
     return () => window.removeEventListener("storage", handleStorage)
   }, [storageKey, defaultConfig])
 
-  // Prevent config access during hydration
   const [isHydrated, setIsHydrated] = React.useState(false)
   React.useEffect(() => {
     setIsHydrated(true)
@@ -190,8 +188,9 @@ const AiConfigRoot = ({
       config: isHydrated ? config : defaultConfig,
       setConfig,
       isHydrated,
+      sharedKeys,
     }),
-    [config, setConfig, isHydrated, defaultConfig]
+    [config, setConfig, isHydrated, defaultConfig, sharedKeys]
   )
 
   return (
@@ -203,13 +202,10 @@ const AiConfigRoot = ({
 
 const AiConfigProvider = (props: AiConfigProviderProps) => {
   const context = React.useContext(AiConfigContext)
-
-  // Ignore nested context providers, just passthrough children
   if (context) return <>{props.children}</>
   return <AiConfigRoot {...props} />
 }
 
-// Convenience hooks for common use cases
 const useAiEnabled = () => {
   const { config } = useAiConfig()
   return config.enabled && config.onboarded
@@ -239,7 +235,6 @@ const useLocalKeys = () => {
   }
 }
 
-// Legacy compatibility - matches your existing AiChatStorage interface
 const AiChatStorageCompat = {
   getConfig: (): AiConfig => {
     return loadFromLS("ai-config", defaultAiConfig)
@@ -252,12 +247,12 @@ const AiChatStorageCompat = {
   }
 }
 
-export { 
-  useAiConfig, 
-  AiConfigProvider, 
-  useAiEnabled, 
-  useAiKeyMode, 
-  useChatMode, 
+export {
+  useAiConfig,
+  AiConfigProvider,
+  useAiEnabled,
+  useAiKeyMode,
+  useChatMode,
   useLocalKeys,
   AiChatStorageCompat as AiChatStorage,
   type AiConfig,

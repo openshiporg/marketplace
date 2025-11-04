@@ -295,10 +295,12 @@ const PureAIMessage = ({
               const responseData = JSON.parse(text);
               if (!responseData.error && responseData.cart?.id) {
                 console.log('[handleUiAction] addToCart successful, asking AI to show cart');
+                const storeName = responseData.storeName || 'Store';
+                const storeId = responseData.storeId;
                 Promise.resolve().then(() => {
                   append({
                     role: 'user',
-                    content: 'Show the updated cart'
+                    content: `Please show me my cart from ${storeName} (storeId: ${storeId})`
                   });
                 });
               }

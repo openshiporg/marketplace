@@ -28,17 +28,42 @@ export const metadata: Metadata = {
   description: "AI-powered decentralized marketplace",
 };
 
-export default function RootLayout({
+// Check if ENV vars are available (server-side only)
+function checkEnvVarsAvailable() {
+  return !!(process.env.OPENROUTER_API_KEY && process.env.OPENROUTER_MODEL);
+}
+
+// Get shared keys data on the server (for display only - model name)
+function getSharedKeysData() {
+  // Check env vars directly on server
+  const hasKeys = !!(process.env.OPENROUTER_API_KEY && process.env.OPENROUTER_MODEL);
+  if (!hasKeys) return null;
+
+  return {
+    apiKey: '',
+    model: process.env.OPENROUTER_MODEL!,
+    maxTokens: process.env.OPENROUTER_MAX_TOKENS ? parseInt(process.env.OPENROUTER_MAX_TOKENS) : 4000,
+  };
+}
+
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Check ENV vars and get data server-side
+  const envVarsAvailable = checkEnvVarsAvailable();
+  const sharedKeysData = getSharedKeysData();
+
   return (
     <html lang="en">
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${instrumentSerif.variable} antialiased`}
       >
-        <AiConfigProvider defaultConfig={{ enabled: true, onboarded: true }}>
+        <AiConfigProvider
+          defaultConfig={{ enabled: true, onboarded: true, keyMode: envVarsAvailable ? "env" : "local" }}
+          sharedKeys={sharedKeysData}
+        >
           {/* Header */}
           <header className="h-16 pointer-events-none fixed top-0 right-0 left-0 z-50 bg-background/80 backdrop-blur-sm border-b border-border/40">
             <div className="relative mx-auto flex h-full max-w-full items-center justify-between px-4 sm:px-6 lg:px-8">

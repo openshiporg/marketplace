@@ -564,7 +564,7 @@ const openfrontAdapter: PlatformAdapter = {
       storeId: store.id,
       cartId,
       cart: cartData,
-      storeInfo,
+      storeInfo: { ...storeInfo, url: store.baseUrl },
       shippingOptions
     });
   },

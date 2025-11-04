@@ -14,10 +14,10 @@ import { AnimatePresence, motion } from "framer-motion";
 // UI Components
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { checkSharedKeysAvailable, getSharedKeys } from "@/features/marketplace/actions/ai-chat";
+import { checkSharedKeysAvailable } from "@/features/marketplace/actions/ai-chat";
 import { ModeSplitButton } from "../features/marketplace/components/dual-sidebar/mode-split-button";
 import { useAiConfig } from "../features/marketplace/hooks/use-ai-config";
-import { setCartId as saveCartToLocalStorage } from "@/lib/cart-storage";
+import { setCartId as saveCartToLocalStorage, removeCartId } from "@/lib/cart-storage";
 import { getAllSessions } from "@/lib/session-storage";
 import { AIActivationDialog } from "../features/marketplace/components/dual-sidebar/ai-activation-dialog";
 import { AISettingsDialog } from "../features/marketplace/components/dual-sidebar/ai-settings-dialog";
@@ -32,7 +32,7 @@ import { LogoIcon as OpenSupportIcon } from "@/components/OpensupportLogo";
 // Main AI Chat Page Component
 export default function HomePage() {
   const [user] = useState<{ name?: string } | null>(null);
-  const { config: aiConfig } = useAiConfig();
+  const { config: aiConfig, sharedKeys } = useAiConfig();
   const savedCartIds = useRef<Set<string>>(new Set()); // Track which cart IDs we've already saved
   const [cartIdsState, setCartIdsState] = useState<Record<string, string>>({}); // Track cart IDs for body
   const [sessionTokensState, setSessionTokensState] = useState<Record<string, string>>({}); // Track session tokens for body
@@ -46,12 +46,6 @@ export default function HomePage() {
     missing: { apiKey: boolean; model: boolean; maxTokens: boolean };
   } | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
-  const [, setIsLoadingSharedKeys] = useState(true);
-  const [sharedKeys, setSharedKeys] = useState<{
-    apiKey: string;
-    model: string;
-    maxTokens: number;
-  } | null>(null);
 
   // Initialize selected mode based on AI config
   useEffect(() => {
@@ -138,34 +132,14 @@ export default function HomePage() {
   useEffect(() => {
     const checkStatus = async () => {
       try {
-        setIsLoadingSharedKeys(true);
         const status = await checkSharedKeysAvailable();
         setSharedKeysStatus(status);
       } catch (error) {
         console.error("Failed to check shared keys status:", error);
-      } finally {
-        setIsLoadingSharedKeys(false);
       }
     };
     checkStatus();
   }, []);
-
-  // Fetch shared keys when in env mode
-  useEffect(() => {
-    const fetchSharedKeys = async () => {
-      if (aiConfig.keyMode === "env") {
-        try {
-          const keysResult = await getSharedKeys();
-          if (keysResult.success && keysResult.keys) {
-            setSharedKeys(keysResult.keys);
-          }
-        } catch (error) {
-          console.error("Failed to fetch shared keys:", error);
-        }
-      }
-    };
-    fetchSharedKeys();
-  }, [aiConfig.keyMode]);
 
   // Compute body for useChat based on mode
   const chatBody = useMemo(() => {
@@ -180,21 +154,18 @@ export default function HomePage() {
         cartIds: cartIdsState, // Include cart context from state
         sessionTokens: sessionTokensState, // Include session tokens from state
       };
-    } else if (aiConfig.keyMode === "env" && sharedKeys) {
+    } else if (aiConfig.keyMode === "env") {
       return {
-        useLocalKeys: true,
-        apiKey: sharedKeys.apiKey,
-        model: sharedKeys.model,
-        maxTokens: sharedKeys.maxTokens,
-        cartIds: cartIdsState, // Include cart context from state
-        sessionTokens: sessionTokensState, // Include session tokens from state
+        useGlobalKeys: true,
+        cartIds: cartIdsState,
+        sessionTokens: sessionTokensState,
       };
     }
     return {
       cartIds: cartIdsState, // Always include cart IDs even if no keys configured
       sessionTokens: sessionTokensState, // Always include session tokens even if no keys configured
     };
-  }, [aiConfig.keyMode, aiConfig.localKeys, sharedKeys, cartIdsState, sessionTokensState]);
+  }, [aiConfig.keyMode, aiConfig.localKeys, cartIdsState, sessionTokensState]);
 
   // Use the useChat hook from AI SDK
   const { messages, input, handleInputChange, handleSubmit, isLoading, append } =
@@ -280,6 +251,18 @@ export default function HomePage() {
                 try {
                   const parsedText = JSON.parse(result.content[0].text);
                   console.log('[Cart] Parsed text content:', parsedText);
+
+                  // Check if this result has clearCartId flag (from completeCart)
+                  if (parsedText.clearCartId && parsedText.storeId) {
+                    console.log('[Cart] Order completed, clearing cart ID from localStorage for store:', parsedText.storeId);
+                    removeCartId(parsedText.storeId);
+                    // Also remove from our saved cache
+                    Array.from(savedCartIds.current).forEach(key => {
+                      if (key.startsWith(`${parsedText.storeId}:`)) {
+                        savedCartIds.current.delete(key);
+                      }
+                    });
+                  }
 
                   // Check if this result has a __clientAction for saving cart ID
                   if (parsedText.__clientAction?.type === 'saveCartId') {
@@ -448,6 +431,28 @@ export default function HomePage() {
                         append={append}
                       />
                     ))}
+                    {/* Show thinking when loading and waiting for first response */}
+                    {isLoading && messages.length > 0 && messages[messages.length - 1].role === "user" && (
+                      <div className="text-base flex justify-start">
+                        <div className="w-[90%] flex flex-col space-y-3">
+                          <div className="flex items-center gap-1 text-muted-foreground">
+                            <span className="animate-pulse">Thinking...</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    {/* Also show thinking when loading and assistant message exists but has started streaming */}
+                    {isLoading && messages.length > 0 && messages[messages.length - 1].role === "assistant" && (
+                      (!messages[messages.length - 1].parts || messages[messages.length - 1].parts.length === 0) && (
+                        <div className="text-base flex justify-start">
+                          <div className="w-[90%] flex flex-col space-y-3">
+                            <div className="flex items-center gap-1 text-muted-foreground">
+                              <span className="animate-pulse">Thinking...</span>
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    )}
                   </div>
                   <ChatContainerScrollAnchor />
                   <div className="absolute bottom-4 right-4">
@@ -507,6 +512,7 @@ export default function HomePage() {
                           onSettingsClick={() => {
                             setShowSettingsDialog(true);
                           }}
+                          sharedKeys={sharedKeys}
                         />
                         <CartsDropdown
                           cartIds={cartIdsState}
@@ -551,12 +557,14 @@ export default function HomePage() {
         open={showActivationDialog}
         onOpenChange={setShowActivationDialog}
         onComplete={handleActivationComplete}
+        sharedKeysStatus={sharedKeysStatus}
       />
 
       <AISettingsDialog
         open={showSettingsDialog}
         onOpenChange={setShowSettingsDialog}
         onSave={handleSettingsSave}
+        sharedKeysStatus={sharedKeysStatus}
       />
     </div>
   );

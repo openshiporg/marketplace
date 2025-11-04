@@ -1,7 +1,7 @@
 "use client";
 
 import { CheckCircle, XCircle } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -33,7 +33,6 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { useAiConfig } from "../../hooks/use-ai-config";
-import { checkSharedKeysAvailable } from "../../actions/ai-chat";
 
 // AI Provider configurations
 const PROVIDERS = [
@@ -57,9 +56,13 @@ interface AISettingsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSave: () => void;
+  sharedKeysStatus: {
+    available: boolean;
+    missing: { apiKey: boolean; model: boolean; maxTokens: boolean };
+  } | null;
 }
 
-function AISettingsDialogInner({ onSave, onOpenChange }: { onSave: () => void; onOpenChange: (open: boolean) => void }) {
+function AISettingsDialogInner({ onSave, onOpenChange, sharedKeysStatus }: { onSave: () => void; onOpenChange: (open: boolean) => void; sharedKeysStatus: AISettingsDialogProps['sharedKeysStatus'] }) {
   // Initialize state from current storage values
   const { config, setConfig } = useAiConfig();
   const [configType, setConfigType] = useState<"global" | "local">(config.keyMode === "env" ? "global" : "local");
@@ -70,30 +73,8 @@ function AISettingsDialogInner({ onSave, onOpenChange }: { onSave: () => void; o
     maxTokens: config.localKeys?.maxTokens || "4000",
     customEndpoint: config.localKeys?.customEndpoint || "",
   });
-  const [sharedKeysStatus, setSharedKeysStatus] = useState<{
-    available: boolean;
-    missing: { apiKey: boolean; model: boolean; maxTokens: boolean };
-  } | null>(null);
-  const [isLoadingSharedKeys, setIsLoadingSharedKeys] = useState(true);
   const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
   const [isProviderDropdownOpen, setIsProviderDropdownOpen] = useState(false);
-
-  // Check shared keys availability on mount
-  useEffect(() => {
-    const checkKeys = async () => {
-      setIsLoadingSharedKeys(true);
-      try {
-        const status = await checkSharedKeysAvailable();
-        setSharedKeysStatus(status);
-      } catch (error) {
-        console.error("Failed to check shared keys:", error);
-        setSharedKeysStatus({ available: false, missing: { apiKey: true, model: true, maxTokens: true } });
-      } finally {
-        setIsLoadingSharedKeys(false);
-      }
-    };
-    checkKeys();
-  }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -162,11 +143,7 @@ function AISettingsDialogInner({ onSave, onOpenChange }: { onSave: () => void; o
               {/* Global Configuration - Show Available Keys */}
               {configType === "global" && (
                 <div className="mt-6">
-                  {isLoadingSharedKeys ? (
-                    <div className="p-3 bg-muted/50 rounded-lg">
-                      <p className="text-sm text-muted-foreground">Checking configuration...</p>
-                    </div>
-                  ) : sharedKeysStatus ? (
+                  {sharedKeysStatus ? (
                     <>
                       <p className="text-xs text-muted-foreground">
                         {sharedKeysStatus.available 
@@ -490,19 +467,20 @@ function AISettingsDialogInner({ onSave, onOpenChange }: { onSave: () => void; o
   );
 }
 
-export function AISettingsDialog({ open, onOpenChange, onSave }: AISettingsDialogProps) {
+export function AISettingsDialog({ open, onOpenChange, onSave, sharedKeysStatus }: AISettingsDialogProps) {
   // Use the open state as key to remount component when dialog opens
   // This ensures fresh state from storage without useEffect
   if (!open) {
     return null;
   }
-  
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <AISettingsDialogInner 
-        key={open ? 'open' : 'closed'} 
-        onSave={onSave} 
-        onOpenChange={onOpenChange} 
+      <AISettingsDialogInner
+        key={open ? 'open' : 'closed'}
+        onSave={onSave}
+        onOpenChange={onOpenChange}
+        sharedKeysStatus={sharedKeysStatus}
       />
     </Dialog>
   );

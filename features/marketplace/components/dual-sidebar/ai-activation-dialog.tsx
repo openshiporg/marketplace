@@ -1,7 +1,7 @@
 "use client";
 
 import { Bot, CheckCircle, XCircle } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -34,7 +34,6 @@ import {
 } from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
 import { useAiConfig } from "../../hooks/use-ai-config";
-import { getSharedKeys, checkSharedKeysAvailable } from "../../actions/ai-chat";
 
 // Provider options
 const PROVIDERS = [
@@ -59,19 +58,18 @@ interface AIActivationDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onComplete: () => void;
+  sharedKeysStatus: {
+    available: boolean;
+    missing: { apiKey: boolean; model: boolean; maxTokens: boolean };
+  } | null;
 }
 
-export function AIActivationDialog({ open, onOpenChange, onComplete }: AIActivationDialogProps) {
+export function AIActivationDialog({ open, onOpenChange, onComplete, sharedKeysStatus }: AIActivationDialogProps) {
   const { setConfig } = useAiConfig();
   const [configType, setConfigType] = useState<"global" | "local">("global");
   const [confirmationText, setConfirmationText] = useState("");
-  const [sharedKeysStatus, setSharedKeysStatus] = useState<{
-    available: boolean;
-    missing: { apiKey: boolean; model: boolean; maxTokens: boolean };
-  } | null>(null);
-  const [isLoadingSharedKeys, setIsLoadingSharedKeys] = useState(true);
   const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
-  
+
   // Local keys state
   const [localKeys, setLocalKeys] = useState({
     provider: "openrouter" as "openrouter" | "ai-gateway" | "custom",
@@ -80,25 +78,6 @@ export function AIActivationDialog({ open, onOpenChange, onComplete }: AIActivat
     model: "openai/gpt-4o-mini",
     maxTokens: "4000"
   });
-
-  // Check shared keys availability on mount
-  useEffect(() => {
-    if (open) {
-      const checkKeys = async () => {
-        setIsLoadingSharedKeys(true);
-        try {
-          const status = await checkSharedKeysAvailable();
-          setSharedKeysStatus(status);
-        } catch (error) {
-          console.error("Failed to check shared keys:", error);
-          setSharedKeysStatus({ available: false, missing: { apiKey: true, model: true, maxTokens: true } });
-        } finally {
-          setIsLoadingSharedKeys(false);
-        }
-      };
-      checkKeys();
-    }
-  }, [open]);
 
   const canSubmit = () => {
     if (configType === "global") {
@@ -239,11 +218,7 @@ export function AIActivationDialog({ open, onOpenChange, onComplete }: AIActivat
                   {/* Global Configuration - Show Available Keys */}
                   {configType === "global" && (
                     <div className="mt-6">
-                      {isLoadingSharedKeys ? (
-                        <div className="p-3 bg-muted/50 rounded-lg">
-                          <p className="text-sm text-muted-foreground">Checking configuration...</p>
-                        </div>
-                      ) : sharedKeysStatus ? (
+                      {sharedKeysStatus ? (
                         <>
                           <p className="text-xs text-muted-foreground">
                             {sharedKeysStatus.available 

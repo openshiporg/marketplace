@@ -143,11 +143,24 @@ export async function POST(req: Request) {
       messages = messages.slice(-MAX_MESSAGES);
     }
 
-    // Require API key to be provided in request
-    if (!body.useLocalKeys || !body.apiKey) {
+    let apiKey: string;
+    if (body.useGlobalKeys) {
+      apiKey = process.env.OPENROUTER_API_KEY || '';
+      if (!apiKey) {
+        return new Response(JSON.stringify({
+          error: 'Global API key not configured',
+          details: 'OPENROUTER_API_KEY environment variable is not set'
+        }), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+    } else if (body.useLocalKeys && body.apiKey) {
+      apiKey = body.apiKey;
+    } else {
       return new Response(JSON.stringify({
         error: 'API key is required',
-        details: 'API key must be provided in request body'
+        details: 'Either set useGlobalKeys=true or provide apiKey in request body'
       }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' }
@@ -155,7 +168,7 @@ export async function POST(req: Request) {
     }
 
     const openrouterConfig = {
-      apiKey: body.apiKey,
+      apiKey: apiKey,
       baseURL: 'https://openrouter.ai/api/v1',
     };
 
@@ -185,19 +198,25 @@ export async function POST(req: Request) {
     // Create OpenRouter client with current configuration
     const openrouter = createOpenAI(openrouterConfig);
 
-    // Require model to be provided in request
-    if (!body.model) {
-      return new Response(JSON.stringify({
-        error: 'Model is required',
-        details: 'Model must be provided in request body'
-      }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
+    let model: string;
+    let maxTokens: number | undefined;
 
-    const model = body.model;
-    const maxTokens = body.maxTokens ? parseInt(body.maxTokens) : undefined;
+    if (body.useGlobalKeys) {
+      model = process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini';
+      maxTokens = process.env.OPENROUTER_MAX_TOKENS ? parseInt(process.env.OPENROUTER_MAX_TOKENS) : 4000;
+    } else {
+      if (!body.model) {
+        return new Response(JSON.stringify({
+          error: 'Model is required',
+          details: 'Model must be provided in request body when using local keys'
+        }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+      model = body.model;
+      maxTokens = body.maxTokens ? parseInt(body.maxTokens) : undefined;
+    }
 
     // Debug logging
     console.log('Starting completion request:', {

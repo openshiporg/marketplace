@@ -1431,11 +1431,11 @@ export async function handleProductTools(name: string, args: any, cookie: string
             }).join('');
 
             return `
-              <div class="store-section border rounded-lg bg-white shadow-sm p-6 mb-6">
+              <div class="store-section border rounded-lg bg-gray-50 shadow-sm p-6 mb-6">
                 <div class="flex items-center gap-3 mb-6">
                   ${storeData.logoIcon ? `
                     <div class="w-10 h-10 rounded-lg flex items-center justify-center text-white text-xl font-bold"
-                         style="background-color: ${storeData.logoColor || '#000'}">
+                         style="background-color: ${storeData.logoColor || '#000'}; filter: hue-rotate(${storeData.logoColor || '0'}deg);">
                       <div style="color: white;">
                         ${storeData.logoIcon}
                       </div>

@@ -42,6 +42,11 @@ export function SimpleSettingsPopover({ disabled = false }: SimpleSettingsPopove
   const [apiKey, setApiKey] = useState("");
   const [maxTokens, setMaxTokens] = useState("4000");
 
+  // Check if we should show warning (local mode but no API key)
+  const isLocalMode = config.keyMode === "local";
+  const hasApiKey = !!(config.localKeys?.apiKey);
+  const showWarning = isLocalMode && !hasApiKey;
+
   // Sync with current config when popover opens
   useEffect(() => {
     if (open) {
@@ -72,7 +77,12 @@ export function SimpleSettingsPopover({ disabled = false }: SimpleSettingsPopove
     <button
       type="button"
       disabled={disabled}
-      className="inline-flex items-center justify-center whitespace-nowrap text-sm font-medium transition-[color,box-shadow] disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive text-secondary-foreground shadow-xs hover:bg-secondary/80 dark:border-none gap-1.5 px-3 has-[>svg]:px-2.5 border-border dark:bg-secondary size-8 rounded-full border bg-transparent"
+      className={`inline-flex items-center justify-center whitespace-nowrap text-sm font-medium transition-[color,box-shadow] disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive shadow-xs dark:border-none gap-1.5 px-3 has-[>svg]:px-2.5 size-8 rounded-full border
+        ${showWarning
+          ? "bg-red-500/15 text-red-700 dark:bg-red-500/10 dark:text-red-400 border-red-200 dark:border-red-800/50 hover:bg-red-500/20"
+          : "text-secondary-foreground hover:bg-secondary/80 border-border dark:bg-secondary bg-transparent"
+        }`
+      }
     >
       <Settings2 className="size-3.5" />
     </button>
