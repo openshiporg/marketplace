@@ -25,9 +25,6 @@ IMPORTANT COUNTRY SELECTION LOGIC:
 4. If "us" doesn't exist, use the countryCode of the FIRST country in the list
 5. Then call searchProducts with that countryCode
 
-CRITICAL: After showing the products, you MUST include this message in your response to the user:
-"📍 Showing products available in [COUNTRY NAME] with pricing in [CURRENCY]. Products and prices vary by region. Need a different country? Just ask!"
-
 Replace [COUNTRY NAME] and [CURRENCY] with the actual values. This message is REQUIRED in every response. Look for the text content in the tool result for the exact message to include.`,
     inputSchema: {
       type: 'object',
@@ -664,11 +661,11 @@ export async function handleProductTools(name: string, args: any, cookie: string
       encoding: 'text',
     });
 
-    // Add informative text about regional pricing
-    const infoText = {
-      type: 'text',
-      text: `\n\n📍 Showing products available in ${countryName} with pricing in ${currency}. Products and prices vary by region. Need a different country? Just ask!`
-    };
+    // // Add informative text about regional pricing
+    // const infoText = {
+    //   type: 'text',
+    //   text: `\n\n📍 Showing products available in ${countryName} with pricing in ${currency}. Products and prices vary by region. Need a different country? Just ask!`
+    // };
 
     return {
       jsonrpc: '2.0',

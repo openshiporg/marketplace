@@ -20,6 +20,9 @@ interface AIMessageProps {
   status: "error" | "submitted" | "streaming" | "ready";
   isLatestMessage: boolean;
   append: UseChatHelpers["append"];
+  stop: UseChatHelpers["stop"];
+  setMessages: UseChatHelpers["setMessages"];
+  messages: UseChatHelpers["messages"];
 }
 
 const PureAIMessage = ({
@@ -28,6 +31,9 @@ const PureAIMessage = ({
   status,
   isLatestMessage,
   append,
+  stop,
+  setMessages,
+  messages,
 }: AIMessageProps) => {
   const handleUiAction = useCallback(async (actionResult: any) => {
     const { messageId, type, payload } = actionResult;
@@ -287,21 +293,78 @@ const PureAIMessage = ({
           console.error('[handleUiAction] Error processing __clientAction:', e);
         }
 
-        // For cart modifications from product UI, ask AI to show cart
+        // For cart modifications from product UI, directly call viewCart tool
         if (payload.toolName === 'addToCart') {
           try {
             const text = result?.result?.content?.[0]?.text;
             if (text) {
               const responseData = JSON.parse(text);
               if (!responseData.error && responseData.cart?.id) {
-                console.log('[handleUiAction] addToCart successful, asking AI to show cart');
-                const storeName = responseData.storeName || 'Store';
+                console.log('[handleUiAction] addToCart successful, calling viewCart directly');
                 const storeId = responseData.storeId;
-                Promise.resolve().then(() => {
-                  append({
-                    role: 'user',
-                    content: `Please show me my cart from ${storeName} (storeId: ${storeId})`
-                  });
+                const cartId = responseData.cart.id;
+
+                // Build headers with cart IDs and session token
+                let xCartIds = '{}';
+                try {
+                  const carts = getAllCarts();
+                  const ids: Record<string, string> = {};
+                  Object.entries(carts).forEach(([k, v]: any) => { if (v?.cartId) ids[k] = v.cartId; });
+                  xCartIds = JSON.stringify(ids);
+                } catch {}
+
+                const token = getSessionToken(storeId);
+                const viewCartHeaders: Record<string, string> = {
+                  'Content-Type': 'application/json',
+                  'x-cart-ids': xCartIds,
+                };
+                if (token) viewCartHeaders['Authorization'] = `Bearer ${token}`;
+
+                // Call viewCart tool directly
+                Promise.resolve().then(async () => {
+                  try {
+                    const viewCartResponse = await fetch('/api/mcp-transport/http', {
+                      method: 'POST',
+                      headers: viewCartHeaders,
+                      credentials: 'include',
+                      body: JSON.stringify({
+                        jsonrpc: '2.0',
+                        id: `view-cart-${Date.now()}`,
+                        method: 'tools/call',
+                        params: {
+                          name: 'viewCart',
+                          arguments: { storeId, cartId },
+                        },
+                      }),
+                    });
+
+                    const viewCartResult = await viewCartResponse.json();
+                    console.log('[handleUiAction] viewCart called directly:', viewCartResult);
+
+                    // Manually construct a message that looks like the AI called viewCart
+                    // This will be rendered as a tool invocation with the UI resource
+                    if (viewCartResult.result) {
+                      // Stop any ongoing streaming before showing the cart view
+                      // This prevents the cart UI from being pushed away by streaming messages
+                      stop();
+
+                      const toolCallId = `call_${Date.now()}`;
+                      setMessages([...messages, {
+                        id: `msg-${Date.now()}`,
+                        role: 'assistant',
+                        content: '',
+                        toolInvocations: [{
+                          state: 'result',
+                          toolCallId,
+                          toolName: 'viewCart',
+                          args: { storeId, cartId },
+                          result: viewCartResult.result,
+                        }],
+                      } as any]);
+                    }
+                  } catch (e) {
+                    console.error('[handleUiAction] Error calling viewCart directly:', e);
+                  }
                 });
               }
             }
@@ -327,7 +390,7 @@ const PureAIMessage = ({
     }
 
     return Promise.resolve({ status: 'ok' });
-  }, [append]);
+  }, [append, stop, setMessages, messages]);
 
   return (
     <div
@@ -481,6 +544,9 @@ export const AIMessage = memo(PureAIMessage, (prevProps, nextProps) => {
   if (prevProps.isLoading !== nextProps.isLoading) return false;
   if (prevProps.isLatestMessage !== nextProps.isLatestMessage) return false;
   if (prevProps.append !== nextProps.append) return false;
+  if (prevProps.stop !== nextProps.stop) return false;
+  if (prevProps.setMessages !== nextProps.setMessages) return false;
+  if (prevProps.messages !== nextProps.messages) return false;
   if (prevProps.message.annotations !== nextProps.message.annotations) return false;
   if (!equal(prevProps.message.parts, nextProps.message.parts)) return false;
   return true;

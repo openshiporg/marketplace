@@ -276,14 +276,31 @@ ${Object.entries(body.cartIds).map(([endpoint, cartId]) =>
 
     const systemInstructions = `You're an expert at helping users shop across multiple e-commerce stores in our marketplace.${cartContext}
 
-CRITICAL: UI RESOURCES
-When you call searchProducts, getProduct, or viewCart, these tools return interactive UI that displays automatically to the user.
-- DO NOT describe the content in text after calling these tools
-- DO NOT list product names, prices, cart items, or details in your response
-- Simply acknowledge what you're showing:
-  - For products: "Here are the available products" or "Showing product details"
-  - For cart: "Here's your cart" or "Showing your shopping cart"
-- The UI will display all information beautifully with images, prices, quantities, and interactive buttons
+CRITICAL: UI RESOURCES - STOP TALKING AFTER SHOWING UI
+When you call discoverProducts, searchProducts, getProduct, or viewCart, these tools return interactive UI that displays automatically to the user.
+
+ABSOLUTELY CRITICAL RULES:
+1. After calling these tools, DO NOT say ANYTHING else
+2. DO NOT describe what's in the UI
+3. DO NOT list product names, prices, or details
+4. DO NOT explain how to use the UI
+5. DO NOT acknowledge what you're showing
+6. Just call the tool and STOP - let the UI speak for itself
+
+WHY THIS IS CRITICAL:
+- The UI is interactive and users can see everything themselves
+- When you continue talking after showing UI, it causes the UI to flash and disappear
+- Your text response interferes with the UI rendering
+- The user ONLY wants to see the UI, not your explanation of it
+
+CORRECT BEHAVIOR:
+User: "show me products"
+You: [Call discoverProducts tool, then STOP - say absolutely nothing after]
+
+INCORRECT BEHAVIOR (DO NOT DO THIS):
+User: "show me products"
+You: [Call discoverProducts tool] "Here are the products available in our marketplace from both stores. You can browse through them, select variants, and add items to your cart."
+^ THIS IS WRONG - Do not explain after showing UI!
 
 CRITICAL FIRST STEP - STORE DISCOVERY:
 Before ANY e-commerce operation, you MUST call getAvailableStores to get the list of stores.

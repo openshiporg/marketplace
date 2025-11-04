@@ -168,7 +168,7 @@ export default function HomePage() {
   }, [aiConfig.keyMode, aiConfig.localKeys, cartIdsState, sessionTokensState]);
 
   // Use the useChat hook from AI SDK
-  const { messages, input, handleInputChange, handleSubmit, isLoading, append } =
+  const { messages, input, handleInputChange, handleSubmit, isLoading, append, stop, setMessages } =
     useChat({
       api: "/api/completion",
       body: chatBody,
@@ -199,18 +199,140 @@ export default function HomePage() {
     }
   };
 
-  const handleSuggestionClick = (suggestion: string) => {
-    append({
-      role: "user",
-      content: suggestion,
-    });
+  const handleSuggestionClick = async (suggestion: string) => {
+    // Check if this is the "Show me all available products" suggestion
+    if (suggestion.toLowerCase().includes("show me all available products")) {
+      // Stop any ongoing streaming
+      stop();
+
+      // Call discoverProducts MCP tool directly
+      try {
+        const discoverResponse = await fetch('/api/mcp-transport/http', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({
+            jsonrpc: '2.0',
+            id: `discover-products-${Date.now()}`,
+            method: 'tools/call',
+            params: {
+              name: 'discoverProducts',
+              arguments: {},
+            },
+          }),
+        });
+
+        const discoverResult = await discoverResponse.json();
+
+        // Add the discoverProducts UI as an assistant message using setMessages
+        if (discoverResult.result) {
+          const toolCallId = `call_${Date.now()}`;
+          setMessages([...messages, {
+            id: `msg-${Date.now()}`,
+            role: 'assistant',
+            content: '',
+            toolInvocations: [{
+              state: 'result',
+              toolCallId,
+              toolName: 'discoverProducts',
+              args: {},
+              result: discoverResult.result,
+            }],
+          } as any]);
+        }
+      } catch (error) {
+        console.error('[handleSuggestionClick] Error calling discoverProducts directly:', error);
+        // Fallback to AI if direct call fails
+        append({
+          role: "user",
+          content: suggestion,
+        });
+      }
+    } else {
+      // For other suggestions, send to AI as before
+      append({
+        role: "user",
+        content: suggestion,
+      });
+    }
   };
 
-  const handleCartSelect = (storeName: string, storeId: string) => {
-    append({
-      role: "user",
-      content: `Please show me my cart from ${storeName} (storeId: ${storeId})`,
-    });
+  const handleCartSelect = async (storeName: string, storeId: string) => {
+    // Get cart ID for this store
+    const cartId = cartIdsState[storeId];
+    if (!cartId) {
+      // No cart exists for this store yet
+      append({
+        role: "user",
+        content: `Please show me my cart from ${storeName} (storeId: ${storeId})`,
+      });
+      return;
+    }
+
+    // Stop any ongoing streaming before showing cart
+    stop();
+
+    // Call viewCart MCP tool directly
+    try {
+      // Build headers with cart IDs and session token
+      let xCartIds = '{}';
+      try {
+        const ids: Record<string, string> = {};
+        Object.entries(cartIdsState).forEach(([k, v]) => { if (v) ids[k] = v; });
+        xCartIds = JSON.stringify(ids);
+      } catch {}
+
+      const sessionTokens = getAllSessions();
+      const token = sessionTokens[storeId];
+      const viewCartHeaders: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'x-cart-ids': xCartIds,
+      };
+      if (token) viewCartHeaders['Authorization'] = `Bearer ${token}`;
+
+      const viewCartResponse = await fetch('/api/mcp-transport/http', {
+        method: 'POST',
+        headers: viewCartHeaders,
+        credentials: 'include',
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: `view-cart-${Date.now()}`,
+          method: 'tools/call',
+          params: {
+            name: 'viewCart',
+            arguments: { storeId, cartId },
+          },
+        }),
+      });
+
+      const viewCartResult = await viewCartResponse.json();
+
+      // Add the viewCart UI as an assistant message using setMessages
+      if (viewCartResult.result) {
+        const toolCallId = `call_${Date.now()}`;
+        setMessages([...messages, {
+          id: `msg-${Date.now()}`,
+          role: 'assistant',
+          content: '',
+          toolInvocations: [{
+            state: 'result',
+            toolCallId,
+            toolName: 'viewCart',
+            args: { storeId, cartId },
+            result: viewCartResult.result,
+          }],
+        } as any]);
+      }
+    } catch (error) {
+      console.error('[handleCartSelect] Error calling viewCart directly:', error);
+      // Fallback to AI if direct call fails
+      append({
+        role: "user",
+        content: `Please show me my cart from ${storeName} (storeId: ${storeId})`,
+      });
+    }
   };
 
   // Listen for postMessage events from MCP UI (e.g., product cards)
@@ -429,6 +551,9 @@ export default function HomePage() {
                         status={isLoading ? "streaming" : "ready"}
                         isLatestMessage={index === messages.length - 1}
                         append={append}
+                        stop={stop}
+                        setMessages={setMessages}
+                        messages={messages}
                       />
                     ))}
                     {/* Show thinking when loading and waiting for first response */}
