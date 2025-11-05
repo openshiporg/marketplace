@@ -633,29 +633,52 @@ export function generateOpenFrontCartUI(params: {
         }
 
         function processStripePayment() {
+          const messageId = 'stripe-payment-' + Date.now();
+
           window.parent.postMessage({
-            type: 'prompt',
+            type: 'tool',
+            messageId: messageId,
             payload: {
-              prompt: 'I want to pay with Stripe'
+              toolName: 'initiatePaymentSession',
+              params: {
+                storeId,
+                cartId,
+                paymentProvider: 'stripe'
+              }
             }
           }, '*');
         }
 
         function processPayPalPayment() {
+          const messageId = 'paypal-payment-' + Date.now();
+
           window.parent.postMessage({
-            type: 'prompt',
+            type: 'tool',
+            messageId: messageId,
             payload: {
-              prompt: 'I want to pay with PayPal'
+              toolName: 'initiatePaymentSession',
+              params: {
+                storeId,
+                cartId,
+                paymentProvider: 'paypal'
+              }
             }
           }, '*');
         }
 
         function goToStoreCheckout() {
-          // Use a natural sentence; AI will call getCheckoutLink per tool description
+          const messageId = 'checkout-link-' + Date.now();
+
           window.parent.postMessage({
-            type: 'prompt',
+            type: 'tool',
+            messageId: messageId,
             payload: {
-              prompt: "I want to check out on ${storeDisplayName} website."
+              toolName: 'getCheckoutLink',
+              params: {
+                storeId,
+                cartId,
+                countryCode: '${cart.region?.countries?.[0]?.iso2 || "us"}'
+              }
             }
           }, '*');
         }
@@ -1014,11 +1037,31 @@ export function generateOpenFrontEmailConflictUI(params: {
           if (!selectedOption) return;
 
           if (selectedOption === 'signin') {
-            // Send message to AI to request login form (pass address data via metadata)
+            // Call loginUser MCP tool directly with address data
+            const messageId = 'login-' + Date.now();
+
             window.parent.postMessage({
-              type: 'prompt',
+              type: 'tool',
+              messageId: messageId,
               payload: {
-                prompt: "I'll provide my login credentials"
+                toolName: 'loginUser',
+                params: {
+                  storeId: '${storeId}',
+                  email: '${email}',
+                  message: 'Sign in to continue with your order',
+                  cartId: '${cartId}',
+                  addressData: {
+                    firstName: '${firstName}',
+                    lastName: '${lastName}',
+                    address1: '${address1}',
+                    city: '${city}',
+                    postalCode: '${postalCode}',
+                    countryCode: '${countryCode}',
+                    province: '${province}',
+                    company: '${company}',
+                    phone: '${phone}'
+                  }
+                }
               }
             }, '*');
           } else if (selectedOption === 'different-email') {

@@ -14,6 +14,8 @@ import {
 import { cn } from '@/lib/utils';
 import type { UseChatHelpers } from '@ai-sdk/react';
 import { PaymentUI } from './payment/payment-ui';
+import { getAllCarts, removeCartId } from '@/lib/cart-storage';
+import { getSessionToken } from '@/lib/session-storage';
 
 interface ToolInvocationProps {
   toolName: string;
@@ -53,14 +55,101 @@ export const ToolInvocation = memo(function ToolInvocation({
     }
   }
 
+  const [paymentCompleted, setPaymentCompleted] = useState(false);
+  const [completingOrder, setCompletingOrder] = useState(false);
+  const [orderUrl, setOrderUrl] = useState<string | null>(null);
+
   const handlePaymentComplete = async (paymentSessionId: string, paypalOrderId?: string) => {
-    console.log('Payment completed:', { paymentSessionId, paypalOrderId });
-    // Trigger a message to complete the cart
-    if (append) {
-      append({
-        role: 'user',
-        content: `Please complete my order with payment session ${paymentSessionId}${paypalOrderId ? ` and PayPal order ${paypalOrderId}` : ''}`,
+    console.log('[Payment] Payment confirmed, completing cart...', { paymentSessionId, paypalOrderId });
+    setCompletingOrder(true);
+
+    try {
+      // Extract cartId and storeId from paymentData
+      const cartId = paymentData?.cart?.id;
+      const storeId = paymentData?.storeId;
+
+      if (!cartId || !storeId) {
+        console.error('[Payment] Missing cart or store ID');
+        setCompletingOrder(false);
+        return;
+      }
+
+      // Build headers with cart IDs and session token
+      let xCartIds = '{}';
+      try {
+        const carts = getAllCarts();
+        const ids: Record<string, string> = {};
+        Object.entries(carts).forEach(([k, v]: any) => { if (v?.cartId) ids[k] = v.cartId; });
+        xCartIds = JSON.stringify(ids);
+      } catch {}
+
+      const token = getSessionToken(storeId);
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'x-cart-ids': xCartIds,
+      };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      // Call completeCart MCP tool directly
+      const response = await fetch('/api/mcp-transport/http', {
+        method: 'POST',
+        headers,
+        credentials: 'include',
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: `complete-cart-${Date.now()}`,
+          method: 'tools/call',
+          params: {
+            name: 'completeCart',
+            arguments: {
+              storeId,
+              cartId,
+              paymentSessionId,
+              ...(paypalOrderId && { paypalOrderId })
+            },
+          },
+        }),
       });
+
+      const completeResult = await response.json();
+      console.log('[Payment] Cart completion result:', completeResult);
+
+      if (completeResult.result) {
+        // Parse the result to get the order details
+        const text = completeResult.result?.content?.[0]?.text;
+        console.log('[Payment] Raw completion result text:', text);
+
+        if (text) {
+          const orderData = JSON.parse(text);
+          console.log('[Payment] Order completed successfully:', orderData);
+          console.log('[Payment] Checking clearCartId:', {
+            clearCartId: orderData.clearCartId,
+            storeId,
+            shouldClear: orderData.clearCartId && storeId
+          });
+
+          // Store the order URL for the success button
+          if (orderData.redirectUrl) {
+            setOrderUrl(orderData.redirectUrl);
+          }
+
+          // Clear cart ID from localStorage since order is complete
+          if (orderData.clearCartId && storeId) {
+            console.log('[Payment] Calling removeCartId for store:', storeId);
+            removeCartId(storeId);
+            console.log('[Payment] removeCartId called successfully');
+          } else {
+            console.warn('[Payment] NOT clearing cart - clearCartId:', orderData.clearCartId, 'storeId:', storeId);
+          }
+
+          // Mark payment as completed
+          setPaymentCompleted(true);
+        }
+      }
+    } catch (error) {
+      console.error('[Payment] Error completing cart:', error);
+    } finally {
+      setCompletingOrder(false);
     }
   };
 
@@ -155,6 +244,9 @@ export const ToolInvocation = memo(function ToolInvocation({
             publishableKey={paymentData.publishableKey}
             storeId={paymentData.storeId}
             onPaymentComplete={handlePaymentComplete}
+            paymentCompleted={paymentCompleted}
+            completingOrder={completingOrder}
+            orderUrl={orderUrl}
           />
         </div>
       )}

@@ -62,6 +62,7 @@ export default function HomePage() {
     const loadCartIds = () => {
       try {
         const cartStorage = localStorage.getItem('openfront_marketplace_carts');
+        console.log('[AI Chat] loadCartIds called - Raw storage:', cartStorage);
         if (cartStorage) {
           const parsed = JSON.parse(cartStorage);
           const cartIds: Record<string, string> = {};
@@ -70,8 +71,12 @@ export default function HomePage() {
               cartIds[endpoint] = data.cartId;
             }
           });
+          console.log('[AI Chat] Setting cart IDs state to:', cartIds);
           setCartIdsState(cartIds);
           console.log('[AI Chat] Loaded cart IDs from localStorage:', cartIds);
+        } else {
+          console.log('[AI Chat] No cart storage found, setting empty state');
+          setCartIdsState({});
         }
       } catch (error) {
         console.error('[AI Chat] Error loading cart IDs:', error);
@@ -85,7 +90,10 @@ export default function HomePage() {
     window.addEventListener('storage', loadCartIds);
 
     // Also listen for custom event when cart is saved within same tab
-    const handleCartUpdate = () => loadCartIds();
+    const handleCartUpdate = (event?: any) => {
+      console.log('[AI Chat] cartUpdated event received:', event?.detail);
+      loadCartIds();
+    };
     window.addEventListener('cartUpdated', handleCartUpdate);
 
     return () => {
@@ -260,21 +268,12 @@ export default function HomePage() {
   };
 
   const handleCartSelect = async (storeName: string, storeId: string) => {
-    // Get cart ID for this store
-    const cartId = cartIdsState[storeId];
-    if (!cartId) {
-      // No cart exists for this store yet
-      append({
-        role: "user",
-        content: `Please show me my cart from ${storeName} (storeId: ${storeId})`,
-      });
-      return;
-    }
-
     // Stop any ongoing streaming before showing cart
     stop();
 
-    // Call viewCart MCP tool directly
+    // Get cart ID for this store
+    let cartId = cartIdsState[storeId];
+
     try {
       // Build headers with cart IDs and session token
       let xCartIds = '{}';
@@ -286,15 +285,56 @@ export default function HomePage() {
 
       const sessionTokens = getAllSessions();
       const token = sessionTokens[storeId];
-      const viewCartHeaders: Record<string, string> = {
+      const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         'x-cart-ids': xCartIds,
       };
-      if (token) viewCartHeaders['Authorization'] = `Bearer ${token}`;
+      if (token) headers['Authorization'] = `Bearer ${token}`;
 
+      // If no cart exists, create one first
+      if (!cartId) {
+        console.log('[handleCartSelect] No cart exists for store, creating one...');
+
+        const createCartResponse = await fetch('/api/mcp-transport/http', {
+          method: 'POST',
+          headers,
+          credentials: 'include',
+          body: JSON.stringify({
+            jsonrpc: '2.0',
+            id: `get-or-create-cart-${Date.now()}`,
+            method: 'tools/call',
+            params: {
+              name: 'getOrCreateCart',
+              arguments: { storeId, countryCode: 'us' },
+            },
+          }),
+        });
+
+        const createCartResult = await createCartResponse.json();
+        console.log('[handleCartSelect] getOrCreateCart result:', createCartResult);
+
+        // Extract cart ID from the result
+        if (createCartResult.result?.content?.[0]?.text) {
+          const cartData = JSON.parse(createCartResult.result.content[0].text);
+          cartId = cartData.cart?.id;
+
+          // Save cart ID if we got a __clientAction
+          if (cartData.__clientAction?.type === 'saveCartId' && cartData.__clientAction.cartId) {
+            cartId = cartData.__clientAction.cartId;
+          }
+
+          console.log('[handleCartSelect] Created/retrieved cart:', cartId);
+        }
+
+        if (!cartId) {
+          throw new Error('Failed to create or retrieve cart');
+        }
+      }
+
+      // Now call viewCart with the cart ID
       const viewCartResponse = await fetch('/api/mcp-transport/http', {
         method: 'POST',
-        headers: viewCartHeaders,
+        headers,
         credentials: 'include',
         body: JSON.stringify({
           jsonrpc: '2.0',
@@ -308,6 +348,7 @@ export default function HomePage() {
       });
 
       const viewCartResult = await viewCartResponse.json();
+      console.log('[handleCartSelect] viewCart result:', viewCartResult);
 
       // Add the viewCart UI as an assistant message using setMessages
       if (viewCartResult.result) {
@@ -326,7 +367,7 @@ export default function HomePage() {
         } as any]);
       }
     } catch (error) {
-      console.error('[handleCartSelect] Error calling viewCart directly:', error);
+      console.error('[handleCartSelect] Error:', error);
       // Fallback to AI if direct call fails
       append({
         role: "user",

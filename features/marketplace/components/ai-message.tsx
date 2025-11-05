@@ -35,6 +35,70 @@ const PureAIMessage = ({
   setMessages,
   messages,
 }: AIMessageProps) => {
+  // Helper function to call viewCart directly
+  const callViewCartDirectly = async (storeId: string, cartId: string) => {
+    try {
+      console.log('[callViewCartDirectly] Calling viewCart for:', { storeId, cartId });
+
+      // Build headers with cart IDs and session token
+      let xCartIds = '{}';
+      try {
+        const carts = getAllCarts();
+        const ids: Record<string, string> = {};
+        Object.entries(carts).forEach(([k, v]: any) => { if (v?.cartId) ids[k] = v.cartId; });
+        xCartIds = JSON.stringify(ids);
+      } catch {}
+
+      const token = getSessionToken(storeId);
+      const viewCartHeaders: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'x-cart-ids': xCartIds,
+      };
+      if (token) viewCartHeaders['Authorization'] = `Bearer ${token}`;
+
+      // Call viewCart tool directly
+      const viewCartResponse = await fetch('/api/mcp-transport/http', {
+        method: 'POST',
+        headers: viewCartHeaders,
+        credentials: 'include',
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: `view-cart-${Date.now()}`,
+          method: 'tools/call',
+          params: {
+            name: 'viewCart',
+            arguments: { storeId, cartId },
+          },
+        }),
+      });
+
+      const viewCartResult = await viewCartResponse.json();
+      console.log('[callViewCartDirectly] viewCart result:', viewCartResult);
+
+      if (viewCartResult.result) {
+        // Stop any ongoing streaming before showing the cart view
+        stop();
+
+        const toolCallId = `call_${Date.now()}`;
+        // Use callback to get fresh messages array instead of stale closure reference
+        setMessages((currentMessages) => [...currentMessages, {
+          id: `msg-${Date.now()}`,
+          role: 'assistant',
+          content: '',
+          toolInvocations: [{
+            state: 'result',
+            toolCallId,
+            toolName: 'viewCart',
+            args: { storeId, cartId },
+            result: viewCartResult.result,
+          }],
+        } as any]);
+      }
+    } catch (e) {
+      console.error('[callViewCartDirectly] Error calling viewCart:', e);
+    }
+  };
+
   const handleUiAction = useCallback(async (actionResult: any) => {
     const { messageId, type, payload } = actionResult;
 
@@ -151,11 +215,11 @@ const PureAIMessage = ({
               const addrResult = await addrResp.json();
               console.log('[handleUiAction] Address applied after login:', addrResult);
 
-              // After applying address, ask AI to show updated cart
-              append({ role: 'user', content: 'Show the updated cart' });
+              // After applying address, call viewCart directly to show updated cart
+              await callViewCartDirectly(storeId, finalCartId);
             } else if (authData?.message && authData.message.includes('Successfully logged in')) {
               // No address to apply, still refresh cart to show user is logged in
-              append({ role: 'user', content: 'Show the updated cart' });
+              await callViewCartDirectly(storeId, finalCartId);
             }
           } catch (e) {
             console.warn('[handleUiAction] Failed to apply address after login:', e);
@@ -349,7 +413,8 @@ const PureAIMessage = ({
                       stop();
 
                       const toolCallId = `call_${Date.now()}`;
-                      setMessages([...messages, {
+                      // Use callback to get fresh messages array instead of stale closure reference
+                      setMessages((currentMessages) => [...currentMessages, {
                         id: `msg-${Date.now()}`,
                         role: 'assistant',
                         content: '',
@@ -370,6 +435,76 @@ const PureAIMessage = ({
             }
           } catch (e) {
             console.error('[handleUiAction] Error checking addToCart result:', e);
+          }
+        }
+
+        // For payment session initiation, add the result to messages so PaymentUI can render
+        if (payload.toolName === 'initiatePaymentSession') {
+          try {
+            console.log('[handleUiAction] initiatePaymentSession completed, adding to messages');
+
+            // Stop any ongoing streaming
+            stop();
+
+            const toolCallId = `call_${Date.now()}`;
+            // Use callback to get fresh messages array
+            setMessages((currentMessages) => [...currentMessages, {
+              id: `msg-${Date.now()}`,
+              role: 'assistant',
+              content: '',
+              toolInvocations: [{
+                state: 'result',
+                toolCallId,
+                toolName: 'initiatePaymentSession',
+                args: payload.params,
+                result: result.result,
+              }],
+            } as any]);
+          } catch (e) {
+            console.error('[handleUiAction] Error handling initiatePaymentSession result:', e);
+          }
+        }
+
+        // For checkout link, open in new tab
+        if (payload.toolName === 'getCheckoutLink') {
+          try {
+            const text = result?.result?.content?.[0]?.text;
+            if (text) {
+              const responseData = JSON.parse(text);
+              if (responseData.checkoutUrl) {
+                console.log('[handleUiAction] Opening checkout URL:', responseData.checkoutUrl);
+                window.open(responseData.checkoutUrl, '_blank');
+              }
+            }
+          } catch (e) {
+            console.error('[handleUiAction] Error handling getCheckoutLink result:', e);
+          }
+        }
+
+        // For loginUser, add the result to messages so the login UI appears
+        if (payload.toolName === 'loginUser') {
+          try {
+            console.log('[handleUiAction] loginUser completed, adding to messages');
+
+            // Stop any ongoing streaming
+            stop();
+
+            const toolCallId = `call_${Date.now()}`;
+            // Use callback to get fresh messages array
+            setMessages((currentMessages) => [...currentMessages, {
+              id: `msg-${Date.now()}`,
+              role: 'assistant',
+              content: '',
+              toolInvocations: [{
+                state: 'result',
+                toolCallId,
+                toolName: 'loginUser',
+                args: payload.params,
+                result: result.result,
+              }],
+            } as any]);
+          } catch (e) {
+            console.error('[handleUiAction] Error handling loginUser result:', e);
           }
         }
 

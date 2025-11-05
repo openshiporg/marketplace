@@ -652,7 +652,7 @@ export async function handleCartTools(name: string, args: any, cookie: string, d
     return {
       jsonrpc: '2.0',
       result: {
-        content: [{ type: 'text', text: JSON.stringify({ cart, message: `Added ${quantity} item(s) to cart`, addedVariantId: variantId, newItemCount: cart?.lineItems?.length || 0, storeId, instruction: 'CRITICAL: You MUST now call viewCart to show the user their updated cart.', __clientAction: { type: 'saveCartId', storeId, cartId: finalCartId } }, null, 2) }],
+        content: [{ type: 'text', text: JSON.stringify({ cart, message: `Added ${quantity} item(s) to cart`, addedVariantId: variantId, newItemCount: cart?.lineItems?.length || 0, storeId, __clientAction: { type: 'saveCartId', storeId, cartId: finalCartId } }, null, 2) }],
       }
     };
   }
@@ -685,8 +685,7 @@ export async function handleCartTools(name: string, args: any, cookie: string, d
               cart,
               message: 'Shipping address set successfully',
               email,
-              storeId,
-              instruction: 'CRITICAL: You MUST now call viewCart to show the user their updated cart with the shipping address.'
+              storeId
             }, null, 2),
           }],
         }
@@ -783,7 +782,7 @@ export async function handleCartTools(name: string, args: any, cookie: string, d
     return {
       jsonrpc: '2.0',
       result: {
-        content: [{ type: 'text', text: JSON.stringify({ cart, message: `Updated item quantity to ${quantity}`, updatedLineItemId: lineItemId, storeId, instruction: 'CRITICAL: You MUST now call viewCart to show the user the updated cart with the new quantities.' }, null, 2) }],
+        content: [{ type: 'text', text: JSON.stringify({ cart, message: `Updated item quantity to ${quantity}`, updatedLineItemId: lineItemId, storeId }, null, 2) }],
       }
     };
   }
@@ -800,7 +799,7 @@ export async function handleCartTools(name: string, args: any, cookie: string, d
     return {
       jsonrpc: '2.0',
       result: {
-        content: [{ type: 'text', text: JSON.stringify({ cart, message: 'Removed item from cart', removedLineItemId: lineItemId, newItemCount: cart?.lineItems?.length || 0, storeId, instruction: 'CRITICAL: You MUST now call viewCart to show the user their updated cart.' }, null, 2) }],
+        content: [{ type: 'text', text: JSON.stringify({ cart, message: 'Removed item from cart', removedLineItemId: lineItemId, newItemCount: cart?.lineItems?.length || 0, storeId }, null, 2) }],
       }
     };
   }
@@ -818,7 +817,7 @@ export async function handleCartTools(name: string, args: any, cookie: string, d
     return {
       jsonrpc: '2.0',
       result: {
-        content: [{ type: 'text', text: JSON.stringify({ cart, message: `Shipping method set to ${selectedMethod?.shippingOption?.name || 'selected option'}`, shippingMethodId, selectedShippingMethod: selectedMethod, storeId, instruction: 'CRITICAL: You MUST now call viewCart to show the user their cart with the selected shipping method.' }, null, 2) }],
+        content: [{ type: 'text', text: JSON.stringify({ cart, message: `Shipping method set to ${selectedMethod?.shippingOption?.name || 'selected option'}`, shippingMethodId, selectedShippingMethod: selectedMethod, storeId }, null, 2) }],
       }
     };
   }
@@ -942,8 +941,7 @@ export async function handleCartTools(name: string, args: any, cookie: string, d
           cart,
           publishableKey: providerConfig?.publishableKey,
           storeId,
-          message: `Payment session already exists for ${paymentProvider}, reusing it`,
-          instruction: 'The UI will now render the payment form. Follow the prompts to complete your payment.',
+          message: `Payment session ready for ${paymentProvider}`,
           __clientAction: { type: 'renderPaymentUI', paymentProvider, cartId }
         }, null, 2) }] }
       };
@@ -964,8 +962,7 @@ export async function handleCartTools(name: string, args: any, cookie: string, d
         cart,
         publishableKey: providerConfig?.publishableKey,
         storeId,
-        message: `✅ Payment session initiated for ${paymentProvider}`,
-        instruction: 'The UI will now render the payment form. Follow the prompts to complete your payment.',
+        message: `Payment session initiated for ${paymentProvider}`,
         __clientAction: { type: 'renderPaymentUI', paymentProvider, cartId }
       }, null, 2) }] }
     };
@@ -989,7 +986,7 @@ export async function handleCartTools(name: string, args: any, cookie: string, d
     }
 
     const secretKeyParam = order.secretKey ? `?secretKey=${order.secretKey}` : '';
-    const redirectUrl = `/${countryCode}/order/confirmed/${order.id}${secretKeyParam}`;
+    const redirectUrl = `${store.baseUrl}/${countryCode}/order/confirmed/${order.id}${secretKeyParam}`;
 
     dataHasChanged.value = true;
 
@@ -1043,7 +1040,6 @@ export async function handleCartTools(name: string, args: any, cookie: string, d
         }
       }
 
-      let instruction = 'CRITICAL: You MUST now call viewCart to show the user their cart.';
       const responseData: any = {
         message: `✅ Successfully logged in as ${user.email}! Your session has been saved.`,
         userId: user.id,
@@ -1062,30 +1058,12 @@ export async function handleCartTools(name: string, args: any, cookie: string, d
 
       if (addressData && addressData.firstName && addressData.address1) {
         console.log('[authenticateUser] ✅ AddressData IS VALID - will add to response');
-        instruction = `CRITICAL: The user provided shipping address details before logging in. You MUST now call setShippingAddress with the following data:
-- email: ${user.email}
-- firstName: ${addressData.firstName}
-- lastName: ${addressData.lastName}
-- address1: ${addressData.address1}
-- city: ${addressData.city}
-- postalCode: ${addressData.postalCode}
-- countryCode: ${addressData.countryCode}
-- province: ${addressData.province || ''}
-- company: ${addressData.company || ''}
-- phone: ${addressData.phone || ''}
-- cartId: ${finalCartId}
-- storeId: ${storeId}
-
-After setting the address, you MUST call viewCart to show the user their updated cart.`;
-
         responseData.pendingAddressData = addressData;
       } else {
         console.log('[authenticateUser] ❌ AddressData NOT valid or missing');
       }
 
-      responseData.instruction = instruction;
-
-      console.log('[authenticateUser] Returning response with instruction:', instruction.substring(0, 100) + '...');
+      console.log('[authenticateUser] Returning response');
       console.log('[authenticateUser] pendingAddressData in response:', responseData.pendingAddressData ? 'YES' : 'NO');
 
       return {

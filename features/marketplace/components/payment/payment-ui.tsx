@@ -5,6 +5,7 @@ import { Elements, useStripe, useElements, CardElement } from "@stripe/react-str
 import { PayPalScriptProvider, PayPalButtons, usePayPalScriptReducer } from "@paypal/react-paypal-js"
 import { Button } from "@/components/ui/button"
 import { RiLoader2Fill } from "@remixicon/react"
+import { CheckCircle2 } from "lucide-react"
 import { useState } from "react"
 
 interface PaymentUIProps {
@@ -34,6 +35,9 @@ interface PaymentUIProps {
   publishableKey: string
   storeId: string
   onPaymentComplete: (paymentSessionId: string, paypalOrderId?: string) => Promise<void>
+  paymentCompleted?: boolean
+  completingOrder?: boolean
+  orderUrl?: string | null
 }
 
 export function PaymentUI({
@@ -42,7 +46,10 @@ export function PaymentUI({
   cart,
   publishableKey,
   storeId,
-  onPaymentComplete
+  onPaymentComplete,
+  paymentCompleted,
+  completingOrder,
+  orderUrl
 }: PaymentUIProps) {
   if (paymentProvider === 'stripe') {
     const stripePromise = loadStripe(publishableKey)
@@ -53,6 +60,9 @@ export function PaymentUI({
           paymentSession={paymentSession}
           cart={cart}
           onPaymentComplete={onPaymentComplete}
+          paymentCompleted={paymentCompleted}
+          completingOrder={completingOrder}
+          orderUrl={orderUrl}
         />
       </Elements>
     )
@@ -72,6 +82,9 @@ export function PaymentUI({
           paymentSession={paymentSession}
           cart={cart}
           onPaymentComplete={onPaymentComplete}
+          paymentCompleted={paymentCompleted}
+          completingOrder={completingOrder}
+          orderUrl={orderUrl}
         />
       </PayPalScriptProvider>
     )
@@ -84,9 +97,12 @@ interface PaymentFormProps {
   paymentSession: PaymentUIProps['paymentSession']
   cart: PaymentUIProps['cart']
   onPaymentComplete: PaymentUIProps['onPaymentComplete']
+  paymentCompleted?: boolean
+  completingOrder?: boolean
+  orderUrl?: string | null
 }
 
-function StripePaymentForm({ paymentSession, cart, onPaymentComplete }: PaymentFormProps) {
+function StripePaymentForm({ paymentSession, cart, onPaymentComplete, paymentCompleted, completingOrder, orderUrl }: PaymentFormProps) {
   const [submitting, setSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const stripe = useStripe()
@@ -145,6 +161,44 @@ function StripePaymentForm({ paymentSession, cart, onPaymentComplete }: PaymentF
     }
   }
 
+  // Show success state if payment is completed
+  if (paymentCompleted && orderUrl) {
+    return (
+      <div className="space-y-4">
+        <Button
+          className="w-full bg-emerald-600 hover:bg-emerald-700"
+          size="lg"
+          asChild
+        >
+          <a href={orderUrl} target="_blank" rel="noopener noreferrer">
+            <CheckCircle2 className="mr-2 h-4 w-4" />
+            Order Confirmation
+          </a>
+        </Button>
+        <p className="text-sm text-center text-muted-foreground">
+          Your order has been placed successfully!
+        </p>
+      </div>
+    )
+  }
+
+  // Show completing state
+  if (completingOrder) {
+    return (
+      <div className="space-y-4">
+        <Button
+          className="w-full"
+          size="lg"
+          disabled
+        >
+          <RiLoader2Fill className="mr-2 h-4 w-4 animate-spin" />
+          Completing Order...
+        </Button>
+      </div>
+    )
+  }
+
+  // Show payment form
   return (
     <div className="space-y-4">
       <div className="p-4 border rounded-lg">
@@ -185,7 +239,7 @@ function StripePaymentForm({ paymentSession, cart, onPaymentComplete }: PaymentF
   )
 }
 
-function PayPalPaymentForm({ paymentSession, cart, onPaymentComplete }: PaymentFormProps) {
+function PayPalPaymentForm({ paymentSession, cart, onPaymentComplete, paymentCompleted, completingOrder, orderUrl }: PaymentFormProps) {
   const [submitting, setSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [{ isPending }] = usePayPalScriptReducer()
@@ -205,6 +259,43 @@ function PayPalPaymentForm({ paymentSession, cart, onPaymentComplete }: PaymentF
       setErrorMessage(error.message || "An error occurred during payment processing.")
       setSubmitting(false)
     }
+  }
+
+  // Show success state if payment is completed
+  if (paymentCompleted && orderUrl) {
+    return (
+      <div className="space-y-4">
+        <Button
+          className="w-full bg-emerald-600 hover:bg-emerald-700"
+          size="lg"
+          asChild
+        >
+          <a href={orderUrl} target="_blank" rel="noopener noreferrer">
+            <CheckCircle2 className="mr-2 h-4 w-4" />
+            Order Confirmation
+          </a>
+        </Button>
+        <p className="text-sm text-center text-muted-foreground">
+          Your order has been placed successfully!
+        </p>
+      </div>
+    )
+  }
+
+  // Show completing state
+  if (completingOrder) {
+    return (
+      <div className="space-y-4">
+        <Button
+          className="w-full"
+          size="lg"
+          disabled
+        >
+          <RiLoader2Fill className="mr-2 h-4 w-4 animate-spin" />
+          Completing Order...
+        </Button>
+      </div>
+    )
   }
 
   if (isPending) {
