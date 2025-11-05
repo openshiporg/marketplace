@@ -318,9 +318,11 @@ export default function HomePage() {
           const cartData = JSON.parse(createCartResult.result.content[0].text);
           cartId = cartData.cart?.id;
 
-          // Save cart ID if we got a __clientAction
+          // Save cart ID to localStorage if we got a __clientAction
           if (cartData.__clientAction?.type === 'saveCartId' && cartData.__clientAction.cartId) {
             cartId = cartData.__clientAction.cartId;
+            console.log('[handleCartSelect] Saving cart ID to localStorage:', { storeId, cartId });
+            saveCartToLocalStorage(storeId, cartId);
           }
 
           console.log('[handleCartSelect] Created/retrieved cart:', cartId);

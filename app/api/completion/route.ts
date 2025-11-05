@@ -351,15 +351,7 @@ CRITICAL CART MANAGEMENT:
 - ALWAYS use getOrCreateCart instead of createCart
 - getOrCreateCart automatically detects existing carts from the cart context and reuses them if still active
 - Only creates a new cart if no active cart exists or if the previous cart was completed
-
-IMPORTANT - COMPLETED CART HANDLING:
-- When completeCart successfully completes an order, that cart ID becomes INACTIVE and should NEVER be referenced again
-- After a successful order completion, if the user starts a new shopping session or asks to set a shipping address:
-  * DO NOT use the old completed cart ID
-  * Call getOrCreateCart to start a fresh cart for the new order
-  * The system will automatically create a new cart and clear the old one from the browser
-- Think of each order as a complete lifecycle: cart → checkout → complete → NEW CART for next order
-- Example: If cart_123 was just completed, and user asks "set my address to...", call getOrCreateCart first to get a NEW cart, don't try to use cart_123
+- When user provides a cartId in their message (e.g., "cartId: cart_123"), ALWAYS use that exact cartId for the operation
 
 **Checkout:**
 - setShippingAddress: Set customer address (auto-creates guest user + authenticates them)

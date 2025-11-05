@@ -540,11 +540,11 @@ export function generateOpenFrontCartUI(params: {
             return;
           }
 
-          // Send the address with storeId to the AI
+          // Send the address with storeId and cartId to the AI
           window.parent.postMessage({
             type: 'prompt',
             payload: {
-              prompt: \`Please set this address for ${storeDisplayName} (storeId: \${storeId}): \${addressText}\`
+              prompt: \`Please set this address for ${storeDisplayName} (storeId: \${storeId}, cartId: \${cartId}): \${addressText}\`
             }
           }, '*');
         }
