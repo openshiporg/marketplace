@@ -34,7 +34,6 @@ class CookieAwareTransport extends StreamableHTTPClientTransport {
     // Store session tokens (for authenticated requests)
     if (sessionTokens && Object.keys(sessionTokens).length > 0) {
       this.sessionTokens = sessionTokens;
-      console.log('[CookieAwareTransport] Initialized with session tokens for stores:', Object.keys(sessionTokens));
     }
 
     // Override global fetch to include cookies, authorization, cart IDs, and session tokens
@@ -42,14 +41,9 @@ class CookieAwareTransport extends StreamableHTTPClientTransport {
       init = init || {};
       const headers = new Headers(init.headers);
 
-      console.log('[CookieAwareTransport] ===== FETCH REQUEST =====');
-      console.log('[CookieAwareTransport] URL:', input);
-      console.log('[CookieAwareTransport] Current cookies in transport:', this.cookies.length);
-
       if (this.cookies.length > 0) {
         const cookieHeader = this.cookies.join('; ');
         headers.set('Cookie', cookieHeader);
-        console.log('[CookieAwareTransport] Setting Cookie header:', cookieHeader.substring(0, 100) + '...');
       }
 
       // Check if this is a request to MCP transport and extract storeId from body to set the right session token
@@ -59,9 +53,6 @@ class CookieAwareTransport extends StreamableHTTPClientTransport {
           const bodyJson = JSON.parse(init.body);
           // MCP tool calls have params.arguments.storeId
           storeIdFromBody = bodyJson?.params?.arguments?.storeId;
-          if (storeIdFromBody) {
-            console.log('[CookieAwareTransport] Extracted storeId from request body:', storeIdFromBody);
-          }
         } catch (e) {
           // Not JSON or parsing failed, ignore
         }
@@ -70,16 +61,13 @@ class CookieAwareTransport extends StreamableHTTPClientTransport {
       // If we have a session token for this storeId, use it; otherwise fall back to authHeader
       if (storeIdFromBody && this.sessionTokens[storeIdFromBody]) {
         headers.set('Authorization', `Bearer ${this.sessionTokens[storeIdFromBody]}`);
-        console.log('[CookieAwareTransport] Setting Authorization header from session token for store:', storeIdFromBody);
       } else if (this.authHeader) {
         headers.set('Authorization', this.authHeader);
-        console.log('[CookieAwareTransport] Setting Authorization header from default authHeader');
       }
 
       // Forward Cart IDs header (for cart context)
       if (this.cartIdsHeader) {
         headers.set('X-Cart-Ids', this.cartIdsHeader);
-        console.log('[CookieAwareTransport] Setting X-Cart-Ids header');
       }
 
       init.headers = headers;
@@ -88,24 +76,16 @@ class CookieAwareTransport extends StreamableHTTPClientTransport {
 
       // Store any new cookies from response
       // Use getSetCookie() to properly get all Set-Cookie headers (not just the first one)
-      console.log('[CookieAwareTransport] Response received, checking for Set-Cookie headers');
       if (typeof response.headers.getSetCookie === 'function') {
         const setCookies = response.headers.getSetCookie();
-        console.log('[CookieAwareTransport] getSetCookie() returned:', setCookies.length, 'cookies');
         if (setCookies.length > 0) {
-          setCookies.forEach((cookie, i) => {
-            console.log(`[CookieAwareTransport] Set-Cookie[${i}]:`, cookie.substring(0, 100) + '...');
-          });
           this.cookies = [...this.cookies, ...setCookies];
-          console.log('[CookieAwareTransport] Total cookies now:', this.cookies.length);
         }
       } else {
         // Fallback for older environments
         const setCookieHeader = response.headers.get('set-cookie');
-        console.log('[CookieAwareTransport] Fallback: get("set-cookie"):', setCookieHeader ? 'EXISTS' : 'NONE');
         if (setCookieHeader) {
           this.cookies = [...this.cookies, setCookieHeader];
-          console.log('[CookieAwareTransport] Added cookie via fallback, total:', this.cookies.length);
         }
       }
 
@@ -130,12 +110,6 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     let messages = body.messages || [];
-
-    console.log('===== NEW COMPLETION REQUEST =====');
-    console.log('Messages count:', messages.length);
-    messages.forEach((msg, i) => {
-      console.log(`Message[${i}] role:${msg.role} content:`, typeof msg.content === 'string' ? msg.content.substring(0, 200) : JSON.stringify(msg.content).substring(0, 200));
-    });
 
     // Trim messages if conversation is too long (keep system context by preserving recent messages)
     const MAX_MESSAGES = 20; // Keep last 20 messages for context
@@ -218,14 +192,6 @@ export async function POST(req: Request) {
       maxTokens = body.maxTokens ? parseInt(body.maxTokens) : undefined;
     }
 
-    // Debug logging
-    console.log('Starting completion request:', {
-      model,
-      maxTokens,
-      hasApiKey: !!openrouterConfig.apiKey,
-      apiKeyPrefix: openrouterConfig.apiKey?.substring(0, 10) + '...'
-    });
-
     // Test the API key with a simple request first to catch auth errors early
     try {
       const testResponse = await fetch('https://openrouter.ai/api/v1/models', {
@@ -237,7 +203,6 @@ export async function POST(req: Request) {
 
       if (!testResponse.ok) {
         const errorText = await testResponse.text();
-        console.log('API key validation failed:', errorText);
 
         let errorMessage = 'Invalid API key';
         try {
@@ -469,27 +434,9 @@ FRIENDLY CUSTOMER SERVICE APPROACH:
         functionId: 'chat-completion',
       },
       onStepFinish: async ({ toolCalls, toolResults, text }) => {
-        if (toolCalls && toolCalls.length > 0) {
-          console.log('===== TOOL CALLS =====');
-          toolCalls.forEach((call, i) => {
-            console.log(`ToolCall[${i}] name: ${call.toolName}`);
-            console.log(`ToolCall[${i}] args:`, JSON.stringify(call.args, null, 2));
-          });
-        }
-        if (toolResults && toolResults.length > 0) {
-          console.log('===== TOOL RESULTS =====');
-          toolResults.forEach((result, i) => {
-            console.log(`ToolResult[${i}] toolName: ${result.toolName}`);
-            console.log(`ToolResult[${i}] result:`, typeof result.result === 'string' ? result.result.substring(0, 300) : JSON.stringify(result.result).substring(0, 300));
-          });
-        }
-        if (text) {
-          console.log('===== AI TEXT RESPONSE =====');
-          console.log('Text:', text.substring(0, 200));
-        }
+        // Step finished
       },
       onFinish: async () => {
-        console.log('Completion finished successfully');
         await mcpClient.close();
       },
       onError: async (error: unknown) => {

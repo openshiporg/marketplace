@@ -17,18 +17,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ tra
 
     // Extract cookie from request
     const cookie = request.headers.get('cookie') || '';
-    console.log('[MCP Transport] ===== NEW REQUEST =====');
-    console.log('[MCP Transport] Cookie header:', cookie ? 'EXISTS (length: ' + cookie.length + ')' : 'NONE');
-    if (cookie) {
-      console.log('[MCP Transport] Cookie preview:', cookie.substring(0, 150) + '...');
-    }
 
     // Extract token from Authorization header if present (supports both business ctoken and user session token)
     const authHeader = request.headers.get('authorization') || '';
     let ctoken: string | undefined;
     if (/^Bearer\s+/i.test(authHeader)) {
       ctoken = authHeader.replace(/^Bearer\s+/i, '');
-      console.log('[MCP Transport] Authorization header (ctoken):', ctoken.substring(0, 20) + '...');
     }
 
     // Extract cart IDs from custom header
