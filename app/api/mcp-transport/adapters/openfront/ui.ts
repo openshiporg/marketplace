@@ -485,7 +485,6 @@ export function generateOpenFrontCartUI(params: {
             }
           }, '*');
 
-          console.log('[Cart] Sent update quantity request');
         }
 
         function removeItem(lineItemId) {
@@ -527,7 +526,6 @@ export function generateOpenFrontCartUI(params: {
             }
           }, '*');
 
-          console.log('[Cart] Sent remove item request');
         }
 
         function requestAddressFromAI() {
@@ -588,7 +586,6 @@ export function generateOpenFrontCartUI(params: {
             }
           }, '*');
 
-          console.log('[Cart] Sent set shipping method request');
         }
 
         function selectPaymentProvider(provider) {
@@ -790,7 +787,6 @@ export function generateOpenFrontLoginUI(params: {
           const email = document.getElementById('email').value;
           const password = document.getElementById('password').value;
 
-          console.log('[Login] handleLogin called with email:', email, 'cartId:', cartId, 'addressData:', addressData);
 
           // Reset UI
           clearError();
@@ -872,7 +868,6 @@ export function generateOpenFrontLoginUI(params: {
             }
           }, '*');
 
-          console.log('[Login] Sent authentication request to AI with cartId:', cartId, 'and addressData');
         }
 
         // Auto-resize iframe

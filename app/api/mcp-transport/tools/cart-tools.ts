@@ -482,7 +482,6 @@ export async function handleCartTools(name: string, args: any, cookie: string, d
 
     const { store, adapter } = await resolveAdapter(storeId);
 
-    console.log('[getOrCreateCart] Cart IDs from client:', cartIds);
     const existingCartId = cartIds?.[storeId];
 
     if (existingCartId) {
@@ -507,7 +506,7 @@ export async function handleCartTools(name: string, args: any, cookie: string, d
           };
         }
       } catch (e) {
-        console.log(`[getOrCreateCart] Existing cart fetch failed:`, e);
+        // Existing cart fetch failed, will create new one
       }
     }
 
@@ -660,11 +659,6 @@ export async function handleCartTools(name: string, args: any, cookie: string, d
   if (name === 'setShippingAddress') {
     const { storeId, cartId, email, firstName, lastName, address1, city, postalCode, countryCode, province, company, phone } = args;
 
-    console.log('===== [setShippingAddress] START =====');
-    console.log('[setShippingAddress] Args:', { storeId, cartId, email, firstName, lastName, address1, city, postalCode, countryCode, province, company, phone });
-    console.log('[setShippingAddress] Cookie:', cookie ? 'EXISTS' : 'NONE');
-    console.log('[setShippingAddress] CToken:', ctoken ? 'EXISTS' : 'NONE');
-
     try {
       const { store, adapter } = await resolveAdapter(storeId);
       await adapter.setShippingAddress({
@@ -696,11 +690,6 @@ export async function handleCartTools(name: string, args: any, cookie: string, d
       const errorMessage = error.message || String(error);
       const errorStr = JSON.stringify(error).toLowerCase();
 
-      console.log('[setShippingAddress] Error caught:', {
-        email,
-        errorMessage,
-        errorStrPreview: errorStr.substring(0, 200)
-      });
 
       if (errorMessage.includes('Unique constraint') ||
           errorMessage.includes('already exists') ||
@@ -709,8 +698,6 @@ export async function handleCartTools(name: string, args: any, cookie: string, d
           errorStr.includes('unique constraint') ||
           errorStr.includes('duplicate') ||
           errorStr.includes('email_unique')) {
-
-        console.log('[setShippingAddress] EMAIL_EXISTS error detected for:', email);
 
         // Get store info and build platform-appropriate checkout link via adapter
         const { store, adapter } = await resolveAdapter(storeId);
@@ -1017,14 +1004,6 @@ export async function handleCartTools(name: string, args: any, cookie: string, d
   if (name === 'authenticateUser') {
     const { storeId, email, password, cartId, addressData } = args;
 
-    console.log('[authenticateUser] ===== AUTHENTICATE USER START =====');
-    console.log('[authenticateUser] Email:', email);
-    console.log('[authenticateUser] CartId:', cartId);
-    console.log('[authenticateUser] AddressData received:', addressData ? 'YES' : 'NO');
-    if (addressData) {
-      console.log('[authenticateUser] AddressData:', JSON.stringify(addressData, null, 2));
-    }
-
     try {
       const { store, adapter } = await resolveAdapter(storeId);
       const auth = await adapter.authenticateUser({ store, email, password });
@@ -1057,14 +1036,8 @@ export async function handleCartTools(name: string, args: any, cookie: string, d
       };
 
       if (addressData && addressData.firstName && addressData.address1) {
-        console.log('[authenticateUser] ✅ AddressData IS VALID - will add to response');
         responseData.pendingAddressData = addressData;
-      } else {
-        console.log('[authenticateUser] ❌ AddressData NOT valid or missing');
       }
-
-      console.log('[authenticateUser] Returning response');
-      console.log('[authenticateUser] pendingAddressData in response:', responseData.pendingAddressData ? 'YES' : 'NO');
 
       return {
         jsonrpc: '2.0',
@@ -1090,14 +1063,6 @@ export async function handleCartTools(name: string, args: any, cookie: string, d
 
   if (name === 'loginUser') {
     const { storeId, email, message, cartId, addressData } = args;
-
-    console.log('[loginUser] ===== LOGIN USER START =====');
-    console.log('[loginUser] Email:', email);
-    console.log('[loginUser] CartId:', cartId);
-    console.log('[loginUser] AddressData received from AI:', addressData ? 'YES' : 'NO');
-    if (addressData) {
-      console.log('[loginUser] AddressData:', JSON.stringify(addressData, null, 2));
-    }
 
     const { store, adapter } = await resolveAdapter(storeId);
 

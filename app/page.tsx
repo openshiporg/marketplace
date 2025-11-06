@@ -62,7 +62,6 @@ export default function HomePage() {
     const loadCartIds = () => {
       try {
         const cartStorage = localStorage.getItem('openfront_marketplace_carts');
-        console.log('[AI Chat] loadCartIds called - Raw storage:', cartStorage);
         if (cartStorage) {
           const parsed = JSON.parse(cartStorage);
           const cartIds: Record<string, string> = {};
@@ -71,11 +70,8 @@ export default function HomePage() {
               cartIds[endpoint] = data.cartId;
             }
           });
-          console.log('[AI Chat] Setting cart IDs state to:', cartIds);
           setCartIdsState(cartIds);
-          console.log('[AI Chat] Loaded cart IDs from localStorage:', cartIds);
         } else {
-          console.log('[AI Chat] No cart storage found, setting empty state');
           setCartIdsState({});
         }
       } catch (error) {
@@ -90,10 +86,7 @@ export default function HomePage() {
     window.addEventListener('storage', loadCartIds);
 
     // Also listen for custom event when cart is saved within same tab
-    const handleCartUpdate = (event?: any) => {
-      console.log('[AI Chat] cartUpdated event received:', event?.detail);
-      loadCartIds();
-    };
+    const handleCartUpdate = () => loadCartIds();
     window.addEventListener('cartUpdated', handleCartUpdate);
 
     return () => {
@@ -114,7 +107,6 @@ export default function HomePage() {
           }
         });
         setSessionTokensState(tokens);
-        console.log('[AI Chat] Loaded session tokens from localStorage for stores:', Object.keys(tokens));
       } catch (error) {
         console.error('[AI Chat] Error loading session tokens:', error);
       }
@@ -293,8 +285,6 @@ export default function HomePage() {
 
       // If no cart exists, create one first
       if (!cartId) {
-        console.log('[handleCartSelect] No cart exists for store, creating one...');
-
         const createCartResponse = await fetch('/api/mcp-transport/http', {
           method: 'POST',
           headers,
@@ -311,7 +301,6 @@ export default function HomePage() {
         });
 
         const createCartResult = await createCartResponse.json();
-        console.log('[handleCartSelect] getOrCreateCart result:', createCartResult);
 
         // Extract cart ID from the result
         if (createCartResult.result?.content?.[0]?.text) {
@@ -321,11 +310,8 @@ export default function HomePage() {
           // Save cart ID to localStorage if we got a __clientAction
           if (cartData.__clientAction?.type === 'saveCartId' && cartData.__clientAction.cartId) {
             cartId = cartData.__clientAction.cartId;
-            console.log('[handleCartSelect] Saving cart ID to localStorage:', { storeId, cartId });
             saveCartToLocalStorage(storeId, cartId);
           }
-
-          console.log('[handleCartSelect] Created/retrieved cart:', cartId);
         }
 
         if (!cartId) {
@@ -350,7 +336,6 @@ export default function HomePage() {
       });
 
       const viewCartResult = await viewCartResponse.json();
-      console.log('[handleCartSelect] viewCart result:', viewCartResult);
 
       // Add the viewCart UI as an assistant message using setMessages
       if (viewCartResult.result) {
@@ -409,17 +394,14 @@ export default function HomePage() {
                 ? JSON.parse(invocation.result)
                 : invocation.result;
 
-              console.log('[Cart] Tool invocation result structure:', invocation.toolName, result);
 
               // The actual data is nested in result.content[0].text as a JSON string
               if (result.content?.[0]?.text) {
                 try {
                   const parsedText = JSON.parse(result.content[0].text);
-                  console.log('[Cart] Parsed text content:', parsedText);
 
                   // Check if this result has clearCartId flag (from completeCart)
                   if (parsedText.clearCartId && parsedText.storeId) {
-                    console.log('[Cart] Order completed, clearing cart ID from localStorage for store:', parsedText.storeId);
                     removeCartId(parsedText.storeId);
                     // Also remove from our saved cache
                     Array.from(savedCartIds.current).forEach(key => {
@@ -436,7 +418,6 @@ export default function HomePage() {
                       // Check if we've already saved this cart ID to avoid duplicates
                       const cacheKey = `${storeId}:${cartId}`;
                       if (!savedCartIds.current.has(cacheKey)) {
-                        console.log('[Cart] Saving cart ID to localStorage:', { storeId, cartId });
                         saveCartToLocalStorage(storeId, cartId);
                         savedCartIds.current.add(cacheKey);
                       }

@@ -341,7 +341,6 @@ export async function handleProductTools(name: string, args: any, cookie: string
             ${productsHTML}
           </div>
         <script>
-          console.log('[Product Cards] Script loaded and executing');
 
           // Auto-resize iframe based on content
           const resizeObserver = new ResizeObserver((entries) => {
@@ -364,7 +363,6 @@ export async function handleProductTools(name: string, args: any, cookie: string
           const productsData = ${JSON.stringify(products)};
           const selectedOptions = {};
 
-          console.log('[Product Cards] Products loaded:', productsData.length);
 
           // Simple deep equality check (matching lodash isEqual behavior)
           function isEqual(obj1, obj2) {
@@ -386,7 +384,6 @@ export async function handleProductTools(name: string, args: any, cookie: string
             selectedOptions[index] = optionObj;
           });
 
-          console.log('[Product Cards] Initialized selectedOptions:', selectedOptions);
 
           // Build variant record (maps variant ID to option selections)
           const variantRecords = productsData.map(product => {
@@ -404,7 +401,6 @@ export async function handleProductTools(name: string, args: any, cookie: string
             return map;
           });
 
-          console.log('[Product Cards] Built variantRecords:', variantRecords);
 
           // Handler for option button clicks - reads from data attributes
           function handleOptionClick(button) {
@@ -412,12 +408,9 @@ export async function handleProductTools(name: string, args: any, cookie: string
             const optionId = button.dataset.optionId;
             const value = button.dataset.value;
 
-            console.log('[Product Cards] Option clicked:', { productIndex, optionId, value });
-            console.log('[Product Cards] Before update:', selectedOptions[productIndex]);
 
             selectedOptions[productIndex] = { ...selectedOptions[productIndex], [optionId]: value };
 
-            console.log('[Product Cards] After update:', selectedOptions[productIndex]);
             updateProductUI(productIndex);
           }
 
@@ -450,25 +443,19 @@ export async function handleProductTools(name: string, args: any, cookie: string
 
           // Update product UI based on selected options
           function updateProductUI(productIndex) {
-            console.log('[Product Cards] updateProductUI called for product:', productIndex);
             const product = productsData[productIndex];
             const selected = selectedOptions[productIndex];
             const matchingVariant = findMatchingVariant(productIndex);
-            console.log('[Product Cards] Selected options:', selected);
-            console.log('[Product Cards] Matching variant:', matchingVariant);
 
             // Update option button styles
             const card = document.querySelector('.product-card[data-product-index="' + productIndex + '"]');
-            console.log('[Product Cards] Found card:', card);
             const optionButtons = card.querySelectorAll('.option-btn');
-            console.log('[Product Cards] Found option buttons:', optionButtons.length);
 
             optionButtons.forEach(btn => {
               const optionId = btn.dataset.optionId;
               const value = btn.dataset.value;
               const isSelected = selected[optionId] === value;
 
-              console.log('[Product Cards] Button check:', {
                 optionId,
                 value,
                 selectedValue: selected[optionId],
@@ -479,7 +466,6 @@ export async function handleProductTools(name: string, args: any, cookie: string
               if (isSelected) {
                 btn.classList.remove('ring-gray-300', 'text-gray-700', 'bg-white');
                 btn.classList.add('ring-gray-900', 'text-white', 'bg-gray-900');
-                console.log('[Product Cards] Set button as selected:', value);
               } else {
                 btn.classList.remove('ring-gray-900', 'text-white', 'bg-gray-900');
                 btn.classList.add('ring-gray-300', 'text-gray-700', 'bg-white');
@@ -527,7 +513,6 @@ export async function handleProductTools(name: string, args: any, cookie: string
                   dots[targetImageIndex].classList.add('bg-white');
                 }
 
-                console.log('[Product Cards] Switched carousel to variant primary image:', matchingVariant.primaryImage.id);
               }
             }
 
@@ -548,18 +533,15 @@ export async function handleProductTools(name: string, args: any, cookie: string
           // Handler for add to cart button clicks - reads from data attributes
           function handleAddToCart(button) {
             const productIndex = parseInt(button.dataset.productIndex);
-            console.log('[Product Cards] Add to cart clicked for product:', productIndex);
 
             const product = productsData[productIndex];
             const matchingVariant = findMatchingVariant(productIndex);
 
             if (!matchingVariant) {
-              console.log('[Product Cards] No matching variant found');
               return;
             }
 
             // Send addToCart tool call
-            console.log('[Product Cards] Sending addToCart for variant:', matchingVariant.id);
             window.parent.postMessage({
               type: 'tool',
               messageId: 'add-to-cart-' + Date.now(),
@@ -633,7 +615,6 @@ export async function handleProductTools(name: string, args: any, cookie: string
           window.handleCarouselPrev = handleCarouselPrev;
           window.handleCarouselNext = handleCarouselNext;
 
-          console.log('[Product Cards] Script initialization complete.');
         </script>
       </body>
       </html>
@@ -896,7 +877,6 @@ export async function handleProductTools(name: string, args: any, cookie: string
             ${productsHTML}
           </div>
         <script>
-          console.log('[Product Card] Script loaded');
 
           const resizeObserver = new ResizeObserver((entries) => {
             entries.forEach((entry) => {
@@ -1044,7 +1024,6 @@ export async function handleProductTools(name: string, args: any, cookie: string
                   dots[targetImageIndex].classList.add('bg-white');
                 }
 
-                console.log('[Product Card] Switched carousel to variant primary image:', matchingVariant.primaryImage.id);
               }
             }
 

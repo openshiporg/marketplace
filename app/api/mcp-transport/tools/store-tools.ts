@@ -23,7 +23,6 @@ export async function handleStoreTools(name: string, args: any, cookie: string, 
       try {
         const adapter = await getPlatformAdapter(s);
         const info = await adapter.getStoreInfo({ store: s, cookie, ctoken });
-        console.log('[getAvailableStores] Store info for', s.id, ':', info);
         return {
           id: s.id,
           storeId: s.id,

@@ -126,7 +126,6 @@ function StripePaymentForm({ paymentSession, cart, onPaymentComplete, paymentCom
     }
 
     try {
-      console.log('Confirming payment with Stripe...')
 
       const { error: confirmError, paymentIntent } = await stripe.confirmCardPayment(
         paymentSession.data.clientSecret,
@@ -148,7 +147,6 @@ function StripePaymentForm({ paymentSession, cart, onPaymentComplete, paymentCom
       }
 
       if (paymentIntent?.status === 'succeeded' || paymentIntent?.status === 'requires_capture') {
-        console.log('Payment confirmed, completing order...')
         await onPaymentComplete(paymentSession.id)
       } else {
         setErrorMessage("Payment was not successful. Please try again.")
@@ -250,7 +248,6 @@ function PayPalPaymentForm({ paymentSession, cart, onPaymentComplete, paymentCom
     try {
       // Capture the PayPal order
       const order = await actions.order.capture()
-      console.log('PayPal order captured:', order)
 
       // Complete the cart with the PayPal order ID
       await onPaymentComplete(paymentSession.id, order.id)

@@ -38,7 +38,6 @@ const PureAIMessage = ({
   // Helper function to call viewCart directly
   const callViewCartDirectly = async (storeId: string, cartId: string) => {
     try {
-      console.log('[callViewCartDirectly] Calling viewCart for:', { storeId, cartId });
 
       // Build headers with cart IDs and session token
       let xCartIds = '{}';
@@ -73,7 +72,6 @@ const PureAIMessage = ({
       });
 
       const viewCartResult = await viewCartResponse.json();
-      console.log('[callViewCartDirectly] viewCart result:', viewCartResult);
 
       if (viewCartResult.result) {
         // Stop any ongoing streaming before showing the cart view
@@ -104,12 +102,10 @@ const PureAIMessage = ({
 
     if (type === 'tool' && payload?.toolName) {
       try {
-        console.log('[handleUiAction] Processing tool call:', payload.toolName, 'with messageId:', messageId);
 
         // SECURITY: For authentication, directly call MCP transport without involving AI
         // Then, persist session, optionally apply pending address, and refresh the cart
         if (payload.toolName === 'authenticateUser') {
-          console.log('[handleUiAction] Handling secure authentication request');
 
           // Build headers: x-cart-ids + Authorization if we already have a session
           let xCartIds = '{}';
@@ -144,7 +140,6 @@ const PureAIMessage = ({
           });
 
           const result = await response.json();
-          console.log('[handleUiAction] Authentication response:', result);
 
           let authData: any = null;
           try {
@@ -213,7 +208,6 @@ const PureAIMessage = ({
               });
 
               const addrResult = await addrResp.json();
-              console.log('[handleUiAction] Address applied after login:', addrResult);
 
               // After applying address, call viewCart directly to show updated cart
               await callViewCartDirectly(storeId, finalCartId);
@@ -280,7 +274,6 @@ const PureAIMessage = ({
                     // Save to localStorage for future calls and same-tab listeners
                     saveCartToLocalStorage(storeId, newCartId);
                     payload.params = { ...payload.params, cartId: newCartId };
-                    console.log('[handleUiAction] addToCart: resolved cartId via getOrCreateCart:', newCartId);
                   }
                 }
               } catch (e) {
@@ -336,7 +329,6 @@ const PureAIMessage = ({
 
             // Handle saveCartId action
             if (clientAction?.type === 'saveCartId' && clientAction.storeId && clientAction.cartId) {
-              console.log('[handleUiAction] Saving cart ID to localStorage:', { storeId: clientAction.storeId, cartId: clientAction.cartId });
               saveCartToLocalStorage(clientAction.storeId, clientAction.cartId);
             }
 
@@ -364,7 +356,6 @@ const PureAIMessage = ({
             if (text) {
               const responseData = JSON.parse(text);
               if (!responseData.error && responseData.cart?.id) {
-                console.log('[handleUiAction] addToCart successful, calling viewCart directly');
                 const storeId = responseData.storeId;
                 const cartId = responseData.cart.id;
 
@@ -403,7 +394,6 @@ const PureAIMessage = ({
                     });
 
                     const viewCartResult = await viewCartResponse.json();
-                    console.log('[handleUiAction] viewCart called directly:', viewCartResult);
 
                     // Manually construct a message that looks like the AI called viewCart
                     // This will be rendered as a tool invocation with the UI resource
@@ -441,7 +431,6 @@ const PureAIMessage = ({
         // For payment session initiation, add the result to messages so PaymentUI can render
         if (payload.toolName === 'initiatePaymentSession') {
           try {
-            console.log('[handleUiAction] initiatePaymentSession completed, adding to messages');
 
             // Stop any ongoing streaming
             stop();
@@ -472,7 +461,6 @@ const PureAIMessage = ({
             if (text) {
               const responseData = JSON.parse(text);
               if (responseData.checkoutUrl) {
-                console.log('[handleUiAction] Opening checkout URL:', responseData.checkoutUrl);
                 window.open(responseData.checkoutUrl, '_blank');
               }
             }
@@ -484,7 +472,6 @@ const PureAIMessage = ({
         // For loginUser, add the result to messages so the login UI appears
         if (payload.toolName === 'loginUser') {
           try {
-            console.log('[handleUiAction] loginUser completed, adding to messages');
 
             // Stop any ongoing streaming
             stop();

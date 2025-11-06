@@ -75,17 +75,13 @@ export function removeCartId(storeId: string): void {
 
   try {
     const carts = getAllCarts();
-    console.log('[Cart Storage] Before removing cart for', storeId, '- Current carts:', carts);
     delete carts[storeId];
     localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(carts));
-    console.log('[Cart Storage] After removing cart for', storeId, '- Updated carts:', carts);
 
     // Dispatch custom event to notify other components that cart was removed
-    console.log('[Cart Storage] Dispatching cartUpdated event for removed cart:', { storeId, cartId: null, removed: true });
     window.dispatchEvent(new CustomEvent('cartUpdated', {
       detail: { storeId, cartId: null, removed: true }
     }));
-    console.log('[Cart Storage] cartUpdated event dispatched successfully');
   } catch (error) {
     console.error('Error removing cart from localStorage:', error);
   }

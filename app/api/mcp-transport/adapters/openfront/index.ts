@@ -225,7 +225,6 @@ const openfrontAdapter: PlatformAdapter = {
   },
 
   async authenticateUser({ store, email, password }) {
-    console.log('[OpenFront Adapter] authenticateUser called for email:', email);
     const mutation = `
       mutation AuthenticateUser($email: String!, $password: String!) {
         authenticateUserWithPassword(email: $email, password: $password) {
@@ -241,14 +240,11 @@ const openfrontAdapter: PlatformAdapter = {
       }
     `;
     const result = await executeGraphQL(mutation, store.endpoint, '', { email, password });
-    console.log('[OpenFront Adapter] authenticateUser response:', JSON.stringify(result, null, 2));
     const auth = result.data?.authenticateUserWithPassword;
     if (!auth || auth.__typename === 'UserAuthenticationWithPasswordFailure') {
       const msg = auth?.message || 'Authentication failed';
-      console.log('[OpenFront Adapter] Authentication FAILED:', msg);
       throw new Error(msg);
     }
-    console.log('[OpenFront Adapter] Authentication SUCCESS, sessionToken:', auth.sessionToken?.substring(0, 20) + '...');
     return {
       sessionToken: auth.sessionToken,
       user: {
@@ -278,11 +274,6 @@ const openfrontAdapter: PlatformAdapter = {
   async setShippingAddress({ store, cartId, address, cookie, ctoken }) {
     const { email, firstName, lastName, address1, city, postalCode, countryCode, province, company, phone } = address;
 
-    console.log('[OpenFront Adapter] ===== setShippingAddress START =====');
-    console.log('[OpenFront Adapter] Email:', email);
-    console.log('[OpenFront Adapter] Cookie param:', cookie ? 'EXISTS (length: ' + cookie.length + ')' : 'NONE');
-    console.log('[OpenFront Adapter] CToken param:', ctoken ? 'EXISTS (starts with: ' + ctoken.substring(0, 10) + '...)' : 'NONE');
-
     // Step 1: Try to detect authenticated user
     let currentUser: any = null;
     let sessionToken: string | undefined;
@@ -291,13 +282,10 @@ const openfrontAdapter: PlatformAdapter = {
         query Me { authenticatedItem { ... on User { id email } } }
       `;
       const userSessionToken = ctoken && !ctoken.startsWith('ctok_') ? ctoken : undefined;
-      console.log('[OpenFront Adapter] Checking authentication with userSessionToken:', userSessionToken ? 'EXISTS' : 'NONE');
       const meResult = await executeGraphQL(meQuery, store.endpoint, cookie || '', {}, userSessionToken);
-      console.log('[OpenFront Adapter] Me query result:', JSON.stringify(meResult, null, 2));
       currentUser = meResult.data?.authenticatedItem;
-      console.log('[OpenFront Adapter] Current user:', currentUser ? currentUser.email : 'NOT AUTHENTICATED');
     } catch (err) {
-      console.log('[OpenFront Adapter] Me query error:', err);
+      // Not authenticated
     }
 
     // Step 2: If not authenticated, check if email has an account; if not, create guest and authenticate
@@ -361,9 +349,6 @@ const openfrontAdapter: PlatformAdapter = {
     }
 
     // Step 3: Create address
-    console.log('[OpenFront Adapter] Creating address with data:', JSON.stringify(addressData, null, 2));
-    console.log('[OpenFront Adapter] Using sessionToken:', sessionToken ? sessionToken.substring(0, 20) + '...' : 'NONE');
-    console.log('[OpenFront Adapter] Using ctoken:', ctoken ? ctoken.substring(0, 20) + '...' : 'NONE');
     const createdAddress = await executeGraphQL(
       `mutation CreateAddress($data: AddressCreateInput!) {
         createAddress(data: $data) { id user { id } country { iso2 } }
@@ -373,20 +358,12 @@ const openfrontAdapter: PlatformAdapter = {
       { data: addressData },
       sessionToken || ctoken
     ).then(r => {
-      console.log('[OpenFront Adapter] Create address response:', JSON.stringify(r, null, 2));
       return r.data?.createAddress;
     }).catch(err => {
-      console.log('[OpenFront Adapter] Create address ERROR:', err);
       throw err;
     });
 
     // Step 4: Update cart with email, addresses, and user
-    console.log('[OpenFront Adapter] Updating cart with:', {
-      cartId,
-      email,
-      addressId: createdAddress.id,
-      userId: currentUser.id
-    });
     await executeGraphQL(
       `mutation UpdateActiveCart($cartId: ID!, $data: CartUpdateInput!) {
         updateActiveCart(cartId: $cartId, data: $data) { id }
@@ -404,10 +381,8 @@ const openfrontAdapter: PlatformAdapter = {
       },
       sessionToken || ctoken
     ).then(r => {
-      console.log('[OpenFront Adapter] Update cart SUCCESS:', JSON.stringify(r, null, 2));
       return r;
     }).catch(err => {
-      console.log('[OpenFront Adapter] Update cart ERROR:', err);
       throw err;
     });
 

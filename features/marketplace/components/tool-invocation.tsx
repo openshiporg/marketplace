@@ -60,7 +60,6 @@ export const ToolInvocation = memo(function ToolInvocation({
   const [orderUrl, setOrderUrl] = useState<string | null>(null);
 
   const handlePaymentComplete = async (paymentSessionId: string, paypalOrderId?: string) => {
-    console.log('[Payment] Payment confirmed, completing cart...', { paymentSessionId, paypalOrderId });
     setCompletingOrder(true);
 
     try {
@@ -112,21 +111,13 @@ export const ToolInvocation = memo(function ToolInvocation({
       });
 
       const completeResult = await response.json();
-      console.log('[Payment] Cart completion result:', completeResult);
 
       if (completeResult.result) {
         // Parse the result to get the order details
         const text = completeResult.result?.content?.[0]?.text;
-        console.log('[Payment] Raw completion result text:', text);
 
         if (text) {
           const orderData = JSON.parse(text);
-          console.log('[Payment] Order completed successfully:', orderData);
-          console.log('[Payment] Checking clearCartId:', {
-            clearCartId: orderData.clearCartId,
-            storeId,
-            shouldClear: orderData.clearCartId && storeId
-          });
 
           // Store the order URL for the success button
           if (orderData.redirectUrl) {
@@ -135,11 +126,7 @@ export const ToolInvocation = memo(function ToolInvocation({
 
           // Clear cart ID from localStorage since order is complete
           if (orderData.clearCartId && storeId) {
-            console.log('[Payment] Calling removeCartId for store:', storeId);
             removeCartId(storeId);
-            console.log('[Payment] removeCartId called successfully');
-          } else {
-            console.warn('[Payment] NOT clearing cart - clearCartId:', orderData.clearCartId, 'storeId:', storeId);
           }
 
           // Mark payment as completed
