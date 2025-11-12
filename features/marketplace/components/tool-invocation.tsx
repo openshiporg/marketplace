@@ -16,6 +16,7 @@ import type { UseChatHelpers } from '@ai-sdk/react';
 import { PaymentUI } from './payment/payment-ui';
 import { getAllCarts, removeCartId } from '@/lib/cart-storage';
 import { getSessionToken } from '@/lib/session-storage';
+import { getMarketplaceConfig } from '@/lib/marketplace-storage';
 
 interface ToolInvocationProps {
   toolName: string;
@@ -83,9 +84,11 @@ export const ToolInvocation = memo(function ToolInvocation({
       } catch {}
 
       const token = getSessionToken(storeId);
+      const marketplaceConfig = getMarketplaceConfig();
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         'x-cart-ids': xCartIds,
+        'x-marketplace-config': JSON.stringify(marketplaceConfig)
       };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 

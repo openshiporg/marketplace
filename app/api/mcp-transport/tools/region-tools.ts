@@ -2,8 +2,8 @@ import { Tool } from '@modelcontextprotocol/sdk/types.js';
 import { getPlatformAdapter } from '../adapters';
 import { parseStoreConfigs } from '../types/store-config';
 
-async function resolveAdapter(storeId: string) {
-  const stores = parseStoreConfigs();
+async function resolveAdapter(storeId: string, customConfig?: any[]) {
+  const stores = parseStoreConfigs(customConfig);
   const store = stores.find(s => s.id === storeId);
   if (!store) throw new Error(`Unknown store: ${storeId}. Available stores: ${stores.map(s => s.id).join(', ')}`);
   const adapter = await getPlatformAdapter(store);
@@ -54,11 +54,11 @@ Use the same automatic country selection logic:
   }
 ];
 
-export async function handleRegionTools(name: string, args: any, cookie: string, ctoken?: string) {
+export async function handleRegionTools(name: string, args: any, cookie: string, ctoken?: string, customConfig?: any[]) {
   if (name === 'getAvailableCountries') {
     const { storeId } = args;
 
-    const { store, adapter } = await resolveAdapter(storeId);
+    const { store, adapter } = await resolveAdapter(storeId, customConfig);
     const countries = await adapter.getAvailableCountries({ store, cookie, ctoken });
 
     const allCountries = (countries || []).map((c: any) => ({
@@ -91,7 +91,7 @@ export async function handleRegionTools(name: string, args: any, cookie: string,
   if (name === 'getAvailableRegions') {
     const { storeId } = args;
 
-    const { store, adapter } = await resolveAdapter(storeId);
+    const { store, adapter } = await resolveAdapter(storeId, customConfig);
     const countries = await adapter.getAvailableCountries({ store, cookie, ctoken });
     const sym = (code: string) => ({ USD: '$', EUR: '\u20ac', GBP: '\u00a3', CAD: 'CA$', AUD: 'A$' } as Record<string, string>)[code] || '$';
 

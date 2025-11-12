@@ -19,6 +19,7 @@ import { ModeSplitButton } from "../features/marketplace/components/dual-sidebar
 import { useAiConfig } from "../features/marketplace/hooks/use-ai-config";
 import { setCartId as saveCartToLocalStorage, removeCartId } from "@/lib/cart-storage";
 import { getAllSessions } from "@/lib/session-storage";
+import { getMarketplaceConfig } from "@/lib/marketplace-storage";
 import { AIActivationDialog } from "../features/marketplace/components/dual-sidebar/ai-activation-dialog";
 import { AISettingsDialog } from "../features/marketplace/components/dual-sidebar/ai-settings-dialog";
 import { ChatUnactivatedState } from "../features/marketplace/components/dual-sidebar/chat-unactivated-state";
@@ -143,6 +144,9 @@ export default function HomePage() {
 
   // Compute body for useChat based on mode
   const chatBody = useMemo(() => {
+    // Get marketplace config from localStorage
+    const marketplaceConfig = getMarketplaceConfig();
+
     if (aiConfig.keyMode === "local") {
       return {
         useLocalKeys: true,
@@ -153,17 +157,20 @@ export default function HomePage() {
         maxTokens: aiConfig.localKeys?.maxTokens,
         cartIds: cartIdsState, // Include cart context from state
         sessionTokens: sessionTokensState, // Include session tokens from state
+        marketplaceConfig, // Include marketplace config
       };
     } else if (aiConfig.keyMode === "env") {
       return {
         useGlobalKeys: true,
         cartIds: cartIdsState,
         sessionTokens: sessionTokensState,
+        marketplaceConfig, // Include marketplace config
       };
     }
     return {
       cartIds: cartIdsState, // Always include cart IDs even if no keys configured
       sessionTokens: sessionTokensState, // Always include session tokens even if no keys configured
+      marketplaceConfig: getMarketplaceConfig(), // Always include marketplace config
     };
   }, [aiConfig.keyMode, aiConfig.localKeys, cartIdsState, sessionTokensState]);
 
@@ -207,10 +214,14 @@ export default function HomePage() {
 
       // Call discoverProducts MCP tool directly
       try {
+        // Get marketplace config from localStorage
+        const marketplaceConfig = getMarketplaceConfig();
+
         const discoverResponse = await fetch('/api/mcp-transport/http', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            'x-marketplace-config': JSON.stringify(marketplaceConfig),
           },
           credentials: 'include',
           body: JSON.stringify({
@@ -267,7 +278,10 @@ export default function HomePage() {
     let cartId = cartIdsState[storeId];
 
     try {
-      // Build headers with cart IDs and session token
+      // Get marketplace config from localStorage
+      const marketplaceConfig = getMarketplaceConfig();
+
+      // Build headers with cart IDs, session token, and marketplace config
       let xCartIds = '{}';
       try {
         const ids: Record<string, string> = {};
@@ -280,6 +294,7 @@ export default function HomePage() {
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         'x-cart-ids': xCartIds,
+        'x-marketplace-config': JSON.stringify(marketplaceConfig),
       };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 

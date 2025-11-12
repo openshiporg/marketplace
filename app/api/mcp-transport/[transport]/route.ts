@@ -36,6 +36,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ tra
       }
     }
 
+    // Extract marketplace config from custom header
+    const marketplaceConfigHeader = request.headers.get('x-marketplace-config') || '';
+    let customMarketplaceConfig: any[] | undefined;
+    if (marketplaceConfigHeader) {
+      try {
+        customMarketplaceConfig = JSON.parse(marketplaceConfigHeader);
+      } catch (error) {
+        console.error('Failed to parse marketplace config header:', error);
+      }
+    }
+
     // Parse the JSON-RPC request
     const body = await request.json();
 
@@ -96,13 +107,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ tra
 
         // Route to appropriate tool handler (commerce-specific only)
         if (storeTools.some(tool => tool.name === name)) {
-          result = await handleStoreTools(name, args, cookie, ctoken);
+          result = await handleStoreTools(name, args, cookie, ctoken, customMarketplaceConfig);
         } else if (productTools.some(tool => tool.name === name)) {
-          result = await handleProductTools(name, args, cookie, ctoken);
+          result = await handleProductTools(name, args, cookie, ctoken, customMarketplaceConfig);
         } else if (cartTools.some(tool => tool.name === name)) {
-          result = await handleCartTools(name, args, cookie, dataHasChanged, ctoken, cartIds);
+          result = await handleCartTools(name, args, cookie, dataHasChanged, ctoken, cartIds, customMarketplaceConfig);
         } else if (regionTools.some(tool => tool.name === name)) {
-          result = await handleRegionTools(name, args, cookie, ctoken);
+          result = await handleRegionTools(name, args, cookie, ctoken, customMarketplaceConfig);
         } else {
           throw new Error(`Tool ${name} not found`);
         }

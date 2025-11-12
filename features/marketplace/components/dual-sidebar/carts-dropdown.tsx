@@ -1,13 +1,21 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { ShoppingCart, ShoppingBag, ExternalLink } from "lucide-react";
+import { ShoppingCart, ShoppingBag, ExternalLink, Edit3, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
+import {
+  getMarketplaceConfig,
+  setMarketplaceConfig,
+  resetMarketplaceConfig,
+  isDefaultConfig,
+} from "@/lib/marketplace-storage";
+import { MarketplaceConfigEditor } from "./marketplace-config-editor";
 
 interface Cart {
   storeId: string;
@@ -32,60 +40,122 @@ export function CartsDropdown({
   const [carts, setCarts] = useState<Cart[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [open, setOpen] = useState(false);
+  const [editMode, setEditMode] = useState<'idle' | 'confirm'>('idle');
+  const [resetMode, setResetMode] = useState<'idle' | 'confirm'>('idle');
+  const [showEditor, setShowEditor] = useState(false);
+  const [currentConfig, setCurrentConfig] = useState<any[]>([]);
+  const [isCustomConfig, setIsCustomConfig] = useState(false);
 
+  // Check if config is custom (modified from default)
   useEffect(() => {
-    const fetchStoreInfo = async () => {
-      setIsLoading(true);
-      try {
-        // Fetch store information
-        const response = await fetch("/api/mcp-transport/http", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            jsonrpc: "2.0",
-            id: Date.now(),
-            method: "tools/call",
-            params: {
-              name: "getAvailableStores",
-              arguments: {},
-            },
-          }),
-        });
+    if (open) {
+      setIsCustomConfig(!isDefaultConfig());
+    }
+  }, [open]);
 
-        const data = await response.json();
-
-        if (data.result?.content?.[0]?.text) {
-          const storesData = JSON.parse(data.result.content[0].text);
-          const stores = storesData.stores || [];
-
-          // Show ALL stores from config, with cart info if available
-          const cartsWithInfo: Cart[] = stores.map((store: any) => {
-            const cartId = cartIds[store.storeId];
-            return {
-              storeId: store.storeId,
-              cartId: cartId || '', // Empty string if no cart
-              storeName: store.name,
-              logoIcon: store.logoIcon,
-              logoColor: store.logoColor,
-              baseUrl: store.baseUrl,
-            };
-          });
-
-          setCarts(cartsWithInfo);
-        }
-      } catch (error) {
-        console.error("[Carts Dropdown] Error fetching store info:", error);
-      } finally {
-        setIsLoading(false);
-      }
+  // Listen for marketplace config updates
+  useEffect(() => {
+    const handleConfigUpdate = () => {
+      // Refetch store info when config changes
+      fetchStoreInfo();
     };
 
+    window.addEventListener('marketplaceConfigUpdated', handleConfigUpdate);
+    return () => window.removeEventListener('marketplaceConfigUpdated', handleConfigUpdate);
+  }, []);
+
+  const fetchStoreInfo = async () => {
+    setIsLoading(true);
+    try {
+      // Get marketplace config from localStorage (user's custom or default)
+      const marketplaceConfig = getMarketplaceConfig();
+
+      // Pass the user's config to the backend so it can process ALL stores with proper adapters
+      const response = await fetch("/api/mcp-transport/http", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-marketplace-config": JSON.stringify(marketplaceConfig),
+        },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: Date.now(),
+          method: "tools/call",
+          params: {
+            name: "getAvailableStores",
+            arguments: {},
+          },
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.result?.content?.[0]?.text) {
+        const storesData = JSON.parse(data.result.content[0].text);
+        const stores = storesData.stores || [];
+
+        // Show ALL stores from backend response with cart info if available
+        const cartsWithInfo: Cart[] = stores.map((store: any) => {
+          const cartId = cartIds[store.storeId];
+          return {
+            storeId: store.storeId,
+            cartId: cartId || '',
+            storeName: store.name,
+            logoIcon: store.logoIcon,
+            logoColor: store.logoColor,
+            baseUrl: store.baseUrl,
+          };
+        });
+
+        setCarts(cartsWithInfo);
+      }
+    } catch (error) {
+      console.error("[Carts Dropdown] Error fetching store info:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
     // Always fetch store info to show all stores
     fetchStoreInfo();
   }, [cartIds]);
 
   const cartCount = carts.filter(c => c.cartId).length; // Count only stores with active carts
   const totalStores = carts.length;
+
+  // Handle Edit button click
+  const handleEditClick = () => {
+    if (editMode === 'idle') {
+      setEditMode('confirm');
+      // Reset after 3 seconds if not clicked again
+      setTimeout(() => setEditMode('idle'), 3000);
+    } else if (editMode === 'confirm') {
+      // Get fresh config from localStorage right before showing editor
+      setCurrentConfig(getMarketplaceConfig());
+      setShowEditor(true);
+      setEditMode('idle');
+    }
+  };
+
+  // Handle Reset button click
+  const handleResetClick = () => {
+    if (resetMode === 'idle') {
+      setResetMode('confirm');
+      // Reset after 3 seconds if not clicked again
+      setTimeout(() => setResetMode('idle'), 3000);
+    } else if (resetMode === 'confirm') {
+      // Reset to default
+      resetMarketplaceConfig();
+      setResetMode('idle');
+      setOpen(false);
+    }
+  };
+
+  // Handle saving edited config
+  const handleSaveConfig = (newConfig: any[]) => {
+    setMarketplaceConfig(newConfig);
+  };
 
   if (totalStores === 0) {
     return null;
@@ -140,13 +210,14 @@ export function CartsDropdown({
             <div className="flex items-center justify-between gap-2">
               {/* Left: Store info - clickable to go to store */}
               <div
-               
+
                 className="flex items-center gap-1 flex-1 px-1.5 py-0 rounded-md"
               >
                 <div
-                  className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                  className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
                   style={{
-                    backgroundColor: cart.logoColor || "#000",
+                    backgroundColor: cart.logoIcon ? (cart.logoColor || "#e5e7eb") : "#f3f4f6",
+                    border: cart.logoIcon ? "none" : "2px solid #e5e7eb",
                   }}
                 >
                   {cart.logoIcon ? (
@@ -158,11 +229,11 @@ export function CartsDropdown({
                       }}
                     />
                   ) : (
-                    <ShoppingCart className="h-4 w-4 text-white" />
+                    <div className="w-2 h-2 rounded-full bg-gray-400" />
                   )}
                 </div>
                 <span className="font-medium truncate text-sm">
-                  {cart.storeName || "Unknown Store"}
+                  {cart.storeName || cart.baseUrl || "Unknown Store"}
                 </span>
               </div>
 
@@ -201,7 +272,40 @@ export function CartsDropdown({
             </div>
           </div>
         ))}
+
+        {/* Separator before action buttons */}
+        <DropdownMenuSeparator className="my-2" />
+
+        {/* Edit button */}
+        <Button
+          onClick={handleEditClick}
+          variant="ghost"
+          className="w-full justify-start text-sm"
+        >
+          <Edit3 className="size-4 mr-2" />
+          {editMode === 'confirm' ? 'Are you sure?' : 'Edit'}
+        </Button>
+
+        {/* Set to Default button - only show if config is custom */}
+        {isCustomConfig && (
+          <Button
+            onClick={handleResetClick}
+            variant="ghost"
+            className="w-full justify-start text-sm"
+          >
+            <RotateCcw className="size-4 mr-2" />
+            {resetMode === 'confirm' ? 'Are you sure?' : 'Set to Default'}
+          </Button>
+        )}
       </DropdownMenuContent>
+
+      {/* Config Editor Dialog */}
+      <MarketplaceConfigEditor
+        open={showEditor}
+        onOpenChange={setShowEditor}
+        currentConfig={currentConfig}
+        onSave={handleSaveConfig}
+      />
     </DropdownMenu>
   );
 }

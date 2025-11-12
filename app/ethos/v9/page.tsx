@@ -77,8 +77,8 @@ export default function EthosV9Page() {
           <div>
             <h2 className="text-4xl font-semibold mb-4 font-instrument-serif">Building Openfront</h2>
             <p className="text-fd-muted-foreground leading-relaxed mb-4">
-              We built Openfront: open source e-commerce platforms for every vertical. Retail stores, restaurants,
-              salons, barbershops, hotels. Each one comes with the complete source code, can be self-hosted or
+              We built <a href="https://github.com/openshiporg/openfront" target="_blank" rel="noopener noreferrer" className="text-fd-foreground underline hover:text-fd-muted-foreground transition-colors">Openfront</a>: open source e-commerce platforms for every vertical. <a href="https://openship.org" target="_blank" rel="noopener noreferrer" className="text-fd-foreground underline hover:text-fd-muted-foreground transition-colors">Retail stores, restaurants,
+              salons, barbershops, hotels</a>. Each one comes with the complete source code, can be self-hosted or
               hosted with us, and includes built-in AI that understands your entire business.
             </p>
             <p className="text-fd-muted-foreground leading-relaxed mb-4">
@@ -116,7 +116,7 @@ export default function EthosV9Page() {
             <h2 className="text-4xl font-semibold mb-4 font-instrument-serif">The Conversation Is the Store</h2>
             <p className="text-fd-muted-foreground leading-relaxed mb-4">
               Pages are optional now. The full shopping flow (browse, options, cart, shipping, payment) happens
-              inside a conversation and it's still the store's flow, not ours. Protocols like MCP UI make it
+              inside a conversation and it's still the store's flow, not ours. Protocols like <a href="https://mcpui.dev" target="_blank" rel="noopener noreferrer" className="text-fd-foreground underline hover:text-fd-muted-foreground transition-colors">MCP UI</a> make it
               possible to render a store's components directly in chat without copying state.
             </p>
             <p className="text-fd-muted-foreground leading-relaxed mb-4">
@@ -182,7 +182,7 @@ export default function EthosV9Page() {
               customer service checks, warranty clarity, fulfillment reliability. That signal is the product.
             </p>
             <p className="text-fd-muted-foreground leading-relaxed mb-4">
-              The stores in this marketplace are in our configuration file, which you can view on GitHub. We've personally
+              The stores in this marketplace are in our <a href="https://github.com/openshiporg/marketplace/blob/master/marketplace.config.json" target="_blank" rel="noopener noreferrer" className="text-fd-foreground underline hover:text-fd-muted-foreground transition-colors">configuration file, which you can view on GitHub</a>. We've personally
               used these stores, checked their shipping, verified their customer service. That's what we provide:
               a signal that these stores are worth your time.
             </p>
@@ -193,24 +193,24 @@ export default function EthosV9Page() {
           </div>
 
           <div>
-            <h2 className="text-4xl font-semibold mb-4 font-instrument-serif">Anyone Can Run Their Own Marketplace</h2>
+            <h2 className="text-4xl font-semibold mb-4 font-instrument-serif">Anyone Can Curate Their Own Marketplace</h2>
             <p className="text-fd-muted-foreground leading-relaxed mb-4">
-              This is fully open source. Fork the code, add your own stores to a configuration file, deploy your
-              own marketplace. No permission required. No fees. No platform approval.
+              This is <a href="https://github.com/openshiporg/marketplace" target="_blank" rel="noopener noreferrer" className="text-fd-foreground underline hover:text-fd-muted-foreground transition-colors">fully open source</a>. Open the marketplace, edit the store configuration directly in chat,
+              save it to your browser. Your curated list persists across sessions. No deployment, no hosting, no technical setup.
             </p>
             <p className="text-fd-muted-foreground leading-relaxed mb-4">
               Want to build a marketplace for sustainable brands in your region? Add those stores. Building one for
               your city's independent shops? Connect them. Creating a niche marketplace for vintage collectibles?
-              Curate the stores that matter to your community.
+              Edit the config, add the stores that matter to your community, and start shopping.
             </p>
             <p className="text-fd-muted-foreground leading-relaxed mb-4">
               Traditional marketplaces make it impossible to compete because of network effects. You can't compete
               with Amazon because they have millions of sellers and customers. The network is the moat.
             </p>
             <p className="text-fd-muted-foreground leading-relaxed">
-              When stores aren't locked in and anyone can fork the code, network effects change shape. The same store
-              can list on multiple marketplaces serving different audiences. Your competitive advantage becomes knowing
-              which stores to trust, not controlling the infrastructure.
+              When stores aren't locked in and anyone can edit the config, network effects change shape. The same store
+              can appear in multiple curated marketplaces serving different audiences. Your competitive advantage becomes
+              knowing which stores to trust, not controlling the infrastructure.
             </p>
           </div>
 
@@ -221,8 +221,8 @@ export default function EthosV9Page() {
             </p>
             <p className="text-fd-muted-foreground leading-relaxed mb-4">
               We sell the software. Openfront is open source e-commerce platforms for every vertical: retail stores,
-              restaurants, salons, barbershops, hotels. Businesses get the complete source code, self-host or host
-              with us, and own their entire commerce stack. That's our business. That's what we sell.
+              restaurants, salons, barbershops, hotels. Businesses get the complete source code, <a href="https://docs.openship.org" target="_blank" rel="noopener noreferrer" className="text-fd-foreground underline hover:text-fd-muted-foreground transition-colors">self-host or host
+              with us</a>, and own their entire commerce stack. That's our business. That's what we sell.
             </p>
             <p className="text-fd-muted-foreground leading-relaxed mb-4">
               This marketplace connects to stores running their own stack. Because they already have cart, checkout,
@@ -272,8 +272,8 @@ export default function EthosV9Page() {
               The office chair story doesn't have to be yours.
             </p>
             <p className="text-fd-muted-foreground leading-relaxed mb-4">
-              <strong>If you're a merchant:</strong> Deploy Openfront or run any platform that exposes the standard
-              interface. Set up once, appear in every marketplace that uses this standard. No per-marketplace integrations.
+              <strong>If you're a merchant:</strong> <a href="https://docs.openship.org" target="_blank" rel="noopener noreferrer" className="text-fd-foreground underline hover:text-fd-muted-foreground transition-colors">Deploy Openfront</a> or run any platform that exposes the <a href="https://github.com/openshiporg/marketplace/blob/master/app/api/mcp-transport/adapters/types.ts" target="_blank" rel="noopener noreferrer" className="text-fd-foreground underline hover:text-fd-muted-foreground transition-colors">standard
+              interface</a>. Set up once, appear in every marketplace that uses this standard. No per-marketplace integrations.
               No lock-in. Your first customer costs $0 in platform fees. Your 10,000th customer costs $0. You keep
               your customer data, process payments on your terms, fulfill orders your way. As new curated marketplaces
               appear for different niches and regions, you're automatically compatible.

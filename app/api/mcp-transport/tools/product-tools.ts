@@ -3,8 +3,8 @@ import { createUIResource } from './utils';
 import { parseStoreConfigs } from '../types/store-config';
 import { getPlatformAdapter } from '../adapters';
 
-async function resolveAdapter(storeId: string) {
-  const stores = parseStoreConfigs();
+async function resolveAdapter(storeId: string, customConfig?: any[]) {
+  const stores = parseStoreConfigs(customConfig);
   const store = stores.find(s => s.id === storeId);
   if (!store) throw new Error(`Unknown store: ${storeId}. Available stores: ${stores.map(s => s.id).join(', ')}`);
   const adapter = await getPlatformAdapter(store);
@@ -127,12 +127,12 @@ function sortOptionValues(values: string[], optionTitle: string): string[] {
   });
 }
 
-export async function handleProductTools(name: string, args: any, cookie: string, ctoken?: string) {
+export async function handleProductTools(name: string, args: any, cookie: string, ctoken?: string, customConfig?: any[]) {
   if (name === 'searchProducts') {
     const { storeId, countryCode, limit = 10 } = args;
 
     // Use platform adapter to fetch products agnostically
-    const { store, adapter } = await resolveAdapter(storeId);
+    const { store, adapter } = await resolveAdapter(storeId, customConfig);
     const adapterProducts = await adapter.searchProducts({ store, countryCode, limit, cookie, ctoken });
 
     // Map normalized adapter products into the OpenFront-shaped structure expected by the existing UI
@@ -621,7 +621,7 @@ export async function handleProductTools(name: string, args: any, cookie: string
     `;
 
     // Get country details for user messaging via adapter
-    const { store: countryStore, adapter: countryAdapter } = await resolveAdapter(storeId);
+    const { store: countryStore, adapter: countryAdapter } = await resolveAdapter(storeId, customConfig);
     const countries = await countryAdapter.getAvailableCountries({ store: countryStore, cookie, ctoken });
     const sym2 = (code: string) => ({ USD: '$', EUR: '\u20ac', GBP: '\u00a3', CAD: 'CA$', AUD: 'A$' } as Record<string, string>)[code] || '$';
     const allCountries = (countries || []).map((c: any) => ({
@@ -664,7 +664,7 @@ export async function handleProductTools(name: string, args: any, cookie: string
       throw new Error('Either productId or productHandle is required');
     }
 
-    const { store, adapter } = await resolveAdapter(storeId);
+    const { store, adapter } = await resolveAdapter(storeId, customConfig);
 
     // Resolve product ID if only handle provided (platform-agnostic adapters typically key by ID)
     let resolvedProductId = productId;
@@ -1145,7 +1145,7 @@ export async function handleProductTools(name: string, args: any, cookie: string
     const { limit = 10 } = args;
 
     // Get all available stores from marketplace.config.json
-    const stores = parseStoreConfigs();
+    const stores = parseStoreConfigs(customConfig);
     if (stores.length === 0) {
       return {
         jsonrpc: '2.0',
@@ -1158,7 +1158,7 @@ export async function handleProductTools(name: string, args: any, cookie: string
     // Fetch store details and products for each store in parallel
     const storeDataPromises = stores.map(async (storeConfig) => {
       try {
-        const { store, adapter } = await resolveAdapter(storeConfig.id);
+        const { store, adapter } = await resolveAdapter(storeConfig.id, customConfig);
 
         // Store info
         const storeInfo = await adapter.getStoreInfo({ store, cookie, ctoken });

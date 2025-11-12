@@ -11,8 +11,8 @@ import { cn } from "@/lib/utils";
 import { ToolInvocation } from "./tool-invocation";
 import { UIResourceRenderer, isUIResource } from '@mcp-ui/client';
 import { getAllCarts, getCartId as getLocalCartId, setCartId as saveCartToLocalStorage } from '@/lib/cart-storage';
-
 import { getSessionToken, setSession } from '@/lib/session-storage';
+import { getMarketplaceConfig } from '@/lib/marketplace-storage';
 
 interface AIMessageProps {
   message: TMessage;
@@ -49,9 +49,11 @@ const PureAIMessage = ({
       } catch {}
 
       const token = getSessionToken(storeId);
+      const marketplaceConfig = getMarketplaceConfig();
       const viewCartHeaders: Record<string, string> = {
         'Content-Type': 'application/json',
         'x-cart-ids': xCartIds,
+        'x-marketplace-config': JSON.stringify(marketplaceConfig)
       };
       if (token) viewCartHeaders['Authorization'] = `Bearer ${token}`;
 
@@ -118,9 +120,11 @@ const PureAIMessage = ({
 
           const storeId = payload.params?.storeId;
           const existingToken = getSessionToken(storeId);
+          const marketplaceConfig = getMarketplaceConfig();
           const baseHeaders: Record<string, string> = {
             'Content-Type': 'application/json',
             'x-cart-ids': xCartIds,
+            'x-marketplace-config': JSON.stringify(marketplaceConfig)
           };
           if (existingToken) baseHeaders['Authorization'] = `Bearer ${existingToken}`;
 
@@ -181,9 +185,11 @@ const PureAIMessage = ({
                 xIds = JSON.stringify(ids);
               } catch {}
 
+              const marketplaceConfig = getMarketplaceConfig();
               const headers: Record<string, string> = {
                 'Content-Type': 'application/json',
                 'x-cart-ids': xIds,
+                'x-marketplace-config': JSON.stringify(marketplaceConfig)
               };
               if (tokenForEndpoint) headers['Authorization'] = `Bearer ${tokenForEndpoint}`;
 
@@ -246,7 +252,12 @@ const PureAIMessage = ({
               } catch {}
 
               const token = getSessionToken(storeId);
-              const headers: Record<string, string> = { 'Content-Type': 'application/json', 'x-cart-ids': xCartIds };
+              const marketplaceConfig = getMarketplaceConfig();
+              const headers: Record<string, string> = {
+                'Content-Type': 'application/json',
+                'x-cart-ids': xCartIds,
+                'x-marketplace-config': JSON.stringify(marketplaceConfig)
+              };
               if (token) headers['Authorization'] = `Bearer ${token}`;
 
               const cartResponse = await fetch('/api/mcp-transport/http', {
@@ -298,9 +309,11 @@ const PureAIMessage = ({
 
         const storeIdForCall = payload.params?.storeId;
         const tokenForCall = getSessionToken(storeIdForCall);
+        const marketplaceConfig = getMarketplaceConfig();
         const callHeaders: Record<string, string> = {
           'Content-Type': 'application/json',
           'x-cart-ids': xCartIdsForCall,
+          'x-marketplace-config': JSON.stringify(marketplaceConfig)
         };
         if (tokenForCall) callHeaders['Authorization'] = `Bearer ${tokenForCall}`;
 
@@ -369,9 +382,11 @@ const PureAIMessage = ({
                 } catch {}
 
                 const token = getSessionToken(storeId);
+                const marketplaceConfig = getMarketplaceConfig();
                 const viewCartHeaders: Record<string, string> = {
                   'Content-Type': 'application/json',
                   'x-cart-ids': xCartIds,
+                  'x-marketplace-config': JSON.stringify(marketplaceConfig)
                 };
                 if (token) viewCartHeaders['Authorization'] = `Bearer ${token}`;
 

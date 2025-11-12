@@ -1,9 +1,12 @@
 # Openfront Marketplace
 
-> [!NOTE]
-> **Demo Video**: [Watch the marketplace in action](#) _(coming soon)_
-
 A conversational commerce marketplace where shopping happens entirely in AI chat. Products, cart, checkout, and payment—all rendered in the conversation via MCP UI. Zero transaction fees, zero data collection, complete store independence.
+
+## Demo Video
+
+[![Watch Marketplace Demo](https://img.youtube.com/vi/LM6hRjZIDcs/maxresdefault.jpg)](https://youtu.be/LM6hRjZIDcs)
+
+*Watch a complete demo of the conversational commerce experience*
 
 ## What Makes This Different
 
@@ -13,8 +16,8 @@ This marketplace doesn't store products, inventory, or customer data. Instead, i
 ### Conversational Shopping
 The entire shopping experience happens in the AI chat. Interactive product cards, shopping cart, checkout form, and payment interface—all rendered in the conversation via MCP UI. No page redirects. No separate checkout flow. Payment goes directly to each store's Stripe or PayPal account with zero marketplace fees.
 
-### Open Source & Forkable
-Anyone can fork this repository, add their own curated stores, and deploy their own marketplace instance. No permission required. No platform fees.
+### Open Source & Customizable
+Configure your own curated stores directly in the UI. Add stores through the marketplace config editor. No permission required. No platform fees.
 
 ### AI-Powered Discovery
 Uses Model Context Protocol (MCP) to enable any AI (Claude, ChatGPT, local models) to query stores, understand product catalogs, and provide intelligent product recommendations based on merit, not paid placement.
@@ -51,7 +54,7 @@ Visit [http://localhost:3000](http://localhost:3000) to see the marketplace.
 
 ### Adding Stores
 
-Stores are managed in [`marketplace.config.json`](./marketplace.config.json) at the root of the project. Currently supports OpenFront stores, with abstraction in place to support other e-commerce platforms (Shopify, WooCommerce, BigCommerce) in the future:
+Stores can be configured through the marketplace UI or by editing [`marketplace.config.json`](./marketplace.config.json). Currently supports OpenFront stores, with abstraction in place to support other e-commerce platforms (Shopify, WooCommerce, BigCommerce) in the future:
 
 ```json
 [
@@ -132,7 +135,7 @@ All marketplace operations—product search, cart management, checkout, payment�
 - **Full Control**: Manage products, pricing, and inventory on your own platform
 
 ### For Marketplace Operators
-- **Easy Setup**: Fork, configure stores, deploy
+- **Easy Setup**: Deploy, configure stores in UI, launch
 - **Curated Experience**: Choose which stores to feature
 - **Flexible AI**: Use any AI provider via MCP
 - **Open Source**: Modify and extend as needed
@@ -196,7 +199,7 @@ OPENROUTER_MAX_TOKENS=4000
 ## Use Cases
 
 ### Niche Marketplaces
-Fork this repo to create specialized marketplaces:
+Deploy this marketplace to create specialized discovery platforms:
 - Sustainable brands in your region
 - Local independent shops in your city
 - Vintage collectibles from curated sellers

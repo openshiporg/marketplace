@@ -24,15 +24,22 @@ export function getApiPath(platform: PlatformType): string {
   return PLATFORM_API_PATHS[platform];
 }
 
-export function parseStoreConfigs(): ParsedStore[] {
-  const configPath = join(process.cwd(), 'marketplace.config.json');
+export function parseStoreConfigs(customConfig?: StoreConfig[]): ParsedStore[] {
   let configs: StoreConfig[] = [];
-  try {
-    const file = readFileSync(configPath, 'utf-8');
-    configs = JSON.parse(file);
-  } catch (e) {
-    console.warn('[marketplace] marketplace.config.json not found or invalid. No stores configured.');
-    configs = [];
+
+  // If custom config provided, use it (from frontend localStorage via header)
+  if (customConfig && Array.isArray(customConfig)) {
+    configs = customConfig;
+  } else {
+    // Otherwise fall back to file
+    const configPath = join(process.cwd(), 'marketplace.config.json');
+    try {
+      const file = readFileSync(configPath, 'utf-8');
+      configs = JSON.parse(file);
+    } catch (e) {
+      console.warn('[marketplace] marketplace.config.json not found or invalid. No stores configured.');
+      configs = [];
+    }
   }
 
   return configs.map((cfg, index) => ({

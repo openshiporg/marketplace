@@ -14,9 +14,9 @@ export const storeTools: Tool[] = [
   }
 ];
 
-export async function handleStoreTools(name: string, args: any, cookie: string, ctoken?: string) {
+export async function handleStoreTools(name: string, args: any, cookie: string, ctoken?: string, customConfig?: any[]) {
   if (name === 'getAvailableStores') {
-    const parsed = parseStoreConfigs();
+    const parsed = parseStoreConfigs(customConfig);
 
     // Enrich each store with live store info from its platform adapter (name, logoIcon, logoColor, paymentProviders)
     const stores = await Promise.all(parsed.map(async (s) => {

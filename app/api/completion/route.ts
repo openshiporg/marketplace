@@ -3,15 +3,16 @@ import { createOpenAI } from '@ai-sdk/openai';
 import { getBaseUrl } from '@/features/marketplace/lib/getBaseUrl';
 import { StreamableHTTPClientTransport, StreamableHTTPClientTransportOptions } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 
-// Cookie and Authorization-aware transport that properly handles cookie, C-token, cart IDs, and session tokens forwarding
+// Cookie and Authorization-aware transport that properly handles cookie, C-token, cart IDs, session tokens, and marketplace config forwarding
 class CookieAwareTransport extends StreamableHTTPClientTransport {
   private cookies: string[] = [];
   private authHeader?: string;
   private cartIdsHeader?: string;
   private sessionTokens: Record<string, string> = {};
+  private marketplaceConfigHeader?: string;
   private originalFetch: typeof fetch;
 
-  constructor(url: URL, opts?: StreamableHTTPClientTransportOptions, cookies?: string, authHeader?: string, cartIds?: Record<string, string>, sessionTokens?: Record<string, string>) {
+  constructor(url: URL, opts?: StreamableHTTPClientTransportOptions, cookies?: string, authHeader?: string, cartIds?: Record<string, string>, sessionTokens?: Record<string, string>, marketplaceConfig?: any[]) {
     super(url, opts);
 
     this.originalFetch = global.fetch;
@@ -34,6 +35,11 @@ class CookieAwareTransport extends StreamableHTTPClientTransport {
     // Store session tokens (for authenticated requests)
     if (sessionTokens && Object.keys(sessionTokens).length > 0) {
       this.sessionTokens = sessionTokens;
+    }
+
+    // Set marketplace config header
+    if (marketplaceConfig && Array.isArray(marketplaceConfig)) {
+      this.marketplaceConfigHeader = JSON.stringify(marketplaceConfig);
     }
 
     // Override global fetch to include cookies, authorization, cart IDs, and session tokens
@@ -70,6 +76,11 @@ class CookieAwareTransport extends StreamableHTTPClientTransport {
         headers.set('X-Cart-Ids', this.cartIdsHeader);
       }
 
+      // Forward Marketplace Config header
+      if (this.marketplaceConfigHeader) {
+        headers.set('X-Marketplace-Config', this.marketplaceConfigHeader);
+      }
+
       init.headers = headers;
 
       const response = await this.originalFetch(input, init);
@@ -100,6 +111,7 @@ class CookieAwareTransport extends StreamableHTTPClientTransport {
     this.authHeader = undefined;
     this.cartIdsHeader = undefined;
     this.sessionTokens = {};
+    this.marketplaceConfigHeader = undefined;
     await super.close();
   }
 }
@@ -153,14 +165,15 @@ export async function POST(req: Request) {
     const cookie = req.headers.get('cookie') || '';
     const authHeader = req.headers.get('authorization') || '';
 
-    // Create MCP client with cookie, authorization, cart IDs, and session tokens support
+    // Create MCP client with cookie, authorization, cart IDs, session tokens, and marketplace config support
     const transport = new CookieAwareTransport(
       new URL(mcpEndpoint),
       {},
       cookie,
       authHeader,
       body.cartIds,
-      body.sessionTokens
+      body.sessionTokens,
+      body.marketplaceConfig
     );
 
     mcpClient = await experimental_createMCPClient({

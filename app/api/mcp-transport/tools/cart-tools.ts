@@ -3,8 +3,8 @@ import { createUIResource } from './utils';
 import { getPlatformAdapter } from '../adapters';
 import { parseStoreConfigs } from '../types/store-config';
 
-async function resolveAdapter(storeId: string) {
-  const stores = parseStoreConfigs();
+async function resolveAdapter(storeId: string, customConfig?: any[]) {
+  const stores = parseStoreConfigs(customConfig);
   const store = stores.find(s => s.id === storeId);
   if (!store) throw new Error(`Unknown store: ${storeId}. Available stores: ${stores.map(s => s.id).join(', ')}`);
   const adapter = await getPlatformAdapter(store);
@@ -454,11 +454,11 @@ Returns interactive login form that handles authentication and session managemen
   }
 ];
 
-export async function handleCartTools(name: string, args: any, cookie: string, dataHasChanged: { value: boolean }, ctoken?: string, cartIds?: Record<string, string>) {
+export async function handleCartTools(name: string, args: any, cookie: string, dataHasChanged: { value: boolean }, ctoken?: string, cartIds?: Record<string, string>, customMarketplaceConfig?: any[]) {
   if (name === 'getAvailablePaymentMethods') {
     const { storeId, regionId } = args;
 
-    const { store, adapter } = await resolveAdapter(storeId);
+    const { store, adapter } = await resolveAdapter(storeId, customMarketplaceConfig);
     const paymentMethods = await adapter.getAvailablePaymentMethods({ store, regionId, cookie, ctoken });
 
     return {
@@ -480,7 +480,7 @@ export async function handleCartTools(name: string, args: any, cookie: string, d
   if (name === 'getOrCreateCart') {
     const { storeId, countryCode } = args;
 
-    const { store, adapter } = await resolveAdapter(storeId);
+    const { store, adapter } = await resolveAdapter(storeId, customMarketplaceConfig);
 
     const existingCartId = cartIds?.[storeId];
 
@@ -536,7 +536,7 @@ export async function handleCartTools(name: string, args: any, cookie: string, d
   if (name === 'createCart') {
     const { storeId, countryCode } = args;
 
-    const { store, adapter } = await resolveAdapter(storeId);
+    const { store, adapter } = await resolveAdapter(storeId, customMarketplaceConfig);
     const cart = await adapter.createCart({ store, countryCode, cookie, ctoken });
 
     return {
@@ -560,7 +560,7 @@ export async function handleCartTools(name: string, args: any, cookie: string, d
   if (name === 'viewCart') {
     const { storeId, cartId } = args;
 
-    const { store, adapter } = await resolveAdapter(storeId);
+    const { store, adapter } = await resolveAdapter(storeId, customMarketplaceConfig);
 
     // Fetch store details using adapter
     const storeInfo = await adapter.getStoreInfo({ store, cookie, ctoken });
@@ -607,7 +607,7 @@ export async function handleCartTools(name: string, args: any, cookie: string, d
   if (name === 'getCart') {
     const { storeId, cartId } = args;
 
-    const { store, adapter } = await resolveAdapter(storeId);
+    const { store, adapter } = await resolveAdapter(storeId, customMarketplaceConfig);
     const cart = await adapter.getCartRaw({ store, cartId, cookie, ctoken });
 
     return {
@@ -630,7 +630,7 @@ export async function handleCartTools(name: string, args: any, cookie: string, d
       return { jsonrpc: '2.0', result: { content: [{ type: 'text', text: JSON.stringify({ error: 'Quantity too large', message: `Quantity cannot exceed ${MAX_QUANTITY} items per line. For bulk orders, please contact support.`, variantId, attemptedQuantity: quantity, maxAllowed: MAX_QUANTITY }, null, 2) }] } };
     }
 
-    const { store, adapter } = await resolveAdapter(storeId);
+    const { store, adapter } = await resolveAdapter(storeId, customMarketplaceConfig);
 
     let finalCartId = cartId;
     if (!finalCartId) {
@@ -660,7 +660,7 @@ export async function handleCartTools(name: string, args: any, cookie: string, d
     const { storeId, cartId, email, firstName, lastName, address1, city, postalCode, countryCode, province, company, phone } = args;
 
     try {
-      const { store, adapter } = await resolveAdapter(storeId);
+      const { store, adapter } = await resolveAdapter(storeId, customMarketplaceConfig);
       await adapter.setShippingAddress({
         store,
         cartId,
@@ -700,7 +700,7 @@ export async function handleCartTools(name: string, args: any, cookie: string, d
           errorStr.includes('email_unique')) {
 
         // Get store info and build platform-appropriate checkout link via adapter
-        const { store, adapter } = await resolveAdapter(storeId);
+        const { store, adapter } = await resolveAdapter(storeId, customMarketplaceConfig);
         const storeInfo = await adapter.getStoreInfo({ store, cookie, ctoken });
         const storeName = storeInfo?.name || 'the store';
         const checkoutUrl = await adapter.buildCheckoutLink({ store, cartId, countryCode });
@@ -760,7 +760,7 @@ export async function handleCartTools(name: string, args: any, cookie: string, d
       return { jsonrpc: '2.0', result: { content: [{ type: 'text', text: JSON.stringify({ error: 'Quantity too large', message: `Quantity cannot exceed ${MAX_QUANTITY} items per line. For bulk orders, please contact support.`, lineItemId, attemptedQuantity: quantity, maxAllowed: MAX_QUANTITY }, null, 2) }] } };
     }
 
-    const { store, adapter } = await resolveAdapter(storeId);
+    const { store, adapter } = await resolveAdapter(storeId, customMarketplaceConfig);
     await adapter.updateCartItemQuantity({ store, cartId, lineItemId, quantity, cookie, ctoken });
     const cart = await adapter.getCartRaw({ store, cartId, cookie, ctoken });
 
@@ -777,7 +777,7 @@ export async function handleCartTools(name: string, args: any, cookie: string, d
   if (name === 'removeCartItem') {
     const { storeId, cartId, lineItemId } = args;
 
-    const { store, adapter } = await resolveAdapter(storeId);
+    const { store, adapter } = await resolveAdapter(storeId, customMarketplaceConfig);
     await adapter.removeCartItem({ store, cartId, lineItemId, cookie, ctoken });
     const cart = await adapter.getCartRaw({ store, cartId, cookie, ctoken });
 
@@ -794,7 +794,7 @@ export async function handleCartTools(name: string, args: any, cookie: string, d
   if (name === 'setShippingMethod') {
     const { storeId, cartId, shippingMethodId } = args;
 
-    const { store, adapter } = await resolveAdapter(storeId);
+    const { store, adapter } = await resolveAdapter(storeId, customMarketplaceConfig);
     await adapter.setShippingMethod({ store, cartId, shippingMethodId, cookie, ctoken });
     const cart = await adapter.getCartRaw({ store, cartId, cookie, ctoken });
     const selectedMethod = cart?.shippingMethods?.find((m: any) => m.id === shippingMethodId);
@@ -812,7 +812,7 @@ export async function handleCartTools(name: string, args: any, cookie: string, d
   if (name === 'getCheckoutLink') {
     const { storeId, cartId, countryCode } = args;
 
-    const { store, adapter } = await resolveAdapter(storeId);
+    const { store, adapter } = await resolveAdapter(storeId, customMarketplaceConfig);
     const cart = await adapter.getCartRaw({ store, cartId, cookie, ctoken });
 
     if (!cart) {
@@ -860,7 +860,7 @@ export async function handleCartTools(name: string, args: any, cookie: string, d
   if (name === 'validateCartForCheckout') {
     const { storeId, cartId } = args;
 
-    const { store, adapter } = await resolveAdapter(storeId);
+    const { store, adapter } = await resolveAdapter(storeId, customMarketplaceConfig);
     const cart = await adapter.getCartRaw({ store, cartId, cookie, ctoken });
 
     const issues: string[] = [];
@@ -885,7 +885,7 @@ export async function handleCartTools(name: string, args: any, cookie: string, d
   if (name === 'initiatePaymentSession') {
     const { storeId, cartId, paymentProvider } = args;
 
-    const { store, adapter } = await resolveAdapter(storeId);
+    const { store, adapter } = await resolveAdapter(storeId, customMarketplaceConfig);
 
     // Fetch cart and validate readiness
     const cart = await adapter.getCartRaw({ store, cartId, cookie, ctoken });
@@ -960,7 +960,7 @@ export async function handleCartTools(name: string, args: any, cookie: string, d
   if (name === 'completeCart') {
     const { storeId, cartId, paymentSessionId } = args;
 
-    const { store, adapter } = await resolveAdapter(storeId);
+    const { store, adapter } = await resolveAdapter(storeId, customMarketplaceConfig);
     const order = await adapter.completeCart({ store, cartId, paymentSessionId, cookie, ctoken });
 
     if (!order) {
@@ -1005,7 +1005,7 @@ export async function handleCartTools(name: string, args: any, cookie: string, d
     const { storeId, email, password, cartId, addressData } = args;
 
     try {
-      const { store, adapter } = await resolveAdapter(storeId);
+      const { store, adapter } = await resolveAdapter(storeId, customMarketplaceConfig);
       const auth = await adapter.authenticateUser({ store, email, password });
       const { sessionToken, user } = auth;
 
@@ -1064,7 +1064,7 @@ export async function handleCartTools(name: string, args: any, cookie: string, d
   if (name === 'loginUser') {
     const { storeId, email, message, cartId, addressData } = args;
 
-    const { store, adapter } = await resolveAdapter(storeId);
+    const { store, adapter } = await resolveAdapter(storeId, customMarketplaceConfig);
 
     // Generate HTML using adapter UI method if available
     let htmlContent: string;
