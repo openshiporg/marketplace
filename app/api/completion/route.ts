@@ -338,6 +338,7 @@ CRITICAL CART MANAGEMENT:
     1. "Login with existing account" → call loginUser tool WITH the addressData (firstName, lastName, address1, city, etc.) you just tried to use
     2. "Use a different email" → ask for new email
   * On success, returns sessionToken - save this to browser localStorage
+  * After successfully setting the address, immediately call viewCart to show the updated cart with the shipping address
 - loginUser: Show login UI for existing account holders
   * Call this when user wants to login OR when EMAIL_EXISTS error occurs
   * CRITICAL: When calling after EMAIL_EXISTS, you MUST pass the addressData parameter with the address details the user provided

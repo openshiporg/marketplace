@@ -372,6 +372,16 @@ const PureAIMessage = ({
                 const storeId = responseData.storeId;
                 const cartId = responseData.cart.id;
 
+                // Immediately show thinking indicator by adding empty assistant message
+                const thinkingMessageId = `thinking-${Date.now()}`;
+                stop();
+                setMessages((currentMessages) => [...currentMessages, {
+                  id: thinkingMessageId,
+                  role: 'assistant',
+                  content: '',
+                  parts: [], // Empty parts will trigger "Thinking..." indicator
+                } as any]);
+
                 // Build headers with cart IDs and session token
                 let xCartIds = '{}';
                 try {
@@ -413,27 +423,34 @@ const PureAIMessage = ({
                     // Manually construct a message that looks like the AI called viewCart
                     // This will be rendered as a tool invocation with the UI resource
                     if (viewCartResult.result) {
-                      // Stop any ongoing streaming before showing the cart view
-                      // This prevents the cart UI from being pushed away by streaming messages
-                      stop();
-
+                      // Replace thinking message with actual result
                       const toolCallId = `call_${Date.now()}`;
                       // Use callback to get fresh messages array instead of stale closure reference
-                      setMessages((currentMessages) => [...currentMessages, {
-                        id: `msg-${Date.now()}`,
-                        role: 'assistant',
-                        content: '',
-                        toolInvocations: [{
-                          state: 'result',
-                          toolCallId,
-                          toolName: 'viewCart',
-                          args: { storeId, cartId },
-                          result: viewCartResult.result,
-                        }],
-                      } as any]);
+                      setMessages((currentMessages) =>
+                        currentMessages.map(msg =>
+                          msg.id === thinkingMessageId
+                            ? {
+                                id: `msg-${Date.now()}`,
+                                role: 'assistant',
+                                content: '',
+                                toolInvocations: [{
+                                  state: 'result',
+                                  toolCallId,
+                                  toolName: 'viewCart',
+                                  args: { storeId, cartId },
+                                  result: viewCartResult.result,
+                                }],
+                              } as any
+                            : msg
+                        )
+                      );
                     }
                   } catch (e) {
                     console.error('[handleUiAction] Error calling viewCart directly:', e);
+                    // Remove thinking message on error
+                    setMessages((currentMessages) =>
+                      currentMessages.filter(msg => msg.id !== thinkingMessageId)
+                    );
                   }
                 });
               }
