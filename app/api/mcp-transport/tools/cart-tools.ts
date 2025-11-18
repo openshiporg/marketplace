@@ -899,15 +899,81 @@ export async function handleCartTools(name: string, args: any, cookie: string, d
     if (!cart.shippingMethods || cart.shippingMethods.length === 0) validationIssues.push('No shipping method selected - user needs to select shipping in cart UI');
 
     if (validationIssues.length > 0) {
+      // Return an error UI instead of plain text so the user can see it
+      const errorHTML = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <script src="https://cdn.tailwindcss.com"></script>
+        </head>
+        <body class="p-6">
+          <div class="max-w-md mx-auto bg-red-50 border-l-4 border-red-500 rounded-lg p-6">
+            <div class="flex items-start">
+              <div class="flex-shrink-0">
+                <svg class="h-6 w-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                </svg>
+              </div>
+              <div class="ml-4">
+                <h3 class="text-lg font-semibold text-red-800 mb-2">Cart Not Ready for Payment</h3>
+                <p class="text-sm text-red-700 mb-4">Please complete the following before proceeding:</p>
+                <ul class="list-disc list-inside space-y-2 text-sm text-red-700">
+                  ${validationIssues.map(issue => `<li>${issue}</li>`).join('')}
+                </ul>
+                <div class="mt-6">
+                  <button
+                    onclick="window.parent.postMessage({ type: 'tool', messageId: 'view-cart-' + Date.now(), payload: { toolName: 'viewCart', params: { storeId: '${storeId}', cartId: '${cartId}' } } }, '*')"
+                    class="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
+                  >
+                    Go Back to Cart
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <script>
+            // Auto-resize iframe
+            const resizeObserver = new ResizeObserver((entries) => {
+              entries.forEach((entry) => {
+                window.parent.postMessage({
+                  type: "ui-size-change",
+                  payload: {
+                    height: entry.contentRect.height,
+                    width: entry.contentRect.width,
+                  },
+                }, "*");
+              });
+            });
+            resizeObserver.observe(document.documentElement);
+          </script>
+        </body>
+        </html>
+      `;
+
+      const errorResource = createUIResource({
+        uri: `ui://marketplace/payment-error?cart=${cartId}`,
+        content: { type: 'rawHtml', htmlString: errorHTML },
+        encoding: 'text',
+        adapters: {
+          appsSdk: {
+            enabled: true,
+            config: {
+              intentHandling: 'prompt',
+            },
+          },
+        },
+        metadata: {
+          'openai/widgetDescription': 'Payment validation error',
+          'openai/widgetPrefersBorder': true,
+        },
+      });
+
       return {
         jsonrpc: '2.0',
-        result: { content: [{ type: 'text', text: JSON.stringify({
-          error: 'Cart not ready for payment',
-          message: `Cannot initiate payment. ${validationIssues.join('. ')}.`,
-          issues: validationIssues,
-          cart: { id: cart.id, hasItems: cart.lineItems?.length > 0, hasAddress: !!cart.shippingAddress, hasShippingMethod: !!cart.shippingMethod },
-          instruction: 'Please resolve these issues before attempting payment. You can call validateCartForCheckout to get detailed validation status.'
-        }, null, 2) }] }
+        result: { content: [errorResource] }
       };
     }
 
