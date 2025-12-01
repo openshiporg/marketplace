@@ -908,28 +908,20 @@ export async function handleCartTools(name: string, args: any, cookie: string, d
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
           <script src="https://cdn.tailwindcss.com"></script>
         </head>
-        <body class="p-6">
-          <div class="max-w-md mx-auto bg-red-50 border-l-4 border-red-500 rounded-lg p-6">
+        <body class="p-4 sm:p-6">
+          <div class="max-w-md mx-auto bg-red-50 border-l-4 border-red-500 rounded-lg p-4 sm:p-6">
             <div class="flex items-start">
               <div class="flex-shrink-0">
-                <svg class="h-6 w-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg class="h-5 w-5 sm:h-6 sm:w-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
                 </svg>
               </div>
-              <div class="ml-4">
-                <h3 class="text-lg font-semibold text-red-800 mb-2">Cart Not Ready for Payment</h3>
-                <p class="text-sm text-red-700 mb-4">Please complete the following before proceeding:</p>
-                <ul class="list-disc list-inside space-y-2 text-sm text-red-700">
+              <div class="ml-3 sm:ml-4">
+                <h3 class="text-base sm:text-lg font-semibold text-red-800 mb-1 sm:mb-2">Cart Not Ready for Payment</h3>
+                <p class="text-sm text-red-700 mb-3 sm:mb-4">Please complete the following:</p>
+                <ul class="list-disc list-inside space-y-1.5 sm:space-y-2 text-sm text-red-700">
                   ${validationIssues.map(issue => `<li>${issue}</li>`).join('')}
                 </ul>
-                <div class="mt-6">
-                  <button
-                    onclick="window.parent.postMessage({ type: 'tool', messageId: 'view-cart-' + Date.now(), payload: { toolName: 'viewCart', params: { storeId: '${storeId}', cartId: '${cartId}' } } }, '*')"
-                    class="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
-                  >
-                    Go Back to Cart
-                  </button>
-                </div>
               </div>
             </div>
           </div>

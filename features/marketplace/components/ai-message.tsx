@@ -486,6 +486,31 @@ const PureAIMessage = ({
           }
         }
 
+        // For discoverProducts, add the result to messages so the product UI renders
+        if (payload.toolName === 'discoverProducts') {
+          try {
+            // Stop any ongoing streaming
+            stop();
+
+            const toolCallId = `call_${Date.now()}`;
+            // Use callback to get fresh messages array
+            setMessages((currentMessages) => [...currentMessages, {
+              id: `msg-${Date.now()}`,
+              role: 'assistant',
+              content: '',
+              toolInvocations: [{
+                state: 'result',
+                toolCallId,
+                toolName: 'discoverProducts',
+                args: payload.params,
+                result: result.result,
+              }],
+            } as any]);
+          } catch (e) {
+            console.error('[handleUiAction] Error handling discoverProducts result:', e);
+          }
+        }
+
         // For checkout link, open in new tab
         if (payload.toolName === 'getCheckoutLink') {
           try {

@@ -246,15 +246,15 @@ export async function handleProductTools(name: string, args: any, cookie: string
       const hasImages = productImages.length > 0;
 
       return `
-        <div class="product-card border rounded-lg p-4 hover:shadow-lg transition-shadow bg-white" data-product-index="${index}" style="min-width: 320px;">
+        <div class="product-card border rounded-lg p-3 sm:p-4 hover:shadow-lg transition-shadow bg-white" data-product-index="${index}" style="min-width: 260px;">
           ${hasImages ? `
-            <div class="relative w-full h-48 bg-gray-100 rounded-md mb-3 overflow-hidden group">
+            <div class="relative w-full h-36 sm:h-48 bg-gray-100 rounded-md mb-2 sm:mb-3 overflow-hidden group">
               <div class="carousel-container" data-product-index="${index}">
                 ${productImages.map((img: any, imgIdx: number) => `
                   <img
                     src="${img.image?.url || img.imagePath || '/images/placeholder.svg'}"
                     alt="${img.altText || product.title}"
-                    class="carousel-image w-full h-48 object-cover rounded-md absolute inset-0 transition-opacity duration-300"
+                    class="carousel-image w-full h-36 sm:h-48 object-cover rounded-md absolute inset-0 transition-opacity duration-300"
                     data-image-id="${img.id}"
                     data-product-index="${index}"
                     data-image-index="${imgIdx}"
@@ -291,8 +291,8 @@ export async function handleProductTools(name: string, args: any, cookie: string
               ` : ''}
             </div>
           ` : `
-            <div class="w-full h-48 bg-gray-200 rounded-md mb-3 flex items-center justify-center">
-              <span class="text-gray-400">No image</span>
+            <div class="w-full h-36 sm:h-48 bg-gray-200 rounded-md mb-2 sm:mb-3 flex items-center justify-center">
+              <span class="text-gray-400 text-sm">No image</span>
             </div>
           `}
           <div class="flex flex-col">
@@ -337,7 +337,7 @@ export async function handleProductTools(name: string, args: any, cookie: string
         </style>
       </head>
       <body>
-          <div class="flex flex-wrap gap-4">
+          <div class="flex flex-wrap gap-3 sm:gap-4">
             ${productsHTML}
           </div>
         <script>
@@ -783,15 +783,15 @@ export async function handleProductTools(name: string, args: any, cookie: string
       const hasImages = productImages.length > 0;
 
       return `
-        <div class="product-card border rounded-lg p-4 hover:shadow-lg transition-shadow bg-white" data-product-index="${index}" style="min-width: 320px;">
+        <div class="product-card border rounded-lg p-3 sm:p-4 hover:shadow-lg transition-shadow bg-white" data-product-index="${index}" style="min-width: 260px;">
           ${hasImages ? `
-            <div class="relative w-full h-48 bg-gray-100 rounded-md mb-3 overflow-hidden group">
+            <div class="relative w-full h-36 sm:h-48 bg-gray-100 rounded-md mb-2 sm:mb-3 overflow-hidden group">
               <div class="carousel-container" data-product-index="${index}">
                 ${productImages.map((img: any, imgIdx: number) => `
                   <img
                     src="${img.image?.url || img.imagePath || '/images/placeholder.svg'}"
                     alt="${img.altText || product.title}"
-                    class="carousel-image w-full h-48 object-cover rounded-md absolute inset-0 transition-opacity duration-300"
+                    class="carousel-image w-full h-36 sm:h-48 object-cover rounded-md absolute inset-0 transition-opacity duration-300"
                     data-image-id="${img.id}"
                     data-product-index="${index}"
                     data-image-index="${imgIdx}"
@@ -828,8 +828,8 @@ export async function handleProductTools(name: string, args: any, cookie: string
               ` : ''}
             </div>
           ` : `
-            <div class="w-full h-48 bg-gray-200 rounded-md mb-3 flex items-center justify-center">
-              <span class="text-gray-400">No image</span>
+            <div class="w-full h-36 sm:h-48 bg-gray-200 rounded-md mb-2 sm:mb-3 flex items-center justify-center">
+              <span class="text-gray-400 text-sm">No image</span>
             </div>
           `}
           <div class="flex flex-col">
@@ -873,7 +873,7 @@ export async function handleProductTools(name: string, args: any, cookie: string
         </style>
       </head>
       <body>
-          <div class="flex flex-wrap gap-4">
+          <div class="flex flex-wrap gap-3 sm:gap-4">
             ${productsHTML}
           </div>
         <script>
@@ -1335,17 +1335,17 @@ export async function handleProductTools(name: string, args: any, cookie: string
               }
 
               return `
-                <div class="product-card flex-shrink-0 w-72 border rounded-lg p-3.5 bg-white shadow-sm self-start"
+                <div class="product-card flex-shrink-0 w-48 sm:w-72 border rounded-lg p-2 sm:p-3.5 bg-white shadow-sm self-start"
                      data-product-index="${storeIndex}-${productIndex}"
                      data-store-index="${storeIndex}">
                   ${hasImages ? `
-                    <div class="relative w-full h-48 bg-gray-100 rounded-md mb-3 overflow-hidden group">
+                    <div class="relative w-full h-28 sm:h-48 bg-gray-100 rounded-md mb-1.5 sm:mb-3 overflow-hidden group">
                       <div class="carousel-container" data-product-index="${storeIndex}-${productIndex}">
                         ${productImages.map((img: any, imgIdx: number) => `
                           <img
                             src="${img.image?.url || img.imagePath || '/images/placeholder.svg'}"
                             alt="${img.altText || product.title}"
-                            class="carousel-image w-full h-48 object-cover rounded-md absolute inset-0 transition-opacity duration-300"
+                            class="carousel-image w-full h-28 sm:h-48 object-cover rounded-md absolute inset-0 transition-opacity duration-300"
                             data-image-id="${img.id}"
                             data-product-index="${storeIndex}-${productIndex}"
                             data-image-index="${imgIdx}"
@@ -1382,19 +1382,19 @@ export async function handleProductTools(name: string, args: any, cookie: string
                       ` : ''}
                     </div>
                   ` : `
-                    <div class="w-full h-48 bg-gray-200 rounded-md mb-3 flex items-center justify-center">
-                      <span class="text-gray-400">No image</span>
+                    <div class="w-full h-28 sm:h-48 bg-gray-200 rounded-md mb-1.5 sm:mb-3 flex items-center justify-center">
+                      <span class="text-gray-400 text-sm">No image</span>
                     </div>
                   `}
 
                   <div class="flex flex-col">
-                    <h3 class="font-semibold text-lg text-gray-900 mb-2">${product.title}</h3>
+                    <h3 class="font-semibold text-sm sm:text-lg text-gray-900 mb-1 sm:mb-2 line-clamp-2">${product.title}</h3>
                     ${optionsHTML}
-                    <p class="price-display text-xl font-bold text-gray-900 mb-3" data-product-index="${storeIndex}-${productIndex}">
+                    <p class="price-display text-base sm:text-xl font-bold text-gray-900 mb-2 sm:mb-3" data-product-index="${storeIndex}-${productIndex}">
                       ${formattedPrice}
                     </p>
                     <button
-                      class="add-to-cart-btn w-full h-10 px-4 bg-gray-900 text-white text-sm font-medium rounded hover:bg-gray-800 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                      class="add-to-cart-btn w-full h-8 sm:h-10 px-3 sm:px-4 bg-gray-900 text-white text-xs sm:text-sm font-medium rounded hover:bg-gray-800 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
                       data-product-index="${storeIndex}-${productIndex}"
                       data-store-index="${storeIndex}"
                       onclick="handleAddToCart(this)"
@@ -1408,9 +1408,9 @@ export async function handleProductTools(name: string, args: any, cookie: string
 
             return `
               <div class="store-section border rounded-lg bg-gray-50 shadow-sm">
-                <div class="flex items-center gap-3 px-4 pt-4">
+                <div class="flex items-center gap-2 sm:gap-3 px-2 sm:px-4 pt-2 sm:pt-4">
                   ${storeData.logoIcon ? `
-                    <div class="w-10 h-10 rounded-lg flex items-center justify-center text-white text-xl font-bold"
+                    <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center text-white text-lg sm:text-xl font-bold"
                          style="background-color: ${storeData.logoColor || '#000'}; filter: hue-rotate(${storeData.logoColor || '0'}deg);">
                       <div style="color: white;">
                         ${storeData.logoIcon}
@@ -1418,12 +1418,12 @@ export async function handleProductTools(name: string, args: any, cookie: string
                     </div>
                   ` : ''}
                   <div>
-                    <h2 class="text-xl font-bold text-gray-900">${storeData.storeName}</h2>
-                    <p class="text-sm text-gray-500">Products in ${storeData.country.name} • ${storeData.country.currency.code}</p>
+                    <h2 class="text-base sm:text-xl font-bold text-gray-900">${storeData.storeName}</h2>
+                    <p class="text-xs sm:text-sm text-gray-500">Products in ${storeData.country.name} • ${storeData.country.currency.code}</p>
                   </div>
                 </div>
 
-                <div class="horizontal-scroll flex gap-4 p-4">
+                <div class="horizontal-scroll flex gap-2 sm:gap-4 p-2 sm:p-4">
                   ${productCardsHTML}
                 </div>
               </div>

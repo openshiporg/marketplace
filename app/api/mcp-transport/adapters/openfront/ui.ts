@@ -50,53 +50,60 @@ export function generateOpenFrontCartUI(params: {
     const total = formatPrice(item.total || 0, currencyCode);
 
     return `
-      <div class="cart-item p-4 border-b">
-        <div class="flex gap-3 mb-3">
+      <div class="cart-item p-2 sm:p-4 border-b">
+        <div class="flex gap-2 sm:gap-3 mb-1.5 sm:mb-3">
           ${thumbnailUrl ? `
             <img src="${thumbnailUrl}" alt="${productTitle}"
-                 class="w-16 h-16 object-cover rounded border flex-shrink-0">
+                 class="w-12 h-12 sm:w-16 sm:h-16 object-cover rounded border flex-shrink-0">
           ` : `
-            <div class="w-16 h-16 bg-gray-200 rounded border flex items-center justify-center flex-shrink-0">
+            <div class="w-12 h-12 sm:w-16 sm:h-16 bg-gray-200 rounded border flex items-center justify-center flex-shrink-0">
               <span class="text-xs text-gray-400">No image</span>
             </div>
           `}
 
           <div class="flex-1 min-w-0">
-            <h4 class="font-semibold text-sm">${productTitle}</h4>
+            <h4 class="font-semibold text-xs sm:text-sm">${productTitle}</h4>
             ${variantTitle ? `<p class="text-xs text-gray-600 mt-0.5">${variantTitle}</p>` : ''}
-            <p class="text-sm text-gray-600 mt-1">${unitPrice} each</p>
+            <p class="text-xs sm:text-sm text-gray-600 mt-0.5 sm:mt-1">${unitPrice} each</p>
           </div>
 
           <div class="text-right flex-shrink-0">
-            <p class="font-semibold text-base">${total}</p>
+            <p class="font-semibold text-sm sm:text-base">${total}</p>
           </div>
         </div>
 
         <div class="flex items-center justify-between">
-          <div class="flex items-center gap-2 border rounded">
+          <div class="flex items-center gap-1 sm:gap-2 border rounded">
             <button
               onclick="updateQuantity('${item.id}', ${item.quantity - 1})"
-              class="px-3 py-1.5 hover:bg-gray-100 ${item.quantity <= 1 ? 'opacity-50 cursor-not-allowed' : ''}"
+              class="px-2 sm:px-3 py-1 sm:py-1.5 hover:bg-gray-100 text-sm ${item.quantity <= 1 ? 'opacity-50 cursor-not-allowed' : ''}"
               ${item.quantity <= 1 ? 'disabled' : ''}>
               −
             </button>
-            <span class="px-2 font-medium min-w-[2rem] text-center">${item.quantity}</span>
+            <span class="px-1 sm:px-2 font-medium min-w-[1.5rem] sm:min-w-[2rem] text-center text-sm">${item.quantity}</span>
             <button
               onclick="updateQuantity('${item.id}', ${item.quantity + 1})"
-              class="px-3 py-1.5 hover:bg-gray-100">
+              class="px-2 sm:px-3 py-1 sm:py-1.5 hover:bg-gray-100 text-sm">
               +
             </button>
           </div>
 
           <button
             onclick="removeItem('${item.id}')"
-            class="text-sm text-red-600 hover:text-red-800 font-medium">
+            class="text-xs sm:text-sm text-red-600 hover:text-red-800 font-medium">
             Remove
           </button>
         </div>
       </div>
     `;
-  }).join('') || '<div class="p-8 text-center text-gray-500">Your cart is empty</div>';
+  }).join('') || `<div class="p-6 sm:p-8 text-center">
+    <p class="text-gray-500 mb-4">Your cart is empty</p>
+    <button
+      onclick="window.parent.postMessage({ type: 'tool', payload: { toolName: 'discoverProducts', params: {} } }, '*')"
+      class="bg-gray-900 text-white text-sm px-4 py-2 rounded-md hover:bg-gray-800 transition-colors">
+      Show Products
+    </button>
+  </div>`;
 
   // Cart summary - use cart.tax and cart.shipping (not taxTotal/shippingTotal)
   const subtotal = formatPrice(cart.subtotal || 0, currencyCode);
@@ -133,43 +140,43 @@ export function generateOpenFrontCartUI(params: {
       <div class="max-w-4xl mx-auto">
         <div class="bg-gray-50 rounded-lg shadow border">
           <!-- Store Logo & Header -->
-          <div class="border-b p-6">
-            <p class="text-sm text-gray-500 mb-2">Your cart from</p>
-            <div class="flex items-center gap-3">
+          <div class="border-b p-3 sm:p-6">
+            <p class="text-xs sm:text-sm text-gray-500 mb-1 sm:mb-2">Your cart from</p>
+            <div class="flex items-center gap-2 sm:gap-3">
               ${storeInfo?.logoIcon ? `
-                <div class="flex items-center justify-center w-7 h-7" style="background-color: ${storeInfo?.logoColor || '#000'}; filter: hue-rotate(${storeInfo?.logoColor || '0'}deg);">
+                <div class="flex items-center justify-center w-6 h-6 sm:w-7 sm:h-7" style="background-color: ${storeInfo?.logoColor || '#000'}; filter: hue-rotate(${storeInfo?.logoColor || '0'}deg);">
                   ${storeInfo.logoIcon}
                 </div>
               ` : ''}
-              <h2 class="text-2xl font-bold">${storeInfo?.name || 'Checkout'}</h2>
+              <h2 class="text-xl sm:text-2xl font-bold">${storeInfo?.name || 'Checkout'}</h2>
             </div>
           </div>
 
           <!-- Tabs -->
           <div class="border-b border-gray-200">
             <div class="flex">
-              <button onclick="switchTab('cart')" id="tab-cart" class="tab-button active flex-1 px-4 pb-3 pt-2 text-sm font-medium hover:text-gray-600">
+              <button onclick="switchTab('cart')" id="tab-cart" class="tab-button active flex-1 px-2 sm:px-4 pb-2 sm:pb-3 pt-1.5 sm:pt-2 text-xs sm:text-sm font-medium hover:text-gray-600">
                 Cart
               </button>
-              <button onclick="switchTab('address')" id="tab-address" class="tab-button flex-1 px-4 pb-3 pt-2 text-sm font-medium hover:text-gray-600">
+              <button onclick="switchTab('address')" id="tab-address" class="tab-button flex-1 px-2 sm:px-4 pb-2 sm:pb-3 pt-1.5 sm:pt-2 text-xs sm:text-sm font-medium hover:text-gray-600">
                 Address
               </button>
-              <button onclick="switchTab('shipping')" id="tab-shipping" class="tab-button flex-1 px-4 pb-3 pt-2 text-sm font-medium hover:text-gray-600">
+              <button onclick="switchTab('shipping')" id="tab-shipping" class="tab-button flex-1 px-2 sm:px-4 pb-2 sm:pb-3 pt-1.5 sm:pt-2 text-xs sm:text-sm font-medium hover:text-gray-600">
                 Shipping
               </button>
-              <button onclick="switchTab('payment')" id="tab-payment" class="tab-button flex-1 px-4 pb-3 pt-2 text-sm font-medium hover:text-gray-600">
+              <button onclick="switchTab('payment')" id="tab-payment" class="tab-button flex-1 px-2 sm:px-4 pb-2 sm:pb-3 pt-1.5 sm:pt-2 text-xs sm:text-sm font-medium hover:text-gray-600">
                 Payment
               </button>
             </div>
           </div>
 
           <!-- Tab Content -->
-          <div class="p-6">
+          <div class="p-3 sm:p-6">
             <!-- Cart Tab -->
             <div id="content-cart" class="tab-content">
-              <div class="mb-4">
-                <h3 class="font-semibold text-lg">Shopping Cart</h3>
-                <p class="text-sm text-gray-600" style="opacity: 0.6;">${cart.lineItems?.length || 0} items</p>
+              <div class="mb-2 sm:mb-4">
+                <h3 class="font-semibold text-base sm:text-lg">Shopping Cart</h3>
+                <p class="text-xs sm:text-sm text-gray-600" style="opacity: 0.6;">${cart.lineItems?.length || 0} items</p>
               </div>
               <div class="divide-y mb-6 bg-white rounded-lg border">
                 ${cartItemsHTML}
@@ -198,7 +205,7 @@ export function generateOpenFrontCartUI(params: {
 
             <!-- Address Tab -->
             <div id="content-address" class="tab-content hidden">
-              <h3 class="font-semibold text-lg mb-2">Shipping Address</h3>
+              <h3 class="font-semibold text-base sm:text-lg mb-2">Shipping Address</h3>
               ${cart.shippingAddress || cart.email ? `
                 <div class="bg-gray-50 p-4 rounded-md mb-4">
                   ${cart.email ? `<p class="text-sm font-medium text-gray-900 mb-2">📧 ${cart.email}</p>` : ''}
@@ -215,7 +222,7 @@ export function generateOpenFrontCartUI(params: {
               <textarea
                 id="address-input"
                 placeholder="Example:&#10;John Doe&#10;john@email.com&#10;123 Main St&#10;New York, NY 10001&#10;USA&#10;+1 (555) 123-4567"
-                class="w-full border border-gray-300 rounded-md p-3 text-sm mb-3 resize-none focus:outline-none focus:ring-2 focus:ring-gray-900"
+                class="w-full border border-gray-300 rounded-md p-3 text-base mb-3 resize-none focus:outline-none focus:ring-2 focus:ring-gray-900"
                 rows="6"></textarea>
               <button onclick="requestAddressFromAI()" class="w-full bg-gray-900 text-white py-2 px-4 rounded-md hover:bg-gray-800">
                 ${cart.shippingAddress ? 'Change Address and Email' : 'Add Address and Email'}
@@ -224,7 +231,7 @@ export function generateOpenFrontCartUI(params: {
 
             <!-- Shipping Tab -->
             <div id="content-shipping" class="tab-content hidden">
-              <h3 class="font-semibold text-lg mb-4">Shipping Method</h3>
+              <h3 class="font-semibold text-base sm:text-lg mb-2 sm:mb-4">Shipping Method</h3>
               ${shippingOptions.length > 0 ? `
                 <p class="text-sm text-gray-600 mb-4">Select your preferred shipping method</p>
                 <div class="space-y-2">
@@ -710,11 +717,11 @@ export function generateOpenFrontLoginUI(params: {
     </head>
     <body>
       <div class="max-w-3xl mx-auto">
-        <div class="bg-white border border-gray-200 rounded-lg p-5">
+        <div class="bg-white border border-gray-200 rounded-lg p-4 sm:p-5">
           <h2 class="text-base font-bold text-gray-900 mb-1">Login to Continue</h2>
-          <p class="text-sm text-gray-700 mb-4 leading-tight">${message || 'An account with this email already exists. Please login.'}</p>
+          <p class="text-sm text-gray-700 mb-3 sm:mb-4 leading-tight">${message || 'An account with this email already exists. Please login.'}</p>
 
-          <div class="space-y-4">
+          <div class="space-y-3 sm:space-y-4">
             <div>
               <label class="block text-sm font-medium mb-1">Email</label>
               <input
@@ -722,7 +729,7 @@ export function generateOpenFrontLoginUI(params: {
                 id="email"
                 name="email"
                 value="${email || ''}"
-                class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-900"
+                class="w-full px-3 sm:px-4 py-2 text-base border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-900"
               />
             </div>
 
@@ -732,7 +739,7 @@ export function generateOpenFrontLoginUI(params: {
                 type="password"
                 id="password"
                 name="password"
-                class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-900"
+                class="w-full px-3 sm:px-4 py-2 text-base border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-900"
               />
             </div>
 
@@ -925,14 +932,14 @@ export function generateOpenFrontEmailConflictUI(params: {
     </head>
     <body>
       <div class="max-w-3xl mx-auto">
-        <div class="bg-white border border-gray-200 rounded-lg p-5">
+        <div class="bg-white border border-gray-200 rounded-lg p-4 sm:p-5">
           <h2 class="text-base font-bold text-gray-900 mb-1">Email Already in Use</h2>
-          <p class="text-sm text-gray-700 mb-4 leading-tight">The email address <strong>${email}</strong> already has an account with ${storeName}.</p>
+          <p class="text-sm text-gray-700 mb-3 sm:mb-4 leading-tight">The email address <strong>${email}</strong> already has an account with ${storeName}.</p>
 
-          <div class="grid grid-cols-3 gap-3">
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
             <button
               onclick="selectOption('signin')"
-              class="option-btn bg-gray-100 border border-gray-300 rounded-lg p-4 text-left hover:bg-gray-200 transition-colors flex flex-col justify-center gap-1 min-h-[120px]"
+              class="option-btn bg-gray-100 border border-gray-300 rounded-lg p-3 sm:p-4 text-left hover:bg-gray-200 transition-colors flex flex-col justify-center gap-1 sm:min-h-[120px]"
               data-option="signin">
               <div>
                 <span class="font-medium block text-sm mb-0.5 leading-tight">Sign in with this account here</span>
@@ -942,7 +949,7 @@ export function generateOpenFrontEmailConflictUI(params: {
 
             <button
               onclick="selectOption('different-email')"
-              class="option-btn bg-gray-100 border border-gray-300 rounded-lg p-4 text-left hover:bg-gray-200 transition-colors flex flex-col justify-center gap-1 min-h-[120px]"
+              class="option-btn bg-gray-100 border border-gray-300 rounded-lg p-3 sm:p-4 text-left hover:bg-gray-200 transition-colors flex flex-col justify-center gap-1 sm:min-h-[120px]"
               data-option="different-email">
               <div>
                 <span class="font-medium block text-sm mb-0.5 leading-tight">Use a different email for this order</span>
@@ -952,7 +959,7 @@ export function generateOpenFrontEmailConflictUI(params: {
 
             <button
               onclick="selectOption('checkout-store')"
-              class="option-btn bg-gray-100 border border-gray-300 rounded-lg p-4 text-left hover:bg-gray-200 transition-colors flex flex-col justify-center gap-1 min-h-[120px]"
+              class="option-btn bg-gray-100 border border-gray-300 rounded-lg p-3 sm:p-4 text-left hover:bg-gray-200 transition-colors flex flex-col justify-center gap-1 sm:min-h-[120px]"
               data-option="checkout-store">
               <div>
                 <span class="font-medium block text-sm mb-0.5 leading-tight">Continue checkout on ${storeName}</span>

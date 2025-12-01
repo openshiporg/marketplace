@@ -207,8 +207,8 @@ export default function HomePage() {
   };
 
   const handleSuggestionClick = async (suggestion: string) => {
-    // Check if this is the "Show me all available products" suggestion
-    if (suggestion.toLowerCase().includes("show me all available products")) {
+    // Check if this is the "Show me products I can buy" suggestion
+    if (suggestion.toLowerCase().includes("show me products")) {
       // Stop any ongoing streaming
       stop();
 
