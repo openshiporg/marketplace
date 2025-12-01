@@ -2,11 +2,13 @@
 
 A conversational commerce marketplace where shopping happens entirely in AI chat. Products, cart, checkout, and payment—all rendered in the conversation via MCP UI. Zero transaction fees, zero data collection, complete store independence.
 
-## Demo Video
+## Demo
 
-[![Watch Marketplace Demo](https://img.youtube.com/vi/LM6hRjZIDcs/maxresdefault.jpg)](https://youtu.be/LM6hRjZIDcs)
+<a href="https://marketplace.openship.org"><img src="https://github.com/user-attachments/assets/3f1deb1e-6f14-4c62-ae3b-007a6189ebaa" alt="Marketplace Demo" width="600"></a>
 
-*Watch a complete demo of the conversational commerce experience*
+[Watch full demo on YouTube →](https://youtu.be/LM6hRjZIDcs)
+
+[Learn more →](https://openship.org/openfront-marketplace)
 
 ## What Makes This Different
 
@@ -254,8 +256,3 @@ MIT License - see [LICENSE](LICENSE) for details.
 - **Issues**: Report bugs on [GitHub Issues](https://github.com/openship-org/openfront-marketplace/issues)
 - **Community**: Join our community discussions
 - **Ethos**: Read about our vision at [/ethos](/ethos)
-
----
-
-**Openfront Marketplace** - Discovery Without Rent
-Part of the Openship Initiative • Built with Next.js 15
