@@ -153,9 +153,19 @@ export async function POST(req: Request) {
       });
     }
 
+    // Determine the base URL - use custom endpoint if provider is "custom"
+    let baseURL = 'https://openrouter.ai/api/v1';
+    if (body.provider === 'custom' && body.customEndpoint) {
+      baseURL = body.customEndpoint;
+      // Ensure it ends with /v1 if not already
+      if (!baseURL.endsWith('/v1')) {
+        baseURL = baseURL.replace(/\/$/, '') + '/v1';
+      }
+    }
+
     const openrouterConfig = {
       apiKey: apiKey,
-      baseURL: 'https://openrouter.ai/api/v1',
+      baseURL,
     };
 
     // Get dynamic base URL
@@ -206,42 +216,45 @@ export async function POST(req: Request) {
     }
 
     // Test the API key with a simple request first to catch auth errors early
-    try {
-      const testResponse = await fetch('https://openrouter.ai/api/v1/models', {
-        headers: {
-          'Authorization': `Bearer ${openrouterConfig.apiKey}`,
-          'Content-Type': 'application/json',
-        },
-      });
+    // Skip validation for custom endpoints
+    if (body.provider !== 'custom') {
+      try {
+        const testResponse = await fetch('https://openrouter.ai/api/v1/models', {
+          headers: {
+            'Authorization': `Bearer ${openrouterConfig.apiKey}`,
+            'Content-Type': 'application/json',
+          },
+        });
 
-      if (!testResponse.ok) {
-        const errorText = await testResponse.text();
+        if (!testResponse.ok) {
+          const errorText = await testResponse.text();
 
-        let errorMessage = 'Invalid API key';
-        try {
-          const errorJson = JSON.parse(errorText);
-          errorMessage = errorJson?.error?.message || errorMessage;
-        } catch {
-          // Failed to parse error, use default message
+          let errorMessage = 'Invalid API key';
+          try {
+            const errorJson = JSON.parse(errorText);
+            errorMessage = errorJson?.error?.message || errorMessage;
+          } catch {
+            // Failed to parse error, use default message
+          }
+
+          return new Response(JSON.stringify({
+            error: 'Authentication Error',
+            details: errorMessage
+          }), {
+            status: 401,
+            headers: { 'Content-Type': 'application/json' }
+          });
         }
-
+      } catch (validationError) {
+        console.error('API key validation error:', validationError);
         return new Response(JSON.stringify({
           error: 'Authentication Error',
-          details: errorMessage
+          details: 'Failed to validate API key'
         }), {
           status: 401,
           headers: { 'Content-Type': 'application/json' }
         });
       }
-    } catch (validationError) {
-      console.error('API key validation error:', validationError);
-      return new Response(JSON.stringify({
-        error: 'Authentication Error',
-        details: 'Failed to validate API key'
-      }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' }
-      });
     }
 
     // Add cart context if provided
