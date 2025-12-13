@@ -15,38 +15,10 @@ async function resolveAdapter(storeId: string, customConfig?: any[]) {
 
 export const productTools: Tool[] = [
   {
-    name: 'searchProducts',
-    description: `Search for products with filtering capabilities.
-
-IMPORTANT COUNTRY SELECTION LOGIC:
-1. If countryCode is missing, first call getAvailableCountries to get the list of countries
-2. Look for "us" (United States) in the list (case-insensitive check on the countryCode field)
-3. If "us" exists, use countryCode "us"
-4. If "us" doesn't exist, use the countryCode of the FIRST country in the list
-5. Then call searchProducts with that countryCode
-
-Replace [COUNTRY NAME] and [CURRENCY] with the actual values. This message is REQUIRED in every response. Look for the text content in the tool result for the exact message to include.`,
-    inputSchema: {
-      type: 'object',
-      properties: {
-        storeId: {
-          type: 'string',
-          description: 'Store ID (e.g., "store-1", "store-2") from marketplace configuration to search (use getAvailableStores to get endpoints)'
-        },
-        countryCode: {
-          type: 'string',
-          description: 'Country code for regional pricing and shipping (e.g., "us", "ca", "gb"). Must be lowercase.'
-        }
-      },
-      required: ['storeId', 'countryCode']
-    }
-  },
-  {
     name: 'getProduct',
     description: `Get detailed product information by ID.
 
 IMPORTANT COUNTRY SELECTION LOGIC:
-Follow the same logic as searchProducts:
 1. If countryCode is missing, call getAvailableCountries
 2. Prefer "us" if available, otherwise use first country
 3. Inform the user which country's pricing they're seeing`,
@@ -128,38 +100,77 @@ function sortOptionValues(values: string[], optionTitle: string): string[] {
 }
 
 export async function handleProductTools(name: string, args: any, cookie: string, ctoken?: string, customConfig?: any[]) {
-  if (name === 'searchProducts') {
-    const { storeId, countryCode, limit = 10 } = args;
+  if (name === 'getProduct') {
+    const { storeId, productId, productHandle, countryCode } = args;
 
-    // Use platform adapter to fetch products agnostically
+    const whereClause = productId ? { id: productId } : { handle: productHandle };
+    if (!productId && !productHandle) {
+      throw new Error('Either productId or productHandle is required');
+    }
+
     const { store, adapter } = await resolveAdapter(storeId, customConfig);
-    const adapterProducts = await adapter.searchProducts({ store, countryCode, limit, cookie, ctoken });
 
-    // Map normalized adapter products into the OpenFront-shaped structure expected by the existing UI
-    const sym = (code: string) => ({ USD: '$', EUR: '€', GBP: '£', CAD: 'CA$', AUD: 'A$' } as Record<string, string>)[code] || '$';
-    const products = adapterProducts.map((p: any) => {
-      // Build product options from variant.options
-      const optionNames = new Set<string>();
-      const optionValuesMap: Record<string, Set<string>> = {};
-      (p.variants || []).forEach((v: any) => {
-        (v.options || []).forEach((o: any) => {
-          const name = (o.name || '').trim();
-          const value = (o.value || '').trim();
-          if (!name || !value) return;
-          optionNames.add(name);
-          if (!optionValuesMap[name]) optionValuesMap[name] = new Set<string>();
-          optionValuesMap[name].add(value);
-        });
+    // Resolve product ID if only handle provided (platform-agnostic adapters typically key by ID)
+    let resolvedProductId = productId;
+    if (!resolvedProductId && productHandle) {
+      const list = await adapter.searchProducts({ store, countryCode, limit: 50, cookie, ctoken });
+      const hit = list.find((pp: any) => pp.handle === productHandle);
+      resolvedProductId = hit?.id;
+    }
+    if (!resolvedProductId) {
+      throw new Error('Product not found');
+    }
+
+    const p = await adapter.getProduct({ store, productId: resolvedProductId, countryCode, cookie, ctoken });
+
+    // Map to OpenFront-shaped structure for existing UI
+    const sym = (code: string) => ({ USD: '$', EUR: '\u20ac', GBP: '\u00a3', CAD: 'CA$', AUD: 'A$' } as Record<string, string>)[code] || '$';
+    // Build product options from variant.options
+    const optionNames = new Set<string>();
+    const optionValuesMap: Record<string, Set<string>> = {};
+    (p.variants || []).forEach((v: any) => {
+      (v.options || []).forEach((o: any) => {
+        const name = (o.name || '').trim();
+        const value = (o.value || '').trim();
+        if (!name || !value) return;
+        optionNames.add(name);
+        if (!optionValuesMap[name]) optionValuesMap[name] = new Set<string>();
+        optionValuesMap[name].add(value);
       });
+    });
 
-      const makeOptId = (name: string) => `opt_${p.id}_${name.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`;
+    const makeOptId = (name: string) => `opt_${p.id}_${name.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`;
 
-      const productOptions = Array.from(optionNames).map((name) => ({
-        id: makeOptId(name),
-        title: name,
-        productOptionValues: Array.from(optionValuesMap[name] || new Set()).map((val) => ({ id: `${makeOptId(name)}_${val}`, value: val }))
-      }));
+    const productOptions = Array.from(optionNames).map((name) => ({
+      id: makeOptId(name),
+      title: name,
+      productOptionValues: Array.from(optionValuesMap[name] || new Set()).map((val) => ({ id: `${makeOptId(name)}_${val}`, value: val }))
+    }));
 
+    const product = {
+      id: p.id,
+      title: p.title,
+      handle: p.handle,
+      thumbnail: p.thumbnail,
+      productImages: [],
+      productOptions,
+      productVariants: (p.variants || []).map((v: any) => ({
+        id: v.id,
+        title: v.title,
+        sku: v.sku,
+        inventoryQuantity: v.inventoryQuantity,
+        allowBackorder: v.allowBackorder || false,
+        primaryImage: null,
+        prices: [{ id: 'price', amount: v.price, currency: { code: v.currency, symbol: sym(v.currency) }, calculatedPrice: { calculatedAmount: v.price, originalAmount: v.price, currencyCode: v.currency } }],
+        productOptionValues: (v.options || []).map((o: any) => ({ value: o.value, productOption: { id: makeOptId(o.name) } }))
+      })),
+    } as any;
+
+    // Wrap single product in array for UI generation
+    const products = [product];
+
+    // Generate HTML for product
+    const productsHTML = products.map((product: any, index: number) => {
       const productVariants = (p.variants || []).map((v: any) => ({
         id: v.id,
         title: v.title,
@@ -248,13 +259,13 @@ export async function handleProductTools(name: string, args: any, cookie: string
       return `
         <div class="product-card border rounded-lg p-3 sm:p-4 hover:shadow-lg transition-shadow bg-white" data-product-index="${index}" style="min-width: 260px;">
           ${hasImages ? `
-            <div class="relative w-full h-36 sm:h-48 bg-gray-100 rounded-md mb-2 sm:mb-3 overflow-hidden group">
+            <div class="relative w-full aspect-square bg-gray-100 rounded-md mb-2 sm:mb-3 overflow-hidden group">
               <div class="carousel-container" data-product-index="${index}">
                 ${productImages.map((img: any, imgIdx: number) => `
                   <img
                     src="${img.image?.url || img.imagePath || '/images/placeholder.svg'}"
                     alt="${img.altText || product.title}"
-                    class="carousel-image w-full h-36 sm:h-48 object-cover rounded-md absolute inset-0 transition-opacity duration-300"
+                    class="carousel-image w-full h-full object-contain object-center rounded-md absolute inset-0 transition-opacity duration-300"
                     data-image-id="${img.id}"
                     data-product-index="${index}"
                     data-image-index="${imgIdx}"
@@ -651,491 +662,6 @@ export async function handleProductTools(name: string, args: any, cookie: string
     return {
       jsonrpc: '2.0',
       result: {
-        content: [uiResource, infoText],
-      }
-    };
-  }
-
-  if (name === 'getProduct') {
-    const { storeId, productId, productHandle, countryCode } = args;
-
-    const whereClause = productId ? { id: productId } : { handle: productHandle };
-    if (!productId && !productHandle) {
-      throw new Error('Either productId or productHandle is required');
-    }
-
-    const { store, adapter } = await resolveAdapter(storeId, customConfig);
-
-    // Resolve product ID if only handle provided (platform-agnostic adapters typically key by ID)
-    let resolvedProductId = productId;
-    if (!resolvedProductId && productHandle) {
-      const list = await adapter.searchProducts({ store, countryCode, limit: 50, cookie, ctoken });
-      const hit = list.find((pp: any) => pp.handle === productHandle);
-      resolvedProductId = hit?.id;
-    }
-    if (!resolvedProductId) {
-      throw new Error('Product not found');
-    }
-
-    const p = await adapter.getProduct({ store, productId: resolvedProductId, countryCode, cookie, ctoken });
-
-    // Map to OpenFront-shaped structure for existing UI
-    const sym = (code: string) => ({ USD: '$', EUR: '\u20ac', GBP: '\u00a3', CAD: 'CA$', AUD: 'A$' } as Record<string, string>)[code] || '$';
-    // Build product options from variant.options
-    const optionNames = new Set<string>();
-    const optionValuesMap: Record<string, Set<string>> = {};
-    (p.variants || []).forEach((v: any) => {
-      (v.options || []).forEach((o: any) => {
-        const name = (o.name || '').trim();
-        const value = (o.value || '').trim();
-        if (!name || !value) return;
-        optionNames.add(name);
-        if (!optionValuesMap[name]) optionValuesMap[name] = new Set<string>();
-        optionValuesMap[name].add(value);
-      });
-    });
-
-    const makeOptId = (name: string) => `opt_${p.id}_${name.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`;
-
-    const productOptions = Array.from(optionNames).map((name) => ({
-      id: makeOptId(name),
-      title: name,
-      productOptionValues: Array.from(optionValuesMap[name] || new Set()).map((val) => ({ id: `${makeOptId(name)}_${val}`, value: val }))
-    }));
-
-    const product = {
-      id: p.id,
-      title: p.title,
-      handle: p.handle,
-      thumbnail: p.thumbnail,
-      productImages: [],
-      productOptions,
-      productVariants: (p.variants || []).map((v: any) => ({
-        id: v.id,
-        title: v.title,
-        sku: v.sku,
-        inventoryQuantity: v.inventoryQuantity,
-        allowBackorder: v.allowBackorder || false,
-        primaryImage: null,
-        prices: [{ id: 'price', amount: v.price, currency: { code: v.currency, symbol: sym(v.currency) }, calculatedPrice: { calculatedAmount: v.price, originalAmount: v.price, currencyCode: v.currency } }],
-        productOptionValues: (v.options || []).map((o: any) => ({ value: o.value, productOption: { id: makeOptId(o.name) } }))
-      })),
-    } as any;
-
-    // Reuse the same UI as searchProducts - just wrap single product in array
-    const products = [product];
-
-    // Generate HTML for product (same logic as searchProducts)
-    const productsHTML = products.map((product: any, index: number) => {
-      // Get currency code from first variant with prices
-      const currencyCode = product.productVariants?.find((v: any) => v.prices?.length > 0)?.prices?.[0]?.currency?.code || 'USD';
-      const currencySymbol = product.productVariants?.find((v: any) => v.prices?.length > 0)?.prices?.[0]?.currency?.symbol || '$';
-
-      // Get cheapest price across all variants (matching OpenFront getProductPrice logic)
-      const cheapestPriceObj = getCheapestPrice(product.productVariants, currencyCode);
-      const formattedPrice = cheapestPriceObj ?
-        `${currencySymbol}${(cheapestPriceObj.calculatedPrice?.calculatedAmount / 100).toFixed(2)}` :
-        'Price unavailable';
-
-      const hasMultipleVariants = product.productVariants?.length > 1;
-
-      // Build option buttons UI
-      let optionsHTML = '';
-      if (hasMultipleVariants && product.productOptions?.length > 0) {
-        optionsHTML = product.productOptions.map((option: any) => {
-          // Get unique values and sort them properly (matching OpenFront OptionSelect)
-          const uniqueValues = option.productOptionValues
-            .map((v: any) => v.value)
-            .filter((value: any, idx: number, self: any[]) => self.indexOf(value) === idx);
-          const values = sortOptionValues(uniqueValues, option.title);
-
-          return `
-            <div class="flex flex-col gap-y-2 mb-3">
-              <span class="text-sm text-gray-700">Select ${option.title}</span>
-              <div class="flex flex-wrap gap-2">
-                ${values.map((value: string) => {
-                  const htmlEscaped = value.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-                  return `
-                  <button
-                    class="option-btn inline-flex items-center px-3 py-1 rounded-full text-sm font-medium
-                           ring-1 ring-inset ring-gray-300 text-gray-700 bg-white
-                           transition-all"
-                    data-product-index="${index}"
-                    data-option-id="${option.id}"
-                    data-value="${htmlEscaped}"
-                    onclick="handleOptionClick(this)"
-                  >
-                    ${value}
-                  </button>
-                  `;
-                }).join('')}
-              </div>
-            </div>
-          `;
-        }).join('');
-      }
-
-      // Prepare product images for carousel (sort by order field, matching OpenFront ImageGallery)
-      const productImages = product.productImages?.length > 0
-        ? [...product.productImages].sort((a: any, b: any) => (a.order || 0) - (b.order || 0))
-        : (product.thumbnail ? [{ id: 'thumb', image: { url: product.thumbnail }, altText: product.title }] : []);
-
-      const hasImages = productImages.length > 0;
-
-      return `
-        <div class="product-card border rounded-lg p-3 sm:p-4 hover:shadow-lg transition-shadow bg-white" data-product-index="${index}" style="min-width: 260px;">
-          ${hasImages ? `
-            <div class="relative w-full h-36 sm:h-48 bg-gray-100 rounded-md mb-2 sm:mb-3 overflow-hidden group">
-              <div class="carousel-container" data-product-index="${index}">
-                ${productImages.map((img: any, imgIdx: number) => `
-                  <img
-                    src="${img.image?.url || img.imagePath || '/images/placeholder.svg'}"
-                    alt="${img.altText || product.title}"
-                    class="carousel-image w-full h-36 sm:h-48 object-cover rounded-md absolute inset-0 transition-opacity duration-300"
-                    data-image-id="${img.id}"
-                    data-product-index="${index}"
-                    data-image-index="${imgIdx}"
-                    style="opacity: ${imgIdx === 0 ? '1' : '0'};"
-                  />
-                `).join('')}
-              </div>
-              ${productImages.length > 1 ? `
-                <button
-                  class="carousel-prev absolute left-2 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white rounded-full p-2 opacity-0 group-hover:opacity-100 transition-opacity shadow-md z-10"
-                  data-product-index="${index}"
-                  onclick="handleCarouselPrev(this)"
-                  aria-label="Previous image"
-                >
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
-                  </svg>
-                </button>
-                <button
-                  class="carousel-next absolute right-2 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white rounded-full p-2 opacity-0 group-hover:opacity-100 transition-opacity shadow-md z-10"
-                  data-product-index="${index}"
-                  onclick="handleCarouselNext(this)"
-                  aria-label="Next image"
-                >
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-                  </svg>
-                </button>
-                <div class="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1 z-10">
-                  ${productImages.map((_: any, imgIdx: number) => `
-                    <div class="carousel-dot w-1.5 h-1.5 rounded-full transition-colors ${imgIdx === 0 ? 'bg-white' : 'bg-white/50'}" data-product-index="${index}" data-dot-index="${imgIdx}"></div>
-                  `).join('')}
-                </div>
-              ` : ''}
-            </div>
-          ` : `
-            <div class="w-full h-36 sm:h-48 bg-gray-200 rounded-md mb-2 sm:mb-3 flex items-center justify-center">
-              <span class="text-gray-400 text-sm">No image</span>
-            </div>
-          `}
-          <div class="flex flex-col">
-            <h3 class="font-semibold text-lg text-gray-900 mb-2">${product.title}</h3>
-
-            ${optionsHTML}
-
-            <p class="price-display text-xl font-bold text-gray-900 mb-3" data-product-index="${index}">
-              ${formattedPrice}
-            </p>
-
-            <button
-              class="add-to-cart-btn w-full h-10 px-4 bg-gray-900 text-white text-sm font-medium rounded hover:bg-gray-800 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
-              data-product-index="${index}"
-              onclick="handleAddToCart(this)"
-              ${hasMultipleVariants ? 'disabled' : ''}>
-              ${hasMultipleVariants ? 'Select variant' : 'Add to cart'}
-            </button>
-          </div>
-        </div>
-      `;
-    }).join('');
-
-    const htmlContent = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <script src="https://cdn.tailwindcss.com"></script>
-        <style>
-          button { cursor: pointer; transition: all 0.2s; }
-          button:hover { transform: translateY(-1px); }
-
-          .option-btn.bg-white:hover {
-            background-color: rgb(249 250 251);
-          }
-          .option-btn.bg-gray-900:hover {
-            opacity: 0.85;
-          }
-        </style>
-      </head>
-      <body>
-          <div class="flex flex-wrap gap-3 sm:gap-4">
-            ${productsHTML}
-          </div>
-        <script>
-
-          const resizeObserver = new ResizeObserver((entries) => {
-            entries.forEach((entry) => {
-              window.parent.postMessage(
-                {
-                  type: "ui-size-change",
-                  payload: {
-                    height: entry.contentRect.height,
-                    width: entry.contentRect.width,
-                  },
-                },
-                "*"
-              );
-            });
-          });
-          resizeObserver.observe(document.documentElement);
-
-          const productsData = ${JSON.stringify(products)};
-          const selectedOptions = {};
-
-          function isEqual(obj1, obj2) {
-            const keys1 = Object.keys(obj1);
-            const keys2 = Object.keys(obj2);
-            if (keys1.length !== keys2.length) return false;
-            for (const key of keys1) {
-              if (obj1[key] !== obj2[key]) return false;
-            }
-            return true;
-          }
-
-          productsData.forEach((product, index) => {
-            const optionObj = {};
-            for (const option of product.productOptions || []) {
-              optionObj[option.id] = undefined;
-            }
-            selectedOptions[index] = optionObj;
-          });
-
-          const variantRecords = productsData.map(product => {
-            const map = {};
-            for (const variant of product.productVariants || []) {
-              if (!variant.productOptionValues?.length || !variant.id) continue;
-              const temp = {};
-              for (const optionValue of variant.productOptionValues) {
-                if (optionValue.productOption?.id && optionValue.value) {
-                  temp[optionValue.productOption.id] = optionValue.value;
-                }
-              }
-              map[variant.id] = temp;
-            }
-            return map;
-          });
-
-          function handleOptionClick(button) {
-            const productIndex = parseInt(button.dataset.productIndex);
-            const optionId = button.dataset.optionId;
-            const value = button.dataset.value;
-
-            selectedOptions[productIndex] = { ...selectedOptions[productIndex], [optionId]: value };
-            updateProductUI(productIndex);
-          }
-
-          window.handleOptionClick = handleOptionClick;
-
-          function findMatchingVariant(productIndex) {
-            const product = productsData[productIndex];
-            const selected = selectedOptions[productIndex];
-            const variants = product.productVariants || [];
-            const variantRecord = variantRecords[productIndex];
-
-            if (variants.length === 1) {
-              return variants[0];
-            }
-
-            let variantId = undefined;
-            for (const key of Object.keys(variantRecord)) {
-              if (isEqual(variantRecord[key], selected)) {
-                variantId = key;
-                break;
-              }
-            }
-
-            return variants.find(v => v.id === variantId);
-          }
-
-          function updateProductUI(productIndex) {
-            const product = productsData[productIndex];
-            const selected = selectedOptions[productIndex];
-            const matchingVariant = findMatchingVariant(productIndex);
-
-            const card = document.querySelector('.product-card[data-product-index="' + productIndex + '"]');
-            const optionButtons = card.querySelectorAll('.option-btn');
-
-            optionButtons.forEach(btn => {
-              const optionId = btn.dataset.optionId;
-              const value = btn.dataset.value;
-              const isSelected = selected[optionId] === value;
-
-              if (isSelected) {
-                btn.classList.remove('ring-gray-300', 'text-gray-700', 'bg-white');
-                btn.classList.add('ring-gray-900', 'text-white', 'bg-gray-900');
-              } else {
-                btn.classList.remove('ring-gray-900', 'text-white', 'bg-gray-900');
-                btn.classList.add('ring-gray-300', 'text-gray-700', 'bg-white');
-              }
-            });
-
-            const priceDisplay = card.querySelector('.price-display');
-            if (matchingVariant?.prices?.[0]) {
-              const price = matchingVariant.prices[0];
-              const amount = price.calculatedPrice?.calculatedAmount || price.amount;
-              const formattedPrice = price.currency.symbol + (amount / 100).toFixed(2);
-              priceDisplay.textContent = formattedPrice;
-            }
-
-            // Update carousel to show variant's primary image (matching OpenFront ImageGallery logic)
-            if (matchingVariant?.primaryImage?.id) {
-              const images = card.querySelectorAll('.carousel-image');
-              const dots = card.querySelectorAll('.carousel-dot');
-
-              // Find the index of the variant's primary image
-              let targetImageIndex = -1;
-              images.forEach((img, idx) => {
-                if (img.dataset.imageId === matchingVariant.primaryImage.id) {
-                  targetImageIndex = idx;
-                }
-              });
-
-              // If found, switch to that image
-              if (targetImageIndex >= 0 && targetImageIndex !== carouselState[productIndex]) {
-                // Hide current image
-                if (images[carouselState[productIndex]]) {
-                  images[carouselState[productIndex]].style.opacity = '0';
-                  if (dots[carouselState[productIndex]]) {
-                    dots[carouselState[productIndex]].classList.remove('bg-white');
-                    dots[carouselState[productIndex]].classList.add('bg-white/50');
-                  }
-                }
-
-                // Update state and show new image
-                carouselState[productIndex] = targetImageIndex;
-                images[targetImageIndex].style.opacity = '1';
-                if (dots[targetImageIndex]) {
-                  dots[targetImageIndex].classList.remove('bg-white/50');
-                  dots[targetImageIndex].classList.add('bg-white');
-                }
-
-              }
-            }
-
-            const addToCartBtn = card.querySelector('.add-to-cart-btn');
-            const hasAllOptions = Object.values(selected).every(v => v !== undefined);
-
-            if (matchingVariant) {
-              const inStock = (matchingVariant.inventoryQuantity > 0) || matchingVariant.allowBackorder;
-              addToCartBtn.disabled = !inStock;
-              addToCartBtn.textContent = inStock ? 'Add to cart' : 'Out of stock';
-            } else {
-              addToCartBtn.disabled = true;
-              addToCartBtn.textContent = hasAllOptions ? 'Unavailable' : 'Select variant';
-            }
-          }
-
-          function handleAddToCart(button) {
-            const productIndex = parseInt(button.dataset.productIndex);
-            const product = productsData[productIndex];
-            const matchingVariant = findMatchingVariant(productIndex);
-
-            if (!matchingVariant) {
-              return;
-            }
-
-            // Send addToCart tool call
-            window.parent.postMessage({
-              type: 'tool',
-              messageId: 'add-to-cart-' + Date.now(),
-              payload: {
-                toolName: 'addToCart',
-                params: {
-                  storeId: ${JSON.stringify(storeId)},
-                  variantId: matchingVariant.id,
-                  quantity: 1,
-                  countryCode: ${JSON.stringify(countryCode)}
-                }
-              }
-            }, '*');
-          }
-
-          window.handleAddToCart = handleAddToCart;
-
-          // Track current image index for each product carousel
-          const carouselState = {};
-          productsData.forEach((_, index) => {
-            carouselState[index] = 0; // Start at first image
-          });
-
-          // Carousel navigation functions
-          function handleCarouselPrev(button) {
-            const productIndex = parseInt(button.dataset.productIndex);
-            const card = document.querySelector('.product-card[data-product-index="' + productIndex + '"]');
-            const images = card.querySelectorAll('.carousel-image');
-            const dots = card.querySelectorAll('.carousel-dot');
-
-            if (images.length <= 1) return;
-
-            // Hide current image
-            images[carouselState[productIndex]].style.opacity = '0';
-            dots[carouselState[productIndex]].classList.remove('bg-white');
-            dots[carouselState[productIndex]].classList.add('bg-white/50');
-
-            // Move to previous image (wrap around)
-            carouselState[productIndex] = (carouselState[productIndex] - 1 + images.length) % images.length;
-
-            // Show new image
-            images[carouselState[productIndex]].style.opacity = '1';
-            dots[carouselState[productIndex]].classList.remove('bg-white/50');
-            dots[carouselState[productIndex]].classList.add('bg-white');
-          }
-
-          function handleCarouselNext(button) {
-            const productIndex = parseInt(button.dataset.productIndex);
-            const card = document.querySelector('.product-card[data-product-index="' + productIndex + '"]');
-            const images = card.querySelectorAll('.carousel-image');
-            const dots = card.querySelectorAll('.carousel-dot');
-
-            if (images.length <= 1) return;
-
-            // Hide current image
-            images[carouselState[productIndex]].style.opacity = '0';
-            dots[carouselState[productIndex]].classList.remove('bg-white');
-            dots[carouselState[productIndex]].classList.add('bg-white/50');
-
-            // Move to next image (wrap around)
-            carouselState[productIndex] = (carouselState[productIndex] + 1) % images.length;
-
-            // Show new image
-            images[carouselState[productIndex]].style.opacity = '1';
-            dots[carouselState[productIndex]].classList.remove('bg-white/50');
-            dots[carouselState[productIndex]].classList.add('bg-white');
-          }
-
-          // Make carousel functions global
-          window.handleCarouselPrev = handleCarouselPrev;
-          window.handleCarouselNext = handleCarouselNext;
-        </script>
-      </body>
-      </html>
-    `;
-
-    // Use proper MCP UI format
-    const uiResource = createUIResource({
-      uri: `ui://marketplace/product/${product.id}?country=${countryCode}&store=${encodeURIComponent(storeId)}`,
-      content: { type: 'rawHtml', htmlString: htmlContent },
-      encoding: 'text',
-    });
-
-    return {
-      jsonrpc: '2.0',
-      result: {
         content: [uiResource],
       }
     };
@@ -1339,13 +865,13 @@ export async function handleProductTools(name: string, args: any, cookie: string
                      data-product-index="${storeIndex}-${productIndex}"
                      data-store-index="${storeIndex}">
                   ${hasImages ? `
-                    <div class="relative w-full h-28 sm:h-48 bg-gray-100 rounded-md mb-1.5 sm:mb-3 overflow-hidden group">
+                    <div class="relative w-full aspect-square bg-gray-100 rounded-md mb-1.5 sm:mb-3 overflow-hidden group">
                       <div class="carousel-container" data-product-index="${storeIndex}-${productIndex}">
                         ${productImages.map((img: any, imgIdx: number) => `
                           <img
                             src="${img.image?.url || img.imagePath || '/images/placeholder.svg'}"
                             alt="${img.altText || product.title}"
-                            class="carousel-image w-full h-28 sm:h-48 object-cover rounded-md absolute inset-0 transition-opacity duration-300"
+                            class="carousel-image w-full h-full object-contain object-center rounded-md absolute inset-0 transition-opacity duration-300"
                             data-image-id="${img.id}"
                             data-product-index="${storeIndex}-${productIndex}"
                             data-image-index="${imgIdx}"
