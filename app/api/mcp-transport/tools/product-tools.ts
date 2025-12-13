@@ -56,7 +56,7 @@ Use this tool when users want to:
 - "Browse your marketplace"
 - Initial product discovery
 
-This replaces the need to call getAvailableStores + getAvailableCountries + searchProducts separately for each store.`,
+This is the primary tool for product discovery in the marketplace.`,
     inputSchema: {
       type: 'object',
       properties: {},
@@ -168,35 +168,6 @@ export async function handleProductTools(name: string, args: any, cookie: string
 
     // Wrap single product in array for UI generation
     const products = [product];
-
-    // Generate HTML for product
-    const productsHTML = products.map((product: any, index: number) => {
-      const productVariants = (p.variants || []).map((v: any) => ({
-        id: v.id,
-        title: v.title,
-        sku: v.sku,
-        inventoryQuantity: v.inventoryQuantity,
-        allowBackorder: v.allowBackorder || false,
-        primaryImage: null,
-        prices: [{
-          id: 'price',
-          amount: v.price,
-          currency: { code: v.currency, symbol: sym(v.currency) },
-          calculatedPrice: { calculatedAmount: v.price, originalAmount: v.price, currencyCode: v.currency }
-        }],
-        productOptionValues: (v.options || []).map((o: any) => ({ value: o.value, productOption: { id: makeOptId(o.name) } }))
-      }));
-
-      return {
-        id: p.id,
-        title: p.title,
-        handle: p.handle,
-        thumbnail: p.thumbnail,
-        productImages: [],
-        productOptions,
-        productVariants,
-      };
-    });
 
     // Generate beautiful HTML for products using MCP UI (matching openfront storefront UI)
     const productsHTML = products.map((product: any, index: number) => {
@@ -631,33 +602,12 @@ export async function handleProductTools(name: string, args: any, cookie: string
       </html>
     `;
 
-    // Get country details for user messaging via adapter
-    const { store: countryStore, adapter: countryAdapter } = await resolveAdapter(storeId, customConfig);
-    const countries = await countryAdapter.getAvailableCountries({ store: countryStore, cookie, ctoken });
-    const sym2 = (code: string) => ({ USD: '$', EUR: '\u20ac', GBP: '\u00a3', CAD: 'CA$', AUD: 'A$' } as Record<string, string>)[code] || '$';
-    const allCountries = (countries || []).map((c: any) => ({
-      code: (c.code || '').toLowerCase(),
-      name: c.name,
-      currency: c.currency,
-      symbol: sym2(c.currency)
-    }));
-
-    const selectedCountry = allCountries.find((c: any) => c.code === countryCode);
-    const countryName = selectedCountry?.name || countryCode.toUpperCase();
-    const currency = selectedCountry?.currency || 'USD';
-
     // Use proper MCP UI format
     const uiResource = createUIResource({
-      uri: `ui://marketplace/products?country=${countryCode}&store=${encodeURIComponent(storeId)}`,
+      uri: `ui://marketplace/product/${product.id}?country=${countryCode}&store=${encodeURIComponent(storeId)}`,
       content: { type: 'rawHtml', htmlString: htmlContent },
       encoding: 'text',
     });
-
-    // // Add informative text about regional pricing
-    // const infoText = {
-    //   type: 'text',
-    //   text: `\n\n📍 Showing products available in ${countryName} with pricing in ${currency}. Products and prices vary by region. Need a different country? Just ask!`
-    // };
 
     return {
       jsonrpc: '2.0',
