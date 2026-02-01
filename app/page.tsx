@@ -247,7 +247,9 @@ export default function HomePage() {
         const ids: Record<string, string> = {};
         Object.entries(cartIdsState).forEach(([k, v]) => { if (v) ids[k] = v; });
         xCartIds = JSON.stringify(ids);
-      } catch {}
+      } catch (e) {
+        console.warn('[handleCartSelect] Failed to serialize cart IDs:', e);
+      }
       const sessionTokens = getAllSessions();
       const token = sessionTokens[storeId];
       const headers: Record<string, string> = {
@@ -353,7 +355,9 @@ export default function HomePage() {
                   }
                 }
               }
-            } catch (e) {}
+            } catch {
+              // Expected for non-JSON or non-cart tool outputs - ignore silently
+            }
           }
         });
       }

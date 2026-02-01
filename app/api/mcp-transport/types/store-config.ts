@@ -6,6 +6,8 @@ export type PlatformType = 'openfront' | 'shopify' | 'bigcommerce' | 'woocommerc
 export interface StoreConfig {
   platform: PlatformType;
   baseUrl: string; // e.g., https://store.example.com
+  name?: string; // User-defined store name
+  storeName?: string; // Alternative field for store name
 }
 
 export interface ParsedStore extends StoreConfig {

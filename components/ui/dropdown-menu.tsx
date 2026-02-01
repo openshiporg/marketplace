@@ -251,6 +251,7 @@ function DropdownMenuSubTrigger({
   className,
   inset,
   children,
+  asChild,
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.SubTrigger> & {
   inset?: boolean
@@ -259,17 +260,24 @@ function DropdownMenuSubTrigger({
     <DropdownMenuPrimitive.SubTrigger
       data-slot="dropdown-menu-sub-trigger"
       data-inset={inset}
+      asChild={asChild}
       className={cn(
         "focus:bg-accent focus:text-accent-foreground data-[state=open]:bg-accent data-[state=open]:text-accent-foreground flex cursor-default items-center rounded-sm px-2 py-1.5 text-sm outline-hidden select-none data-[inset]:pl-8",
         className
       )}
       {...props}
     >
-      {children}
-      <ChevronRightIcon
-        size={16}
-        className="text-muted-foreground/80 ml-auto"
-      />
+      {asChild ? (
+        children
+      ) : (
+        <>
+          {children}
+          <ChevronRightIcon
+            size={16}
+            className="text-muted-foreground/80 ml-auto"
+          />
+        </>
+      )}
     </DropdownMenuPrimitive.SubTrigger>
   )
 }

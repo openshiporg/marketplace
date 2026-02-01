@@ -151,6 +151,7 @@ export async function handleProductTools(name: string, args: any, cookie: string
       id: p.id,
       title: p.title,
       handle: p.handle,
+      description: p.description || '',
       thumbnail: p.thumbnail,
       productImages: [],
       productOptions,
@@ -169,7 +170,7 @@ export async function handleProductTools(name: string, args: any, cookie: string
     // Wrap single product in array for UI generation
     const products = [product];
 
-    // Generate beautiful HTML for products using MCP UI (matching openfront storefront UI)
+    // Generate horizontal product detail UI for getProduct
     const productsHTML = products.map((product: any, index: number) => {
       // Get currency code from first variant with prices
       const currencyCode = product.productVariants?.find((v: any) => v.prices?.length > 0)?.prices?.[0]?.currency?.code || 'USD';
@@ -194,15 +195,15 @@ export async function handleProductTools(name: string, args: any, cookie: string
           const values = sortOptionValues(uniqueValues, option.title);
 
           return `
-            <div class="flex flex-col gap-y-2 mb-3">
-              <span class="text-sm text-gray-700">Select ${option.title}</span>
-              <div class="flex flex-wrap gap-2">
+            <div class="flex flex-col gap-y-1.5 mb-2">
+              <span class="text-xs text-gray-500 font-medium">${option.title}</span>
+              <div class="flex flex-wrap gap-1.5">
                 ${values.map((value: string) => {
                   // Escape for HTML attribute
                   const htmlEscaped = value.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
                   return `
                   <button
-                    class="option-btn inline-flex items-center px-3 py-1 rounded-full text-sm font-medium
+                    class="option-btn inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium
                            ring-1 ring-inset ring-gray-300 text-gray-700 bg-white
                            transition-all"
                     data-product-index="${index}"
@@ -227,73 +228,89 @@ export async function handleProductTools(name: string, args: any, cookie: string
 
       const hasImages = productImages.length > 0;
 
+      // Horizontal layout: image left, details right, description below
       return `
-        <div class="product-card border rounded-lg p-3 sm:p-4 hover:shadow-lg transition-shadow bg-white" data-product-index="${index}" style="min-width: 260px;">
-          ${hasImages ? `
-            <div class="relative w-full aspect-square bg-gray-100 rounded-md mb-2 sm:mb-3 overflow-hidden group">
-              <div class="carousel-container" data-product-index="${index}">
-                ${productImages.map((img: any, imgIdx: number) => `
-                  <img
-                    src="${img.image?.url || img.imagePath || '/images/placeholder.svg'}"
-                    alt="${img.altText || product.title}"
-                    class="carousel-image w-full h-full object-contain object-center rounded-md absolute inset-0 transition-opacity duration-300"
-                    data-image-id="${img.id}"
-                    data-product-index="${index}"
-                    data-image-index="${imgIdx}"
-                    style="opacity: ${imgIdx === 0 ? '1' : '0'};"
-                  />
-                `).join('')}
-              </div>
-              ${productImages.length > 1 ? `
-                <button
-                  class="carousel-prev absolute left-2 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white rounded-full p-2 opacity-0 group-hover:opacity-100 transition-opacity shadow-md z-10"
-                  data-product-index="${index}"
-                  onclick="handleCarouselPrev(this)"
-                  aria-label="Previous image"
-                >
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
-                  </svg>
-                </button>
-                <button
-                  class="carousel-next absolute right-2 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white rounded-full p-2 opacity-0 group-hover:opacity-100 transition-opacity shadow-md z-10"
-                  data-product-index="${index}"
-                  onclick="handleCarouselNext(this)"
-                  aria-label="Next image"
-                >
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-                  </svg>
-                </button>
-                <div class="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1 z-10">
-                  ${productImages.map((_: any, imgIdx: number) => `
-                    <div class="carousel-dot w-1.5 h-1.5 rounded-full transition-colors ${imgIdx === 0 ? 'bg-white' : 'bg-white/50'}" data-product-index="${index}" data-dot-index="${imgIdx}"></div>
-                  `).join('')}
+        <div class="product-card border rounded-lg bg-white overflow-hidden" data-product-index="${index}">
+          <!-- Top section: Image + Details side by side on desktop, stacked on mobile -->
+          <div class="flex flex-col sm:flex-row">
+            <!-- Image section -->
+            <div class="sm:w-40 md:w-48 flex-shrink-0">
+              ${hasImages ? `
+                <div class="relative w-full aspect-square sm:h-full bg-gray-100 overflow-hidden group">
+                  <div class="carousel-container h-full" data-product-index="${index}">
+                    ${productImages.map((img: any, imgIdx: number) => `
+                      <img
+                        src="${img.image?.url || img.imagePath || '/images/placeholder.svg'}"
+                        alt="${img.altText || product.title}"
+                        class="carousel-image w-full h-full object-cover sm:object-contain object-center absolute inset-0 transition-opacity duration-300"
+                        data-image-id="${img.id}"
+                        data-product-index="${index}"
+                        data-image-index="${imgIdx}"
+                        style="opacity: ${imgIdx === 0 ? '1' : '0'};"
+                      />
+                    `).join('')}
+                  </div>
+                  ${productImages.length > 1 ? `
+                    <button
+                      class="carousel-prev absolute left-1.5 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity shadow-md z-10"
+                      data-product-index="${index}"
+                      onclick="handleCarouselPrev(this)"
+                      aria-label="Previous image"
+                    >
+                      <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                      </svg>
+                    </button>
+                    <button
+                      class="carousel-next absolute right-1.5 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity shadow-md z-10"
+                      data-product-index="${index}"
+                      onclick="handleCarouselNext(this)"
+                      aria-label="Next image"
+                    >
+                      <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                      </svg>
+                    </button>
+                    <div class="absolute bottom-1.5 left-1/2 -translate-x-1/2 flex gap-1 z-10">
+                      ${productImages.map((_: any, imgIdx: number) => `
+                        <div class="carousel-dot w-1.5 h-1.5 rounded-full transition-colors ${imgIdx === 0 ? 'bg-white' : 'bg-white/50'}" data-product-index="${index}" data-dot-index="${imgIdx}"></div>
+                      `).join('')}
+                    </div>
+                  ` : ''}
                 </div>
-              ` : ''}
+              ` : `
+                <div class="w-full aspect-square sm:h-full bg-gray-200 flex items-center justify-center">
+                  <span class="text-gray-400 text-sm">No image</span>
+                </div>
+              `}
             </div>
-          ` : `
-            <div class="w-full h-36 sm:h-48 bg-gray-200 rounded-md mb-2 sm:mb-3 flex items-center justify-center">
-              <span class="text-gray-400 text-sm">No image</span>
+
+            <!-- Details section -->
+            <div class="flex-1 p-3 sm:p-4 flex flex-col">
+              <h3 class="font-semibold text-base sm:text-lg text-gray-900 mb-1">${product.title}</h3>
+              
+              <p class="price-display text-lg sm:text-xl font-bold text-gray-900 mb-3" data-product-index="${index}">
+                ${formattedPrice}
+              </p>
+
+              ${optionsHTML}
+
+              <button
+                class="add-to-cart-btn w-full sm:w-auto sm:px-6 h-9 bg-gray-900 text-white text-sm font-medium rounded hover:bg-gray-800 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors mt-auto"
+                data-product-index="${index}"
+                onclick="handleAddToCart(this)"
+                ${hasMultipleVariants ? 'disabled' : ''}>
+                ${hasMultipleVariants ? 'Select variant' : 'Add to cart'}
+              </button>
             </div>
-          `}
-          <div class="flex flex-col">
-            <h3 class="font-semibold text-lg text-gray-900 mb-2">${product.title}</h3>
-
-            ${optionsHTML}
-
-            <p class="price-display text-xl font-bold text-gray-900 mb-3" data-product-index="${index}">
-              ${formattedPrice}
-            </p>
-
-            <button
-              class="add-to-cart-btn w-full h-10 px-4 bg-gray-900 text-white text-sm font-medium rounded hover:bg-gray-800 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
-              data-product-index="${index}"
-              onclick="handleAddToCart(this)"
-              ${hasMultipleVariants ? 'disabled' : ''}>
-              ${hasMultipleVariants ? 'Select variant' : 'Add to cart'}
-            </button>
           </div>
+
+          <!-- Description section below -->
+          ${product.description ? `
+            <div class="px-3 sm:px-4 pb-3 sm:pb-4 pt-0 border-t border-gray-100">
+              <p class="text-sm text-gray-600 pt-3">${product.description}</p>
+            </div>
+          ` : ''}
         </div>
       `;
     }).join('');
@@ -319,9 +336,7 @@ export async function handleProductTools(name: string, args: any, cookie: string
         </style>
       </head>
       <body>
-          <div class="flex flex-wrap gap-3 sm:gap-4">
-            ${productsHTML}
-          </div>
+        ${productsHTML}
         <script>
 
           // Auto-resize iframe based on content
@@ -877,6 +892,13 @@ export async function handleProductTools(name: string, args: any, cookie: string
                       ${hasMultipleVariants ? 'disabled' : ''}>
                       ${hasMultipleVariants ? 'Select variant' : 'Add to cart'}
                     </button>
+                    <button
+                      class="w-full h-8 sm:h-10 px-3 sm:px-4 mt-2 border border-gray-300 text-gray-700 text-xs sm:text-sm font-medium rounded hover:bg-gray-50 transition-colors"
+                      data-product-index="${storeIndex}-${productIndex}"
+                      data-store-index="${storeIndex}"
+                      onclick="handleViewDetails(this)">
+                      View Details
+                    </button>
                   </div>
                 </div>
               `;
@@ -1126,10 +1148,32 @@ export async function handleProductTools(name: string, args: any, cookie: string
             }, '*');
           }
 
+          function handleViewDetails(button) {
+            const productKey = button.dataset.productIndex;
+            const [storeIdx, productIdx] = productKey.split('-').map(Number);
+            const product = storesData[storeIdx].products[productIdx];
+            const store = storesData[storeIdx];
+
+            // Send getProduct tool call to show full product details
+            window.parent.postMessage({
+              type: 'tool',
+              messageId: 'get-product-' + Date.now(),
+              payload: {
+                toolName: 'getProduct',
+                params: {
+                  storeId: store.storeId,
+                  productId: product.id,
+                  countryCode: store.country.code
+                }
+              }
+            }, '*');
+          }
+
           window.handleCarouselPrev = handleCarouselPrev;
           window.handleCarouselNext = handleCarouselNext;
           window.handleOptionClick = handleOptionClick;
           window.handleAddToCart = handleAddToCart;
+          window.handleViewDetails = handleViewDetails;
         </script>
       </body>
       </html>

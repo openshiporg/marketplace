@@ -73,7 +73,7 @@ const openfrontAdapter: PlatformAdapter = {
           id
           title
           handle
-          description
+          description { document }
           thumbnail
           productVariants {
             id
@@ -105,11 +105,25 @@ const openfrontAdapter: PlatformAdapter = {
       return imagePath;
     };
 
+    // Helper to extract plain text from rich text document
+    const extractTextFromDocument = (doc: any): string => {
+      if (!doc?.document || !Array.isArray(doc.document)) return '';
+      return doc.document
+        .map((block: any) => {
+          if (block.children && Array.isArray(block.children)) {
+            return block.children.map((child: any) => child.text || '').join('');
+          }
+          return '';
+        })
+        .join('\n')
+        .trim();
+    };
+
     return {
       id: p.id,
       title: p.title,
       handle: p.handle,
-      description: p.description,
+      description: extractTextFromDocument(p.description),
       thumbnail: normalizeImageUrl(p.thumbnail),
       variants: (p.productVariants || []).map((v: any) => ({
         id: v.id,

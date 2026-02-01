@@ -12,7 +12,6 @@ import {
   Circle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { UseChatHelpers } from '@ai-sdk/react';
 import { PaymentUI } from './payment/payment-ui';
 import { getAllCarts, removeCartId } from '@/lib/cart-storage';
 import { getSessionToken } from '@/lib/session-storage';
@@ -25,7 +24,6 @@ interface ToolInvocationProps {
   result: any;
   isLatestMessage: boolean;
   status: string;
-  append?: UseChatHelpers['append'];
 }
 
 export const ToolInvocation = memo(function ToolInvocation({
@@ -35,7 +33,6 @@ export const ToolInvocation = memo(function ToolInvocation({
   result,
   isLatestMessage,
   status,
-  append,
 }: ToolInvocationProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -85,10 +82,11 @@ export const ToolInvocation = memo(function ToolInvocation({
 
       const token = getSessionToken(storeId);
       const marketplaceConfig = getMarketplaceConfig();
+      // No global UCP mode needed
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         'x-cart-ids': xCartIds,
-        'x-marketplace-config': JSON.stringify(marketplaceConfig)
+        'x-marketplace-config': JSON.stringify(marketplaceConfig),
       };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 

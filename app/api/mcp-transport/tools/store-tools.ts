@@ -20,13 +20,16 @@ export async function handleStoreTools(name: string, args: any, cookie: string, 
 
     // Enrich each store with live store info from its platform adapter (name, logoIcon, logoColor, paymentProviders)
     const stores = await Promise.all(parsed.map(async (s) => {
+      // User-defined name takes priority
+      const userDefinedName = s.name || s.storeName;
+      
       try {
         const adapter = await getPlatformAdapter(s);
         const info = await adapter.getStoreInfo({ store: s, cookie, ctoken });
         return {
           id: s.id,
           storeId: s.id,
-          name: info?.name || new URL(s.baseUrl).hostname,
+          name: userDefinedName || info?.name || new URL(s.baseUrl).hostname,
           platform: s.platform,
           baseUrl: s.baseUrl,
           logoIcon: info?.logoIcon || null,
@@ -39,7 +42,7 @@ export async function handleStoreTools(name: string, args: any, cookie: string, 
         return {
           id: s.id,
           storeId: s.id,
-          name: new URL(s.baseUrl).hostname,
+          name: userDefinedName || new URL(s.baseUrl).hostname,
           platform: s.platform,
           baseUrl: s.baseUrl,
           logoIcon: null,

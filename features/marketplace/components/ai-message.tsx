@@ -47,10 +47,11 @@ const PureAIMessage = ({
 
       const token = getSessionToken(storeId);
       const marketplaceConfig = getMarketplaceConfig();
+      // No global UCP mode needed
       const viewCartHeaders: Record<string, string> = {
         'Content-Type': 'application/json',
         'x-cart-ids': xCartIds,
-        'x-marketplace-config': JSON.stringify(marketplaceConfig)
+        'x-marketplace-config': JSON.stringify(marketplaceConfig),
       };
       if (token) viewCartHeaders['Authorization'] = `Bearer ${token}`;
 
@@ -109,10 +110,11 @@ const PureAIMessage = ({
           const storeId = payload.params?.storeId;
           const existingToken = getSessionToken(storeId);
           const marketplaceConfig = getMarketplaceConfig();
+          // No global UCP mode needed
           const baseHeaders: Record<string, string> = {
             'Content-Type': 'application/json',
             'x-cart-ids': xCartIds,
-            'x-marketplace-config': JSON.stringify(marketplaceConfig)
+            'x-marketplace-config': JSON.stringify(marketplaceConfig),
           };
           if (existingToken) baseHeaders['Authorization'] = `Bearer ${existingToken}`;
 
@@ -214,10 +216,11 @@ const PureAIMessage = ({
         const storeIdForCall = payload.params?.storeId;
         const tokenForCall = getSessionToken(storeIdForCall);
         const marketplaceConfig = getMarketplaceConfig();
+        // No global UCP mode needed
         const callHeaders: Record<string, string> = {
           'Content-Type': 'application/json',
           'x-cart-ids': xCartIdsForCall,
-          'x-marketplace-config': JSON.stringify(marketplaceConfig)
+          'x-marketplace-config': JSON.stringify(marketplaceConfig),
         };
         if (tokenForCall) callHeaders['Authorization'] = `Bearer ${tokenForCall}`;
 
@@ -300,7 +303,7 @@ const PureAIMessage = ({
           } catch (e) {}
         }
 
-        if (['initiatePaymentSession', 'discoverProducts', 'loginUser'].includes(payload.toolName)) {
+        if (['initiatePaymentSession', 'discoverProducts', 'loginUser', 'getProduct'].includes(payload.toolName)) {
           stop();
           const toolCallId = `call_${Date.now()}`;
           setMessages((currentMessages) => [...currentMessages, {
@@ -380,7 +383,6 @@ const PureAIMessage = ({
                         result={output}
                         isLatestMessage={isLatestMessage}
                         status={status}
-                        sendMessage={sendMessage}
                       />
                       {uiResources.length > 0 && uiResources.map((content: any, index: number) => (
                         <div key={content.resource?.uri || `ui-resource-${index}`}>
@@ -409,7 +411,6 @@ const PureAIMessage = ({
                           result={typedPart.output}
                           isLatestMessage={isLatestMessage}
                           status={status}
-                          sendMessage={sendMessage}
                         />
                       </div>
                     );
