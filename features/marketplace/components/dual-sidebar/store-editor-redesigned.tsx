@@ -23,7 +23,6 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
-  DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
 import {
   ShoppingBag,
@@ -38,7 +37,7 @@ import {
 } from "lucide-react";
 
 interface Store {
-  storeId: string;
+  storeId?: string;
   cartId?: string;
   baseUrl: string;
   platform: string;
@@ -86,14 +85,12 @@ type PlatformKey = keyof typeof PLATFORMS;
 
 function StoreCard({
   store,
-  index,
   onEdit,
   onDelete,
   onCartSelect,
   onOpenChange,
 }: {
   store: Store;
-  index: number;
   onEdit: () => void;
   onDelete: () => void;
   onCartSelect?: (storeName: string, storeId: string) => void;
@@ -166,9 +163,9 @@ function StoreCard({
           </DropdownMenuTrigger>
           <DropdownMenuContent sideOffset={4} align="end">
             {/* View Cart */}
-            {store.cartId && (
+            {store.cartId && store.storeId && (
               <DropdownMenuItem onClick={() => {
-                if (onCartSelect) {
+                if (onCartSelect && store.storeId) {
                   onCartSelect(store.storeName || store.name || 'Store', store.storeId);
                   if (onOpenChange) onOpenChange();
                 }
@@ -272,7 +269,7 @@ function AddStoreForm({
     if (!isValid || !platform) return;
 
     onSave({
-      storeId: initialValues?.storeId || "", // Preserve storeId if editing
+      storeId: initialValues?.storeId,
       baseUrl: baseUrl.trim(),
       platform,
       name: name.trim() || undefined,
@@ -353,33 +350,38 @@ export function StoreEditor({
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [isAdding, setIsAdding] = useState(false);
 
+  // Initialize the editable list only when the dialog/config changes. Store-info
+  // refreshes must never replace in-progress edits with the stale config prop.
   useEffect(() => {
     if (open && currentConfig) {
-      // Merge current config with cart data (logo info from API)
-      const storesWithLogos = currentConfig.map(store => {
-        const cartData = cartsData?.find(c => 
-          (store.storeId && c.storeId === store.storeId) || 
-          (c.baseUrl && store.baseUrl && c.baseUrl === store.baseUrl)
-        );
-        return {
-          ...store,
-          storeId: cartData?.storeId || store.storeId,
-          cartId: cartData?.cartId,
-          logoIcon: cartData?.logoIcon || store.logoIcon,
-          logoColor: cartData?.logoColor || store.logoColor,
-          storeName: cartData?.storeName || store.name,
-        };
-      });
-      setStores(storesWithLogos);
+      setStores(currentConfig.map(store => ({ ...store })));
       setEditingIndex(null);
       setIsAdding(false);
     }
-  }, [open, currentConfig, cartsData]);
+  }, [open, currentConfig]);
 
-  const handleSave = () => {
-    onSave(stores);
-    onOpenChange(false);
-  };
+  // Live API metadata is presentation-only. Merge it into stores that still
+  // exist instead of rebuilding the list, which could resurrect removed stores.
+  useEffect(() => {
+    if (!open || !cartsData) return;
+
+    setStores(currentStores => currentStores.map(store => {
+      const cartData = cartsData.find(cart =>
+        (store.storeId && cart.storeId === store.storeId) ||
+        (cart.baseUrl && store.baseUrl && cart.baseUrl === store.baseUrl)
+      );
+      if (!cartData) return store;
+
+      return {
+        ...store,
+        storeId: cartData.storeId || store.storeId,
+        cartId: cartData.cartId,
+        logoIcon: cartData.logoIcon || store.logoIcon,
+        logoColor: cartData.logoColor || store.logoColor,
+        storeName: store.storeName || store.name || cartData.storeName,
+      };
+    }));
+  }, [open, cartsData]);
 
   const handleAddStore = (newStore: Store) => {
     const updatedStores = [...stores, newStore];
@@ -469,7 +471,6 @@ export function StoreEditor({
                       {index > 0 && <div className="h-px bg-border" />}
                       <StoreCard
                         store={store}
-                        index={index}
                         onEdit={() => setEditingIndex(index)}
                         onDelete={() => handleDeleteStore(index)}
                         onCartSelect={onCartSelect}

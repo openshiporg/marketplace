@@ -908,11 +908,9 @@ export async function handleProductTools(name: string, args: any, cookie: string
               <div class="store-section border rounded-lg bg-gray-50 shadow-sm">
                 <div class="flex items-center gap-2 sm:gap-3 px-2 sm:px-4 pt-2 sm:pt-4">
                   ${storeData.logoIcon ? `
-                    <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center text-white text-lg sm:text-xl font-bold"
+                    <div class="flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10"
                          style="background-color: ${storeData.logoColor || '#000'}; filter: hue-rotate(${storeData.logoColor || '0'}deg);">
-                      <div style="color: white;">
-                        ${storeData.logoIcon}
-                      </div>
+                      ${storeData.logoIcon}
                     </div>
                   ` : ''}
                   <div>

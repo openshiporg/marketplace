@@ -21,7 +21,13 @@ import { ModeSplitButton } from "../features/marketplace/components/dual-sidebar
 import { useAiConfig } from "../features/marketplace/hooks/use-ai-config";
 import { setCartId as saveCartToLocalStorage, removeCartId } from "@/lib/cart-storage";
 import { getAllSessions } from "@/lib/session-storage";
-import { getMarketplaceConfig } from "@/lib/marketplace-storage";
+import {
+  getDefaultMarketplaceConfig,
+  getMarketplaceConfig,
+  MARKETPLACE_CONFIG_UPDATED_EVENT,
+  MARKETPLACE_STORAGE_KEY,
+  type MarketplaceStore,
+} from "@/lib/marketplace-storage";
 import { AIActivationDialog } from "../features/marketplace/components/dual-sidebar/ai-activation-dialog";
 import { AISettingsDialog } from "../features/marketplace/components/dual-sidebar/ai-settings-dialog";
 import { ChatUnactivatedState } from "../features/marketplace/components/dual-sidebar/chat-unactivated-state";
@@ -55,6 +61,28 @@ export default function HomePage() {
     missing: { apiKey: boolean; model: boolean; maxTokens: boolean };
   } | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
+  const [marketplaceConfig, setMarketplaceConfigState] = useState<MarketplaceStore[]>(
+    getDefaultMarketplaceConfig
+  );
+
+  // The bundled JSON is the initial fallback. Once the user manages stores,
+  // keep every chat request synchronized with their localStorage override.
+  useEffect(() => {
+    const syncMarketplaceConfig = () => {
+      setMarketplaceConfigState(getMarketplaceConfig());
+    };
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === MARKETPLACE_STORAGE_KEY) syncMarketplaceConfig();
+    };
+
+    syncMarketplaceConfig();
+    window.addEventListener(MARKETPLACE_CONFIG_UPDATED_EVENT, syncMarketplaceConfig);
+    window.addEventListener('storage', handleStorage);
+    return () => {
+      window.removeEventListener(MARKETPLACE_CONFIG_UPDATED_EVENT, syncMarketplaceConfig);
+      window.removeEventListener('storage', handleStorage);
+    };
+  }, []);
 
   useEffect(() => {
     if (aiConfig.enabled) {
@@ -133,7 +161,6 @@ export default function HomePage() {
   }, []);
 
   const chatBody = useMemo(() => {
-    const marketplaceConfig = getMarketplaceConfig();
     if (aiConfig.keyMode === "local") {
       return {
         useLocalKeys: true,
@@ -157,9 +184,9 @@ export default function HomePage() {
     return {
       cartIds: cartIdsState,
       sessionTokens: sessionTokensState,
-      marketplaceConfig: getMarketplaceConfig(),
+      marketplaceConfig,
     };
-  }, [aiConfig.keyMode, aiConfig.localKeys, cartIdsState, sessionTokensState]);
+  }, [aiConfig.keyMode, aiConfig.localKeys, cartIdsState, sessionTokensState, marketplaceConfig]);
 
   const { messages, status, sendMessage, stop, setMessages } =
     useChat({

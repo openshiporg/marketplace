@@ -1,24 +1,25 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { ShoppingCart, ShoppingBag, ExternalLink, Edit3, MoreVertical, Store as StoreIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuTrigger,
-  DropdownMenuSeparator,
   DropdownMenuItem,
   DropdownMenuSub,
   DropdownMenuSubTrigger,
   DropdownMenuSubContent,
-  DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
 import {
   getMarketplaceConfig,
   setMarketplaceConfig,
   resetMarketplaceConfig,
   isDefaultConfig,
+  MARKETPLACE_CONFIG_UPDATED_EVENT,
+  MARKETPLACE_STORAGE_KEY,
+  type MarketplaceStore,
 } from "@/lib/marketplace-storage";
 import { StoreEditor } from "./store-editor-redesigned";
 
@@ -48,8 +49,9 @@ export function CartsDropdown({
   const [open, setOpen] = useState(false);
   const [editMode, setEditMode] = useState<'idle' | 'confirm'>('idle');
   const [showEditor, setShowEditor] = useState(false);
-  const [currentConfig, setCurrentConfig] = useState<any[]>([]);
+  const [currentConfig, setCurrentConfig] = useState<MarketplaceStore[]>([]);
   const [isCustomConfig, setIsCustomConfig] = useState(false);
+  const latestStoreInfoRequest = useRef(0);
 
   // Check if config is custom (modified from default)
   useEffect(() => {
@@ -58,17 +60,8 @@ export function CartsDropdown({
     }
   }, [open]);
 
-  // Listen for marketplace config updates
-  useEffect(() => {
-    const handleConfigUpdate = () => {
-      fetchStoreInfo();
-    };
-
-    window.addEventListener('marketplaceConfigUpdated', handleConfigUpdate);
-    return () => window.removeEventListener('marketplaceConfigUpdated', handleConfigUpdate);
-  }, []);
-
-  const fetchStoreInfo = async () => {
+  const fetchStoreInfo = useCallback(async () => {
+    const requestId = ++latestStoreInfoRequest.current;
     setIsLoading(true);
     try {
       const marketplaceConfig = getMarketplaceConfig();
@@ -111,20 +104,61 @@ export function CartsDropdown({
           };
         });
 
-        setCarts(cartsWithInfo);
+        // A request made before a config edit may finish last. Ignore it so
+        // bundled stores cannot overwrite the user's newer store list.
+        if (requestId === latestStoreInfoRequest.current) {
+          setCarts(cartsWithInfo);
+        }
       }
     } catch (error) {
-      console.error("[Carts Dropdown] Error fetching store info:", error);
+      if (requestId === latestStoreInfoRequest.current) {
+        console.error("[Carts Dropdown] Error fetching store info:", error);
+      }
     } finally {
-      setIsLoading(false);
+      if (requestId === latestStoreInfoRequest.current) {
+        setIsLoading(false);
+      }
     }
-  };
+  }, [cartIds]);
+
+  // Refresh this tab after an edit and other tabs after a storage event.
+  useEffect(() => {
+    const handleConfigUpdate = () => {
+      const config = getMarketplaceConfig();
+      setIsCustomConfig(!isDefaultConfig());
+      // Reflect additions/removals immediately; the request below only enriches
+      // these entries with live names and logos.
+      setCarts(currentCarts => config.map((store, index) => {
+        const storeId = `store-${index + 1}`;
+        const current = currentCarts.find(cart => cart.baseUrl === store.baseUrl);
+        return {
+          storeId,
+          cartId: cartIds[storeId] || '',
+          storeName: store.name || store.storeName || current?.storeName,
+          logoIcon: current?.logoIcon,
+          logoColor: current?.logoColor,
+          baseUrl: store.baseUrl,
+          platform: store.platform,
+        };
+      }));
+      fetchStoreInfo();
+    };
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === MARKETPLACE_STORAGE_KEY) handleConfigUpdate();
+    };
+
+    window.addEventListener(MARKETPLACE_CONFIG_UPDATED_EVENT, handleConfigUpdate);
+    window.addEventListener('storage', handleStorage);
+    return () => {
+      window.removeEventListener(MARKETPLACE_CONFIG_UPDATED_EVENT, handleConfigUpdate);
+      window.removeEventListener('storage', handleStorage);
+    };
+  }, [fetchStoreInfo, cartIds]);
 
   useEffect(() => {
     fetchStoreInfo();
-  }, [cartIds]);
+  }, [fetchStoreInfo]);
 
-  const cartCount = carts.filter(c => c.cartId).length;
   const totalStores = carts.length;
 
   // Handle Edit button click
@@ -140,13 +174,9 @@ export function CartsDropdown({
   };
 
   // Handle saving edited config
-  const handleSaveConfig = (newConfig: any[]) => {
+  const handleSaveConfig = (newConfig: MarketplaceStore[]) => {
     setMarketplaceConfig(newConfig);
   };
-
-  if (totalStores === 0) {
-    return null;
-  }
 
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
@@ -157,7 +187,12 @@ export function CartsDropdown({
           className="inline-flex items-center justify-center whitespace-nowrap text-sm font-medium transition-[color,box-shadow] disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive text-secondary-foreground shadow-xs hover:bg-secondary/80 dark:border-none border-border dark:bg-secondary h-8 rounded-full border bg-transparent w-auto p-1 pl-1.5 pr-1.5 sm:pr-3"
         >
           <div className="flex -space-x-2 mr-1.5 overflow-hidden">
-            {carts.slice(0, 2).map((cart, index) => (
+            {totalStores === 0 && (
+              <div className="w-6 h-6 rounded-full ring-2 ring-background bg-muted flex items-center justify-center">
+                <StoreIcon className="w-3 h-3 text-muted-foreground" />
+              </div>
+            )}
+            {carts.slice(0, 2).map((cart) => (
               <div
                 key={cart.storeId}
                 className="w-6 h-6 rounded-full ring-2 ring-background flex items-center justify-center overflow-hidden pointer-events-none"
@@ -274,10 +309,6 @@ export function CartsDropdown({
                         Open in new tab
                       </DropdownMenuItem>
                     )}
-
-
-
-
                   </DropdownMenuSubContent>
                 </DropdownMenuSub>
               </div>
@@ -307,10 +338,7 @@ export function CartsDropdown({
         onSave={handleSaveConfig}
         cartsData={carts}
         onCartSelect={onCartSelect}
-        onResetToDefault={() => {
-          resetMarketplaceConfig();
-          fetchStoreInfo();
-        }}
+        onResetToDefault={resetMarketplaceConfig}
         isDefaultConfig={!isCustomConfig}
       />
     </DropdownMenu>
