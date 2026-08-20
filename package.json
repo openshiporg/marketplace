@@ -6,7 +6,10 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "test:security": "node --experimental-strip-types --test tests/marketplace-security.test.ts",
+    "test:platform": "node --experimental-strip-types --test tests/marketplace-platform.test.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint ."
   },
   "dependencies": {
     "@ai-sdk/mcp": "^1.0.13",

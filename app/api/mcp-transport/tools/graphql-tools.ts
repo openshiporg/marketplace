@@ -19,7 +19,7 @@ export const graphqlTools: Tool[] = [
       properties: {
         storeId: {
           type: 'string',
-          description: 'Store ID (e.g., "store-1", "store-2") from marketplace configuration'
+          description: 'Stable source ID returned by getAvailableStores'
         }
       },
       required: ['storeId']
@@ -33,7 +33,7 @@ export const graphqlTools: Tool[] = [
       properties: {
         storeId: {
           type: 'string',
-          description: 'Store ID (e.g., "store-1", "store-2") from marketplace configuration'
+          description: 'Stable source ID returned by getAvailableStores'
         },
         operation: {
           type: 'string',
@@ -55,7 +55,7 @@ export const graphqlTools: Tool[] = [
       properties: {
         storeId: {
           type: 'string',
-          description: 'Store ID (e.g., "store-1", "store-2") from marketplace configuration'
+          description: 'Stable source ID returned by getAvailableStores'
         },
         searchTerm: {
           type: 'string',
@@ -73,7 +73,7 @@ export const graphqlTools: Tool[] = [
       properties: {
         storeId: {
           type: 'string',
-          description: 'Store ID (e.g., "store-1", "store-2") from marketplace configuration'
+          description: 'Stable source ID returned by getAvailableStores'
         },
         typeName: {
           type: 'string',
@@ -91,7 +91,7 @@ export const graphqlTools: Tool[] = [
       properties: {
         storeId: {
           type: 'string',
-          description: 'Store ID (e.g., "store-1", "store-2") from marketplace configuration'
+          description: 'Stable source ID returned by getAvailableStores'
         },
         inputTypeName: {
           type: 'string',
@@ -109,7 +109,7 @@ export const graphqlTools: Tool[] = [
       properties: {
         storeId: {
           type: 'string',
-          description: 'Store ID (e.g., "store-1", "store-2") from marketplace configuration'
+          description: 'Stable source ID returned by getAvailableStores'
         },
         operation: {
           type: 'string',
@@ -135,7 +135,7 @@ export const graphqlTools: Tool[] = [
       properties: {
         storeId: {
           type: 'string',
-          description: 'Store ID (e.g., "store-1", "store-2") from marketplace configuration'
+          description: 'Stable source ID returned by getAvailableStores'
         },
         operation: {
           type: 'string',
@@ -165,7 +165,7 @@ export const graphqlTools: Tool[] = [
       properties: {
         storeId: {
           type: 'string',
-          description: 'Store ID (e.g., "store-1", "store-2") from marketplace configuration'
+          description: 'Stable source ID returned by getAvailableStores'
         },
         operation: {
           type: 'string',
@@ -191,7 +191,7 @@ export const graphqlTools: Tool[] = [
       properties: {
         storeId: {
           type: 'string',
-          description: 'Store ID (e.g., "store-1", "store-2") from marketplace configuration'
+          description: 'Stable source ID returned by getAvailableStores'
         },
         modelName: {
           type: 'string',

@@ -1,9 +1,14 @@
 "use client";
 
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type KeyboardEvent,
+} from "react";
 import { Input } from "@/components/ui/input";
-import { Sparkles, ChevronDown } from "lucide-react";
+import { Check, ChevronDown, LoaderCircle, RefreshCw, Sparkles } from "lucide-react";
 import {
   Popover,
   PopoverContent,
@@ -17,17 +22,23 @@ import {
 } from "@/components/ui/tooltip";
 import { useAiConfig } from "../../hooks/use-ai-config";
 
-// Popular AI models
 const POPULAR_MODELS = [
-  { name: "GPT-5", slug: "openai/gpt-5" },
-  { name: "GPT-5 Mini", slug: "openai/gpt-5-mini" },
-  { name: "GPT-4o Mini", slug: "openai/gpt-4o-mini" },
-  { name: "GPT OSS 120B", slug: "openai/gpt-oss-120b" },
-  { name: "Claude Sonnet 4", slug: "anthropic/claude-sonnet-4" },
-  { name: "Claude 3.7 Sonnet", slug: "anthropic/claude-3.7-sonnet" },
-  { name: "Gemini 2.5 Flash", slug: "google/gemini-2.5-flash" },
-  { name: "Gemini 2.5 Pro", slug: "google/gemini-2.5-pro" },
+  { name: "GPT-4o Mini", slug: "openai/gpt-4o-mini", note: "Proven and inexpensive" },
+  { name: "GPT-5.6 Luna", slug: "openai/gpt-5.6-luna", note: "Current GPT model" },
+  { name: "GPT-5 Nano", slug: "openai/gpt-5-nano", note: "Fast OpenAI model" },
+  { name: "Gemma 3n 4B", slug: "google/gemma-3n-e4b-it", note: "Efficient open model" },
+  { name: "Llama 3.2 3B", slug: "meta-llama/llama-3.2-3b-instruct", note: "Compact open model" },
+  { name: "Gemini 3.1 Flash Lite", slug: "google/gemini-3.1-flash-lite", note: "High-throughput multimodal" },
+  { name: "Qwen 3.7 Flash", slug: "qwen/qwen3.7-flash", note: "Lightweight agent model" },
+  { name: "GPT-4.1 Mini", slug: "openai/gpt-4.1-mini", note: "Small tool-use model" },
+  { name: "Ministral 3 3B", slug: "mistralai/ministral-3b-2512", note: "Small Mistral model" },
+  { name: "Phi 4", slug: "microsoft/phi-4", note: "Compact reasoning model" },
 ];
+
+type DiscoveredModel = {
+  id: string;
+  ownedBy?: string;
+};
 
 interface AIModelSelectorProps {
   disabled?: boolean;
@@ -38,36 +49,79 @@ export function AIModelSelector({ disabled = false, globalModel }: AIModelSelect
   const { config, setConfig } = useAiConfig();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [inputValue, setInputValue] = useState("");
+  const [customModels, setCustomModels] = useState<DiscoveredModel[]>([]);
+  const [modelsLoading, setModelsLoading] = useState(false);
+  const [modelsError, setModelsError] = useState<string | null>(null);
 
-  const currentModel =
-    config.keyMode === "local"
-      ? config.localKeys?.model || "openai/gpt-4o-mini"
-      : globalModel || "openai/gpt-4o-mini";
+  const isCustomProvider = config.keyMode === "local" && config.localKeys?.provider === "custom";
+  const customEndpoint = config.localKeys?.customEndpoint || "";
+  const customApiKey = config.localKeys?.apiKey || "";
+  const currentModel = config.keyMode === "local"
+    ? config.localKeys?.model || "openai/gpt-4o-mini"
+    : globalModel || "openai/gpt-4o-mini";
 
-  const handleModelChange = (modelSlug: string) => {
-    if (config.keyMode === "local") {
-      setConfig({
-        ...config,
-        localKeys: {
-          ...config.localKeys,
-          apiKey: config.localKeys?.apiKey || "",
-          model: modelSlug,
-          maxTokens: config.localKeys?.maxTokens || "4000",
-        },
-      });
+  const handleModelChange = useCallback((modelSlug: string) => {
+    if (config.keyMode !== "local") return;
+    setConfig({
+      ...config,
+      localKeys: {
+        provider: config.localKeys?.provider || "openrouter",
+        apiKey: config.localKeys?.apiKey || "",
+        model: modelSlug,
+        maxTokens: config.localKeys?.maxTokens || "4000",
+        customEndpoint: config.localKeys?.customEndpoint,
+      },
+    });
+  }, [config, setConfig]);
+
+  const loadCustomModels = useCallback(async (signal?: AbortSignal) => {
+    if (!customEndpoint.trim()) {
+      setCustomModels([]);
+      setModelsError("Add a custom endpoint in AI settings first.");
+      return;
     }
-  };
+
+    setModelsLoading(true);
+    setModelsError(null);
+    setCustomModels([]);
+    try {
+      const response = await fetch("/api/ai-models", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ endpoint: customEndpoint, apiKey: customApiKey }),
+        signal,
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(typeof payload?.error === "string" ? payload.error : "Unable to load models");
+      }
+      setCustomModels(Array.isArray(payload?.models) ? payload.models : []);
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      setModelsError(error instanceof Error ? error.message : "Unable to load models");
+    } finally {
+      if (!signal?.aborted) setModelsLoading(false);
+    }
+  }, [customApiKey, customEndpoint]);
+
+  useEffect(() => {
+    if (!isDropdownOpen || !isCustomProvider) return;
+    const controller = new AbortController();
+    void loadCustomModels(controller.signal);
+    return () => controller.abort();
+  }, [isCustomProvider, isDropdownOpen, loadCustomModels]);
+
+  const filteredCustomModels = useMemo(() => {
+    const query = inputValue.trim().toLowerCase();
+    if (!query) return customModels;
+    return customModels.filter((model) =>
+      model.id.toLowerCase().includes(query) || model.ownedBy?.toLowerCase().includes(query)
+    );
+  }, [customModels, inputValue]);
 
   const handleInputChange = (value: string) => {
     setInputValue(value);
-    handleModelChange(value);
-  };
-
-  const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      setIsDropdownOpen(false);
-    }
+    if (!isCustomProvider) handleModelChange(value);
   };
 
   const handleSelectModel = (modelSlug: string) => {
@@ -76,52 +130,139 @@ export function AIModelSelector({ disabled = false, globalModel }: AIModelSelect
     setIsDropdownOpen(false);
   };
 
-  const selectedModel = POPULAR_MODELS.find((m) => m.slug === currentModel);
-  const displayText = selectedModel?.name || currentModel;
+  const handleInputKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    if (isCustomProvider && inputValue.trim()) {
+      const exact = customModels.find((model) => model.id.toLowerCase() === inputValue.trim().toLowerCase());
+      handleSelectModel(exact?.id || inputValue.trim());
+      return;
+    }
+    setIsDropdownOpen(false);
+  };
+
+  const handleOpenChange = (open: boolean) => {
+    setIsDropdownOpen(open);
+    if (open) setInputValue("");
+  };
+
+  const selectedModel = POPULAR_MODELS.find((model) => model.slug === currentModel);
+  const displayText = isCustomProvider ? currentModel : selectedModel?.name || currentModel;
 
   const selector = (
-    <Popover open={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
+    <Popover open={isDropdownOpen} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
         <button
           type="button"
           disabled={disabled}
-          className="inline-flex items-center justify-center whitespace-nowrap text-sm font-medium transition-[color,box-shadow] disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive text-secondary-foreground shadow-xs hover:bg-secondary/80 dark:border-none gap-1.5 px-3 has-[>svg]:px-4 border-border dark:bg-secondary h-8 rounded-full border bg-transparent w-8 sm:w-auto"
+          title={displayText}
+          className="inline-flex h-7 w-7 shrink-0 items-center justify-center gap-1.5 rounded-[5px] bg-surface px-2 text-[11.5px] font-medium text-ink-2 shadow-btn outline-none transition-[background-color,color,transform] duration-150 hover:bg-hover hover:text-ink active:scale-[.98] disabled:pointer-events-none disabled:opacity-40 sm:w-auto"
         >
-          <span className="hidden sm:inline truncate">{displayText}</span>
-          <Sparkles className="sm:hidden h-3 w-3 opacity-50" />
-          <ChevronDown className="hidden sm:block h-3 w-3 opacity-50" />
+          <span className="hidden max-w-28 truncate sm:inline">{displayText}</span>
+          <Sparkles className="size-3 text-ink-3 sm:hidden" />
+          <ChevronDown className="hidden size-3 text-ink-3 sm:block" />
         </button>
       </PopoverTrigger>
-      <PopoverContent className="w-80 p-0" align="start">
-        <div className="p-3 border-b">
+      <PopoverContent
+        className="w-[min(20rem,calc(100vw-1rem))] p-0"
+        align="start"
+        side="top"
+        sideOffset={8}
+        collisionPadding={8}
+      >
+        <div className="border-b border-line p-2.5">
           <Input
-            placeholder="Model slug (e.g. openai/gpt-4o-mini)"
+            placeholder={isCustomProvider ? "Search models" : "Model slug (e.g. openai/gpt-4o-mini)"}
             value={inputValue}
-            onChange={(e) => handleInputChange(e.target.value)}
+            onChange={(event) => handleInputChange(event.target.value)}
             onKeyDown={handleInputKeyDown}
             className="h-9 text-sm"
           />
         </div>
-        <div className="py-2 max-h-[280px] overflow-y-auto">
-          <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
-            Popular Models
-          </div>
-          <div className="space-y-1">
-            {POPULAR_MODELS.map((model) => (
-              <button
-                key={model.slug}
-                onClick={() => handleSelectModel(model.slug)}
-                className="w-full px-2 py-2 text-left hover:bg-accent rounded-sm transition-colors"
-              >
-                <div className="flex flex-col">
-                  <span className="text-sm font-medium">{model.name}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {model.slug}
-                  </span>
+        <div className={`${isCustomProvider ? "h-[280px]" : "max-h-[280px]"} overflow-y-auto py-2`}>
+          {isCustomProvider ? (
+            <>
+              <div className="flex items-center justify-between gap-2 px-3 py-1.5">
+                <span className="font-mono text-[10.5px] font-medium uppercase tracking-[.08em] text-ink-3">
+                  Endpoint models{!modelsLoading && customModels.length > 0 ? ` · ${customModels.length}` : ""}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => void loadCustomModels()}
+                  disabled={modelsLoading || !customEndpoint.trim()}
+                  aria-label="Refresh endpoint models"
+                  className="beautiful-icon-button size-6 rounded-[5px] text-ink-3 disabled:opacity-40"
+                >
+                  <RefreshCw className={`size-3 ${modelsLoading ? "animate-spin" : ""}`} />
+                </button>
+              </div>
+
+              {modelsLoading ? (
+                <div className="flex items-center gap-2 px-3 py-5 text-[11.5px] text-ink-3">
+                  <LoaderCircle className="size-3.5 animate-spin" />
+                  Loading models from the endpoint…
                 </div>
-              </button>
-            ))}
-          </div>
+              ) : modelsError ? (
+                <div className="px-3 py-3">
+                  <p className="text-[11.5px] leading-[1.45] text-red">{modelsError}</p>
+                  <button
+                    type="button"
+                    onClick={() => void loadCustomModels()}
+                    className="mt-2 text-[11.5px] font-medium text-ink underline decoration-line-strong underline-offset-4"
+                  >
+                    Try again
+                  </button>
+                </div>
+              ) : filteredCustomModels.length === 0 ? (
+                <div className="px-3 py-4 text-[11.5px] text-ink-3">
+                  No models match this search. Press Enter to use an exact model ID.
+                </div>
+              ) : (
+                <div className="space-y-0.5 px-1">
+                  {filteredCustomModels.map((model) => (
+                    <button
+                      key={model.id}
+                      type="button"
+                      onClick={() => handleSelectModel(model.id)}
+                      className="flex w-full items-center gap-2 rounded-[7px] px-2 py-2 text-left transition-colors duration-150 hover:bg-hover"
+                    >
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate font-mono text-[11.5px] font-medium text-ink">{model.id}</span>
+                        {model.ownedBy ? (
+                          <span className="block truncate text-[10.5px] text-ink-3">{model.ownedBy}</span>
+                        ) : null}
+                      </span>
+                      {currentModel === model.id ? <Check className="size-3.5 shrink-0 text-signal" /> : null}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              <div className="px-2 py-1.5 font-mono text-[10.5px] font-medium uppercase tracking-[.08em] text-ink-3">
+                Popular Models
+              </div>
+              <div className="space-y-1">
+                {POPULAR_MODELS.map((model) => (
+                  <button
+                    key={model.slug}
+                    type="button"
+                    onClick={() => handleSelectModel(model.slug)}
+                    className="w-full rounded-[7px] px-2 py-2 text-left transition-colors duration-150 hover:bg-hover"
+                  >
+                    <div className="flex min-w-0 items-center justify-between gap-3">
+                      <span className="min-w-0">
+                        <span className="block truncate text-[12.5px] font-medium text-ink">{model.name}</span>
+                        <span className="block truncate font-mono text-[10px] text-ink-3">{model.slug}</span>
+                      </span>
+                      <span className="shrink-0 text-[10.5px] text-ink-3">{model.note}</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       </PopoverContent>
     </Popover>

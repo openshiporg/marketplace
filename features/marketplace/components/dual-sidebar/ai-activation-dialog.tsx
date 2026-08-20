@@ -34,12 +34,12 @@ import {
 } from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
 import { useAiConfig } from "../../hooks/use-ai-config";
+import { DEFAULT_MARKETPLACE_PROFILE, saveMarketplaceProfile, type MarketplaceTheme } from "@/lib/marketplace-profile";
 
 // Provider options
 const PROVIDERS = [
   { value: "openrouter", label: "OpenRouter", description: "Multi-model AI gateway" },
-  { value: "ai-gateway", label: "Vercel AI Gateway", description: "Vercel AI Gateway" },
-  { value: "custom", label: "Custom", description: "Your own endpoint" },
+  { value: "custom", label: "Custom", description: "OpenAI-compatible endpoint" },
 ];
 
 // Popular AI models with user-friendly names and their OpenRouter slugs
@@ -69,10 +69,12 @@ export function AIActivationDialog({ open, onOpenChange, onComplete, sharedKeysS
   const [configType, setConfigType] = useState<"global" | "local">("global");
   const [confirmationText, setConfirmationText] = useState("");
   const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
+  const [marketplaceName, setMarketplaceName] = useState(DEFAULT_MARKETPLACE_PROFILE.name);
+  const [marketplaceTheme, setMarketplaceTheme] = useState<MarketplaceTheme>(DEFAULT_MARKETPLACE_PROFILE.theme);
 
   // Local keys state
   const [localKeys, setLocalKeys] = useState({
-    provider: "openrouter" as "openrouter" | "ai-gateway" | "custom",
+    provider: "openrouter" as "openrouter" | "custom",
     customEndpoint: "",
     apiKey: "",
     model: "openai/gpt-4o-mini",
@@ -83,10 +85,11 @@ export function AIActivationDialog({ open, onOpenChange, onComplete, sharedKeysS
     if (configType === "global") {
       return confirmationText === "I understand the risks" && sharedKeysStatus?.available;
     } else {
-      return confirmationText === "I understand the risks" && 
+      return confirmationText === "I understand the risks" &&
              localKeys.apiKey.trim() !== "" &&
              localKeys.model.trim() !== "" &&
-             localKeys.maxTokens.trim() !== "";
+             localKeys.maxTokens.trim() !== "" &&
+             (localKeys.provider !== "custom" || localKeys.customEndpoint.trim() !== "");
     }
   };
 
@@ -102,6 +105,11 @@ export function AIActivationDialog({ open, onOpenChange, onComplete, sharedKeysS
       localKeys: configType === "local" ? localKeys : undefined
     };
 
+    saveMarketplaceProfile({
+      ...DEFAULT_MARKETPLACE_PROFILE,
+      name: marketplaceName,
+      theme: marketplaceTheme,
+    });
     setConfig(config);
     onComplete();
     onOpenChange(false);
@@ -135,6 +143,25 @@ export function AIActivationDialog({ open, onOpenChange, onComplete, sharedKeysS
         </DialogHeader>
 
         <form onSubmit={handleSubmit}>
+          <div className="grid gap-3 border-b bg-muted/20 px-6 py-4 sm:grid-cols-2">
+            <div>
+              <Label htmlFor="marketplace-name">Marketplace name</Label>
+              <Input id="marketplace-name" value={marketplaceName} maxLength={48} onChange={(event) => setMarketplaceName(event.target.value)} className="mt-1.5" />
+              <p className="mt-1 text-xs text-muted-foreground">Platform-owned identity, saved in this browser.</p>
+            </div>
+            <div>
+              <Label htmlFor="marketplace-theme">Marketplace theme</Label>
+              <Select value={marketplaceTheme} onValueChange={(value) => setMarketplaceTheme(value as MarketplaceTheme)}>
+                <SelectTrigger id="marketplace-theme" className="mt-1.5"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="clay">Clay</SelectItem>
+                  <SelectItem value="forest">Forest</SelectItem>
+                  <SelectItem value="midnight">Midnight</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="mt-1 text-xs text-muted-foreground">Branding only; merchants remain independent.</p>
+            </div>
+          </div>
           <div className="flex flex-col-reverse md:flex-row">
             <div className="flex flex-col justify-between md:w-80 md:border-r">
               <div className="flex-1 grow">
@@ -311,7 +338,7 @@ export function AIActivationDialog({ open, onOpenChange, onComplete, sharedKeysS
                       </Label>
                       <Select
                         value={localKeys.provider}
-                        onValueChange={(value: "openrouter" | "ai-gateway" | "custom") =>
+                        onValueChange={(value: "openrouter" | "custom") =>
                           setLocalKeys(prev => ({ ...prev, provider: value }))
                         }
                       >
@@ -339,7 +366,7 @@ export function AIActivationDialog({ open, onOpenChange, onComplete, sharedKeysS
                           </Label>
                           <Input
                             id="custom-endpoint"
-                            placeholder="https://api.example.com/v1"
+                            placeholder="http://127.0.0.1:8317/v1"
                             value={localKeys.customEndpoint}
                             onChange={(e) =>
                               setLocalKeys(prev => ({ ...prev, customEndpoint: e.target.value }))
@@ -415,7 +442,9 @@ export function AIActivationDialog({ open, onOpenChange, onComplete, sharedKeysS
                         </Popover>
                         </div>
                         <p className="text-xs text-muted-foreground mt-2">
-                          Enter any OpenRouter model slug or choose from popular options above.
+                          {localKeys.provider === "custom"
+                            ? "Enter an exact model ID returned by /v1/models."
+                            : "Enter any OpenRouter model slug or choose from popular options above."}
                         </p>
                       </div>
 
@@ -436,13 +465,7 @@ export function AIActivationDialog({ open, onOpenChange, onComplete, sharedKeysS
                         <Input
                           id="api-key"
                           type="password"
-                          placeholder={
-                            localKeys.provider === "ai-gateway"
-                              ? "Enter your AI Gateway key..."
-                              : localKeys.provider === "custom"
-                              ? "Enter your API key..."
-                              : "sk-or-v1-..."
-                          }
+                          placeholder={localKeys.provider === "custom" ? "Enter any non-empty key..." : "sk-or-v1-..."}
                           value={localKeys.apiKey}
                           onChange={(e) => setLocalKeys(prev => ({ ...prev, apiKey: e.target.value }))}
                           className="shadow-sm mt-3"

@@ -1,7 +1,27 @@
 import { Tool } from '@modelcontextprotocol/sdk/types.js';
 import { createUIResource } from './utils';
+import { beautifulUIStyles, iframeAutoResizeScript } from '../ui/beautiful-ui';
 import { parseStoreConfigs } from '../types/store-config';
 import { getPlatformAdapter } from '../adapters';
+import { getStoreLogoHue } from '@/lib/store-logo';
+import {
+  discoveryPlatformForTool,
+  parseMarketplaceDiscoveryInput,
+  productMatchesDiscoveryQuery,
+  selectDiscoveryStores,
+  storeMatchesDiscoveryLocation,
+  type MarketplaceDiscoveryToolName,
+} from '@/lib/marketplace-discovery';
+
+function escapeHtml(value: unknown): string {
+  return String(value ?? '').replace(/[&<>"']/g, (character) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  })[character] || character);
+}
 
 async function resolveAdapter(storeId: string, customConfig?: any[]) {
   const stores = parseStoreConfigs(customConfig);
@@ -12,6 +32,36 @@ async function resolveAdapter(storeId: string, customConfig?: any[]) {
 }
 
 
+
+const discoveryInputProperties = {
+  query: {
+    type: 'string',
+    maxLength: 80,
+    description: 'Only the item or dish keywords, for example "t-shirt", "burger", or "vegan". Do not include location words.',
+  },
+  location: {
+    type: 'string',
+    maxLength: 80,
+    description: 'Optional city, region, or country. Results are included only when a source explicitly reports matching public location metadata.',
+  },
+  countryCode: {
+    type: 'string',
+    pattern: '^[A-Za-z]{2}$',
+    description: 'Optional two-letter country code for source availability and pricing, for example "ca" or "us".',
+  },
+  storeIds: {
+    type: 'array',
+    maxItems: 20,
+    items: { type: 'string' },
+    description: 'Optional stable source IDs returned by getAvailableStores. Every ID must belong to this tool\'s vertical.',
+  },
+  limit: {
+    type: 'integer',
+    minimum: 1,
+    maximum: 24,
+    description: 'Maximum matching results per source. Defaults to 10.',
+  },
+} as const;
 
 export const productTools: Tool[] = [
   {
@@ -27,7 +77,7 @@ IMPORTANT COUNTRY SELECTION LOGIC:
       properties: {
         storeId: {
           type: 'string',
-          description: 'Store ID (e.g., "store-1", "store-2") from marketplace configuration'
+          description: 'Stable source ID returned by getAvailableStores'
         },
         productId: {
           type: 'string',
@@ -43,23 +93,25 @@ IMPORTANT COUNTRY SELECTION LOGIC:
   },
   {
     name: 'discoverProducts',
-    description: `Discover products from ALL available stores in the marketplace. This tool automatically:
-1. Fetches all available stores
-2. For each store, gets available countries
-3. For each store, fetches products (preferring US pricing if available)
-4. Returns products organized by store with interactive UI
+    description: `Discover retail and e-commerce products only. This tool never returns restaurant menus.
 
-Use this tool when users want to:
-- "Show me all products"
-- "Show me products from all stores"
-- "What products are available?"
-- "Browse your marketplace"
-- Initial product discovery
-
-This is the primary tool for product discovery in the marketplace.`,
+Call getAvailableStores first. Pass concise item keywords in query (for example "t-shirt" or "scarf"), and pass storeIds when the user selected a particular admitted store. Omit query only when the user explicitly wants to browse all retail products. Use discoverRestaurantMenus—not this tool—for restaurants, food, dishes, takeout, or menus. Location filters fail closed when a source does not publish matching location metadata.`,
     inputSchema: {
       type: 'object',
-      properties: {},
+      properties: discoveryInputProperties,
+      additionalProperties: false,
+      required: []
+    }
+  },
+  {
+    name: 'discoverRestaurantMenus',
+    description: `Discover restaurants and orderable menu items only. This tool never returns retail or e-commerce products.
+
+Call getAvailableStores first. Use query only for cuisine, dish, dietary, or menu keywords (for example "burger" or "vegan"). Put city/region/country text in location, not query, and use countryCode when known. Pass storeIds when the user selected a particular admitted restaurant. Omit query to browse matching restaurant menus. Location filters fail closed when a source does not explicitly publish matching public location metadata.`,
+    inputSchema: {
+      type: 'object',
+      properties: discoveryInputProperties,
+      additionalProperties: false,
       required: []
     }
   }
@@ -122,6 +174,24 @@ export async function handleProductTools(name: string, args: any, cookie: string
     }
 
     const p = await adapter.getProduct({ store, productId: resolvedProductId, countryCode, cookie, ctoken });
+
+    if (adapter.generateProductUI) {
+      const htmlContent = await adapter.generateProductUI({
+        store,
+        storeId,
+        product: p,
+        countryCode,
+      });
+      const uiResource = createUIResource({
+        uri: `ui://marketplace/product/${p.id}?country=${countryCode}&store=${encodeURIComponent(storeId)}`,
+        content: { type: 'rawHtml', htmlString: htmlContent },
+        encoding: 'text',
+      });
+      return {
+        jsonrpc: '2.0',
+        result: { content: [uiResource] },
+      };
+    }
 
     // Map to OpenFront-shaped structure for existing UI
     const sym = (code: string) => ({ USD: '$', EUR: '\u20ac', GBP: '\u00a3', CAD: 'CA$', AUD: 'A$' } as Record<string, string>)[code] || '$';
@@ -196,7 +266,7 @@ export async function handleProductTools(name: string, args: any, cookie: string
 
           return `
             <div class="flex flex-col gap-y-1.5 mb-2">
-              <span class="text-xs text-gray-500 font-medium">${option.title}</span>
+              <span class="option-label text-[10.5px] font-semibold uppercase tracking-[0.08em] text-gray-500">${option.title}</span>
               <div class="flex flex-wrap gap-1.5">
                 ${values.map((value: string) => {
                   // Escape for HTML attribute
@@ -209,6 +279,7 @@ export async function handleProductTools(name: string, args: any, cookie: string
                     data-product-index="${index}"
                     data-option-id="${option.id}"
                     data-value="${htmlEscaped}"
+                    aria-pressed="false"
                     onclick="handleOptionClick(this)"
                   >
                     ${value}
@@ -323,7 +394,8 @@ export async function handleProductTools(name: string, args: any, cookie: string
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <script src="https://cdn.tailwindcss.com"></script>
         <style>
-          button { cursor: pointer; transition: all 0.2s; }
+          ${beautifulUIStyles}
+          button { cursor: pointer; }
           button:hover { transform: translateY(-1px); }
 
           /* Hover styles for option buttons */
@@ -339,22 +411,7 @@ export async function handleProductTools(name: string, args: any, cookie: string
         ${productsHTML}
         <script>
 
-          // Auto-resize iframe based on content
-          const resizeObserver = new ResizeObserver((entries) => {
-            entries.forEach((entry) => {
-              window.parent.postMessage(
-                {
-                  type: "ui-size-change",
-                  payload: {
-                    height: entry.contentRect.height,
-                    width: entry.contentRect.width,
-                  },
-                },
-                "*"
-              );
-            });
-          });
-          resizeObserver.observe(document.documentElement);
+          ${iframeAutoResizeScript}
 
           // Store product data for JavaScript access
           const productsData = ${JSON.stringify(products)};
@@ -453,20 +510,8 @@ export async function handleProductTools(name: string, args: any, cookie: string
               const value = btn.dataset.value;
               const isSelected = selected[optionId] === value;
 
-                optionId,
-                value,
-                selectedValue: selected[optionId],
-                isSelected,
-                comparison: selected[optionId] + ' === ' + value
-              });
-
-              if (isSelected) {
-                btn.classList.remove('ring-gray-300', 'text-gray-700', 'bg-white');
-                btn.classList.add('ring-gray-900', 'text-white', 'bg-gray-900');
-              } else {
-                btn.classList.remove('ring-gray-900', 'text-white', 'bg-gray-900');
-                btn.classList.add('ring-gray-300', 'text-gray-700', 'bg-white');
-              }
+              btn.classList.toggle('is-selected', isSelected);
+              btn.setAttribute('aria-pressed', String(isSelected));
             });
 
             // Update price
@@ -632,39 +677,66 @@ export async function handleProductTools(name: string, args: any, cookie: string
     };
   }
 
-  if (name === 'discoverProducts') {
-    const { limit = 10 } = args;
+  if (name === 'discoverProducts' || name === 'discoverRestaurantMenus') {
+    const toolName = name as MarketplaceDiscoveryToolName;
+    const discovery = parseMarketplaceDiscoveryInput(args);
+    const configuredStores = parseStoreConfigs(customConfig);
+    const stores = selectDiscoveryStores(configuredStores, toolName, discovery);
+    const vertical = discoveryPlatformForTool(toolName) === 'openfront-restaurant'
+      ? 'restaurant'
+      : 'retail';
 
-    // Get all available stores from marketplace.config.json
-    const stores = parseStoreConfigs(customConfig);
     if (stores.length === 0) {
       return {
         jsonrpc: '2.0',
         result: {
-          content: [{ type: 'text', text: 'No stores configured in marketplace' }]
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              stores: [],
+              totalStores: 0,
+              vertical,
+              message: `No admitted ${vertical} sources match this request.`,
+            }),
+          }]
         }
       };
     }
 
-    // Fetch store details and products for each store in parallel
+    // Resolve public store/location metadata before fetching a bounded product set.
     const storeDataPromises = stores.map(async (storeConfig) => {
       try {
         const { store, adapter } = await resolveAdapter(storeConfig.id, customConfig);
 
-        // Store info
-        const storeInfo = await adapter.getStoreInfo({ store, cookie, ctoken });
+        const [storeInfo, countries] = await Promise.all([
+          adapter.getStoreInfo({ store, cookie, ctoken }),
+          adapter.getAvailableCountries({ store, cookie, ctoken }),
+        ]);
 
-        // Countries
-        const countries = await adapter.getAvailableCountries({ store, cookie, ctoken });
-        // Prefer US; otherwise first
-        const us = countries.find((c: any) => c.code?.toLowerCase() === 'us');
-        const selectedCountry = us || countries[0];
+        if (!storeMatchesDiscoveryLocation(storeInfo, countries, discovery.location)) {
+          return null;
+        }
+
+        const selectedCountry = discovery.countryCode
+          ? countries.find((country: any) => country.code?.toLowerCase() === discovery.countryCode)
+          : countries.find((country: any) => country.code?.toLowerCase() === 'us') || countries[0];
         if (!selectedCountry) return null;
 
-        // Products via adapter and map to OpenFront-like shape
-        const adapterProducts = await adapter.searchProducts({ store, countryCode: selectedCountry.code, limit, cookie, ctoken });
+        // Fetch enough public results to apply keyword matching locally without
+        // interpolating model-provided search text into a source query.
+        const sourceLimit = discovery.query ? 50 : discovery.limit;
+        const adapterProducts = await adapter.searchProducts({
+          store,
+          countryCode: selectedCountry.code,
+          limit: sourceLimit,
+          cookie,
+          ctoken,
+        });
         const sym = (code: string) => ({ USD: '$', EUR: '\u20ac', GBP: '\u00a3', CAD: 'CA$', AUD: 'A$' } as Record<string, string>)[code] || '$';
-        const products = adapterProducts.map((p: any) => {
+        const products = adapterProducts
+          .filter((product) => productMatchesDiscoveryQuery(product, discovery.query))
+          .slice(0, discovery.limit)
+          .map((p: any) => {
           const optionNames = new Set<string>();
           const optionValuesMap: Record<string, Set<string>> = {};
           (p.variants || []).forEach((v: any) => {
@@ -705,16 +777,21 @@ export async function handleProductTools(name: string, args: any, cookie: string
             productImages: [],
             productOptions,
             productVariants,
+            metadata: p.metadata,
           };
         });
+
+        if (products.length === 0) return null;
 
         return {
           storeName: storeInfo?.name || 'Unknown Store',
           storeId: store.id,
+          platform: store.platform,
           country: { code: selectedCountry.code, name: selectedCountry.name, currency: { code: selectedCountry.currency, symbol: sym(selectedCountry.currency) } },
           products,
           logoIcon: storeInfo?.logoIcon,
-          logoColor: storeInfo?.logoColor
+          logoColor: storeInfo?.logoColor,
+          address: storeInfo?.address,
         };
       } catch (error) {
         console.error(`Failed to fetch products from ${storeConfig.id}:`, error);
@@ -722,7 +799,9 @@ export async function handleProductTools(name: string, args: any, cookie: string
       }
     });
 
-    const storesData = (await Promise.all(storeDataPromises)).filter(Boolean);
+    const storesData = (await Promise.all(storeDataPromises)).filter(
+      (storeData): storeData is NonNullable<typeof storeData> => storeData !== null
+    );
 
     if (storesData.length === 0) {
       return {
@@ -730,13 +809,23 @@ export async function handleProductTools(name: string, args: any, cookie: string
         result: {
           content: [{
             type: 'text',
-            text: 'No products found in any store'
+            text: JSON.stringify({
+              stores: [],
+              totalStores: 0,
+              vertical,
+              ...(discovery.query ? { query: discovery.query } : {}),
+              ...(discovery.location ? { location: discovery.location } : {}),
+              message: `No ${vertical} results matched the requested items, location, and country.`,
+            }),
           }]
         }
       };
     }
 
-    // Generate HTML for discover products UI - will be implemented next
+    const discoveryTitle = vertical === 'restaurant'
+      ? discovery.query ? `Restaurant menus · ${discovery.query}` : 'Restaurant menus'
+      : discovery.query ? `Products · ${discovery.query}` : 'Retail products';
+
     const htmlContent = `
       <!DOCTYPE html>
       <html>
@@ -745,12 +834,54 @@ export async function handleProductTools(name: string, args: any, cookie: string
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <script src="https://cdn.tailwindcss.com"></script>
         <style>
+          ${beautifulUIStyles}
+          .discover-shell {
+            background: var(--surface);
+          }
+          .discover-shell > .discover-title {
+            margin: 0 !important;
+            padding: 11px 12px !important;
+            border-bottom: 1px solid var(--line);
+            border-radius: 0 !important;
+            background: var(--surface) !important;
+            color: var(--ink) !important;
+            font-size: 15px !important;
+            font-weight: 650 !important;
+            line-height: 1.35;
+            box-shadow: none !important;
+          }
+          .discover-shell .store-section {
+            margin: 0;
+            border: 0 !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+          }
+          .discover-shell .store-section + .store-section {
+            border-top: 1px solid var(--line) !important;
+          }
+          .discover-shell .product-card {
+            border-radius: 0 !important;
+            box-shadow: var(--shadow-hairline) !important;
+          }
+          .discover-shell .product-card img,
+          .discover-shell .product-card .bg-gray-100,
+          .discover-shell .product-card .bg-gray-200 {
+            border-radius: 0 !important;
+          }
+          .discover-shell .store-logo {
+            overflow: hidden;
+          }
+          .discover-shell .store-logo > svg {
+            display: block;
+            width: 100%;
+            height: 100%;
+          }
           /* Horizontal scroll container */
           .horizontal-scroll {
             overflow-x: auto;
             scroll-behavior: smooth;
             scrollbar-width: thin;
-            scrollbar-color: rgba(0,0,0,0.2) transparent;
+            scrollbar-color: var(--line-strong) transparent;
           }
           .horizontal-scroll::-webkit-scrollbar {
             height: 6px;
@@ -759,17 +890,17 @@ export async function handleProductTools(name: string, args: any, cookie: string
             background: transparent;
           }
           .horizontal-scroll::-webkit-scrollbar-thumb {
-            background: rgba(0,0,0,0.2);
-            border-radius: 3px;
+            background: var(--line-strong);
+            border-radius: 0;
           }
           .horizontal-scroll::-webkit-scrollbar-thumb:hover {
-            background: rgba(0,0,0,0.3);
+            background: var(--ink-3);
           }
         </style>
       </head>
       <body>
-        <div class="space-y-4">
-          <h1 class="text-2xl font-bold text-gray-900 mb-4">Discover Products</h1>
+        <div class="discover-shell">
+          <h1 class="discover-title">${escapeHtml(discoveryTitle)}</h1>
 
           ${storesData.map((storeData, storeIndex) => {
             const productCardsHTML = storeData.products.map((product: any, productIndex: number) => {
@@ -783,6 +914,9 @@ export async function handleProductTools(name: string, args: any, cookie: string
                 'Price unavailable';
 
               const hasMultipleVariants = product.productVariants?.length > 1;
+              const isRestaurant = product.metadata?.vertical === 'restaurant';
+              const restaurantCartAvailable = !isRestaurant || product.metadata?.restaurant?.cartAvailable !== false;
+              const requiresCustomization = restaurantCartAvailable && isRestaurant && (product.metadata?.restaurant?.modifiers?.length || 0) > 0;
 
               // Product images carousel
               const productImages = product.productImages?.length > 0
@@ -802,7 +936,7 @@ export async function handleProductTools(name: string, args: any, cookie: string
 
                   return `
                     <div class="flex flex-col gap-y-2 mb-3">
-                      <span class="text-sm text-gray-700">Select ${option.title}</span>
+                      <span class="option-label text-[10.5px] font-semibold uppercase tracking-[0.08em] text-gray-500">${option.title}</span>
                       <div class="flex flex-wrap gap-2">
                         ${values.map((value: string) => {
                           const htmlEscaped = value.replace(/'/g, "\\'").replace(/"/g, '&quot;');
@@ -813,6 +947,7 @@ export async function handleProductTools(name: string, args: any, cookie: string
                               data-store-index="${storeIndex}"
                               data-option-id="${option.id}"
                               data-value="${htmlEscaped}"
+                              aria-pressed="false"
                               onclick="handleOptionClick(this)"
                             >
                               ${value}
@@ -826,17 +961,17 @@ export async function handleProductTools(name: string, args: any, cookie: string
               }
 
               return `
-                <div class="product-card flex-shrink-0 w-48 sm:w-72 border rounded-lg p-2 sm:p-3.5 bg-white shadow-sm self-start"
+                <div class="product-card flex-shrink-0 w-48 sm:w-72 p-2 sm:p-3.5 bg-white self-start"
                      data-product-index="${storeIndex}-${productIndex}"
                      data-store-index="${storeIndex}">
                   ${hasImages ? `
-                    <div class="relative w-full aspect-square bg-gray-100 rounded-md mb-1.5 sm:mb-3 overflow-hidden group">
+                    <div class="relative w-full aspect-square bg-gray-100 mb-1.5 sm:mb-3 overflow-hidden group">
                       <div class="carousel-container" data-product-index="${storeIndex}-${productIndex}">
                         ${productImages.map((img: any, imgIdx: number) => `
                           <img
                             src="${img.image?.url || img.imagePath || '/images/placeholder.svg'}"
                             alt="${img.altText || product.title}"
-                            class="carousel-image w-full h-full object-contain object-center rounded-md absolute inset-0 transition-opacity duration-300"
+                            class="carousel-image w-full h-full object-contain object-center absolute inset-0 transition-opacity duration-300"
                             data-image-id="${img.id}"
                             data-product-index="${storeIndex}-${productIndex}"
                             data-image-index="${imgIdx}"
@@ -873,7 +1008,7 @@ export async function handleProductTools(name: string, args: any, cookie: string
                       ` : ''}
                     </div>
                   ` : `
-                    <div class="w-full h-28 sm:h-48 bg-gray-200 rounded-md mb-1.5 sm:mb-3 flex items-center justify-center">
+                    <div class="w-full h-28 sm:h-48 bg-gray-200 mb-1.5 sm:mb-3 flex items-center justify-center">
                       <span class="text-gray-400 text-sm">No image</span>
                     </div>
                   `}
@@ -888,9 +1023,10 @@ export async function handleProductTools(name: string, args: any, cookie: string
                       class="add-to-cart-btn w-full h-8 sm:h-10 px-3 sm:px-4 bg-gray-900 text-white text-xs sm:text-sm font-medium rounded hover:bg-gray-800 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
                       data-product-index="${storeIndex}-${productIndex}"
                       data-store-index="${storeIndex}"
-                      onclick="handleAddToCart(this)"
-                      ${hasMultipleVariants ? 'disabled' : ''}>
-                      ${hasMultipleVariants ? 'Select variant' : 'Add to cart'}
+                      onclick="${!restaurantCartAvailable || requiresCustomization ? 'handleViewDetails' : 'handleAddToCart'}(this)"
+                      ${hasMultipleVariants || !restaurantCartAvailable ? 'disabled' : ''}
+                      ${!restaurantCartAvailable ? 'title="Marketplace ordering is not available for this restaurant yet"' : ''}>
+                      ${!restaurantCartAvailable ? 'Cart unavailable' : requiresCustomization ? 'Customize' : hasMultipleVariants ? 'Select variant' : 'Add to cart'}
                     </button>
                     <button
                       class="w-full h-8 sm:h-10 px-3 sm:px-4 mt-2 border border-gray-300 text-gray-700 text-xs sm:text-sm font-medium rounded hover:bg-gray-50 transition-colors"
@@ -905,17 +1041,19 @@ export async function handleProductTools(name: string, args: any, cookie: string
             }).join('');
 
             return `
-              <div class="store-section border rounded-lg bg-gray-50 shadow-sm">
+              <div class="store-section bg-gray-50">
                 <div class="flex items-center gap-2 sm:gap-3 px-2 sm:px-4 pt-2 sm:pt-4">
                   ${storeData.logoIcon ? `
-                    <div class="flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10"
-                         style="background-color: ${storeData.logoColor || '#000'}; filter: hue-rotate(${storeData.logoColor || '0'}deg);">
+                    <div class="store-logo flex w-8 h-8 sm:w-10 sm:h-10 items-center justify-center"
+                         style="filter: hue-rotate(${getStoreLogoHue(storeData.logoColor)}deg);">
                       ${storeData.logoIcon}
                     </div>
                   ` : ''}
                   <div>
                     <h2 class="text-base sm:text-xl font-bold text-gray-900">${storeData.storeName}</h2>
-                    <p class="text-xs sm:text-sm text-gray-500">Products in ${storeData.country.name} • ${storeData.country.currency.code}</p>
+                    <p class="text-xs sm:text-sm text-gray-500">${storeData.platform === 'openfront-restaurant'
+                      ? `Menu • ${storeData.country.currency.code}`
+                      : `Products in ${storeData.country.name} • ${storeData.country.currency.code}`}</p>
                   </div>
                 </div>
 
@@ -928,22 +1066,7 @@ export async function handleProductTools(name: string, args: any, cookie: string
         </div>
 
         <script>
-          // Auto-resize iframe based on content
-          const resizeObserver = new ResizeObserver((entries) => {
-            entries.forEach((entry) => {
-              window.parent.postMessage(
-                {
-                  type: "ui-size-change",
-                  payload: {
-                    height: entry.contentRect.height,
-                    width: entry.contentRect.width,
-                  },
-                },
-                "*"
-              );
-            });
-          });
-          resizeObserver.observe(document.documentElement);
+          ${iframeAutoResizeScript}
 
           const storesData = ${JSON.stringify(storesData)};
           const selectedOptions = {};
@@ -953,10 +1076,14 @@ export async function handleProductTools(name: string, args: any, cookie: string
           storesData.forEach((store, storeIndex) => {
             store.products.forEach((product, productIndex) => {
               const key = \`\${storeIndex}-\${productIndex}\`;
-              selectedOptions[key] = {};
+              const optionObj = {};
+              for (const option of product.productOptions || []) {
+                optionObj[option.id] = undefined;
+              }
+              selectedOptions[key] = optionObj;
               carouselState[key] = 0;
 
-              // Initialize with first option values if only one variant
+              // Initialize with the variant values when no choice is required.
               if (product.productVariants?.length === 1) {
                 product.productVariants[0].productOptionValues?.forEach(optVal => {
                   selectedOptions[key][optVal.productOption.id] = optVal.value;
@@ -1022,6 +1149,9 @@ export async function handleProductTools(name: string, args: any, cookie: string
             if (!product.productVariants || product.productVariants.length === 0) return null;
             if (product.productVariants.length === 1) return product.productVariants[0];
 
+            const requiredOptions = product.productOptions || [];
+            if (requiredOptions.some(option => selected[option.id] === undefined)) return null;
+
             const variantRecord = {};
             product.productVariants.forEach(v => {
               const optionValues = {};
@@ -1032,16 +1162,10 @@ export async function handleProductTools(name: string, args: any, cookie: string
             });
 
             for (const key of Object.keys(variantRecord)) {
-              let isMatch = true;
-              for (const optId in selected) {
-                if (variantRecord[key][optId] !== selected[optId]) {
-                  isMatch = false;
-                  break;
-                }
-              }
-              if (isMatch) {
-                return product.productVariants.find(v => v.id === key);
-              }
+              const isMatch = requiredOptions.every(option =>
+                variantRecord[key][option.id] === selected[option.id]
+              );
+              if (isMatch) return product.productVariants.find(v => v.id === key);
             }
             return null;
           }
@@ -1060,13 +1184,8 @@ export async function handleProductTools(name: string, args: any, cookie: string
               const value = btn.dataset.value;
               const isSelected = selected[optionId] === value;
 
-              if (isSelected) {
-                btn.classList.remove('ring-gray-300', 'text-gray-700', 'bg-white');
-                btn.classList.add('ring-gray-900', 'text-white', 'bg-gray-900');
-              } else {
-                btn.classList.remove('ring-gray-900', 'text-white', 'bg-gray-900');
-                btn.classList.add('ring-gray-300', 'text-gray-700', 'bg-white');
-              }
+              btn.classList.toggle('is-selected', isSelected);
+              btn.setAttribute('aria-pressed', String(isSelected));
             });
 
             const priceDisplay = card.querySelector('.price-display');
@@ -1177,8 +1296,12 @@ export async function handleProductTools(name: string, args: any, cookie: string
       </html>
     `;
 
+    const resourceParams = new URLSearchParams({ vertical });
+    storesData.forEach((storeData) => resourceParams.append('store', storeData.storeId));
+    if (discovery.query) resourceParams.set('query', discovery.query);
+
     const uiResource = createUIResource({
-      uri: `ui://marketplace/discover-products`,
+      uri: `ui://marketplace/discover-products?${resourceParams.toString()}`,
       content: { type: 'rawHtml', htmlString: htmlContent },
       encoding: 'text',
     });

@@ -1,7 +1,12 @@
 import { Tool } from '@modelcontextprotocol/sdk/types.js';
 import { createUIResource } from './utils';
+import { beautifulUIStyles, iframeAutoResizeScript } from '../ui/beautiful-ui';
 import { getPlatformAdapter } from '../adapters';
 import { parseStoreConfigs } from '../types/store-config';
+import {
+  getRestaurantCheckoutIssues,
+  restaurantCheckoutIssueMessage,
+} from '@/lib/restaurant-checkout';
 
 async function resolveAdapter(storeId: string, customConfig?: any[]) {
   const stores = parseStoreConfigs(customConfig);
@@ -9,6 +14,63 @@ async function resolveAdapter(storeId: string, customConfig?: any[]) {
   if (!store) throw new Error(`Unknown store: ${storeId}. Available stores: ${stores.map(s => s.id).join(', ')}`);
   const adapter = await getPlatformAdapter(store);
   return { store, adapter } as const;
+}
+
+type ResolvedStore = ReturnType<typeof parseStoreConfigs>[number];
+type ResolvedAdapter = Awaited<ReturnType<typeof getPlatformAdapter>>;
+
+function normalizeCartId(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const cartId = value.trim();
+  return cartId && cartId !== 'undefined' && cartId !== 'null' ? cartId : undefined;
+}
+
+async function resolveActiveCart({
+  store,
+  adapter,
+  candidateCartId,
+  countryCode,
+  cookie,
+  ctoken,
+}: {
+  store: ResolvedStore;
+  adapter: ResolvedAdapter;
+  candidateCartId?: string;
+  countryCode: string;
+  cookie: string;
+  ctoken?: string;
+}) {
+  const existingCartId = normalizeCartId(candidateCartId);
+
+  if (existingCartId) {
+    try {
+      const existingCart = await adapter.getCartRaw({
+        store,
+        cartId: existingCartId,
+        cookie,
+        ctoken,
+      });
+      if (existingCart?.id && existingCart.status !== 'completed') {
+        return { cart: existingCart, cartId: existingCart.id, isNewCart: false };
+      }
+    } catch {
+      // A stale or completed cart is replaced below.
+    }
+  }
+
+  const createdCart = await adapter.createCart({ store, countryCode, cookie, ctoken });
+  const cart = await adapter.getCartRaw({
+    store,
+    cartId: createdCart.id,
+    cookie,
+    ctoken,
+  });
+
+  if (!cart?.id) {
+    throw new Error('Created cart could not be loaded');
+  }
+
+  return { cart, cartId: cart.id, isNewCart: true };
 }
 
 
@@ -21,7 +83,7 @@ export const cartTools: Tool[] = [
       properties: {
         storeId: {
           type: 'string',
-          description: 'Store ID (e.g., "store-1", "store-2") from marketplace configuration'
+          description: 'Stable source ID returned by getAvailableStores'
         },
         countryCode: {
           type: 'string',
@@ -39,7 +101,7 @@ export const cartTools: Tool[] = [
       properties: {
         storeId: {
           type: 'string',
-          description: 'Store ID (e.g., "store-1", "store-2") from marketplace configuration'
+          description: 'Stable source ID returned by getAvailableStores'
         },
         countryCode: {
           type: 'string',
@@ -57,7 +119,7 @@ export const cartTools: Tool[] = [
       properties: {
         storeId: {
           type: 'string',
-          description: 'Store ID (e.g., "store-1", "store-2") from marketplace configuration'
+          description: 'Stable source ID returned by getAvailableStores'
         },
         regionId: {
           type: 'string',
@@ -75,7 +137,7 @@ export const cartTools: Tool[] = [
       properties: {
         storeId: {
           type: 'string',
-          description: 'Store ID (e.g., "store-1", "store-2") from marketplace configuration'
+          description: 'Stable source ID returned by getAvailableStores'
         },
         cartId: {
           type: 'string',
@@ -93,7 +155,7 @@ export const cartTools: Tool[] = [
       properties: {
         storeId: {
           type: 'string',
-          description: 'Store ID (e.g., "store-1", "store-2") from marketplace configuration'
+          description: 'Stable source ID returned by getAvailableStores'
         },
         cartId: {
           type: 'string',
@@ -105,17 +167,17 @@ export const cartTools: Tool[] = [
   },
   {
     name: 'addToCart',
-    description: 'Add a product variant to the cart',
+    description: 'Add a product variant or restaurant menu item to the cart. Restaurant menu items may include modifierIds, specialInstructions, and orderType.',
     inputSchema: {
       type: 'object',
       properties: {
         storeId: {
           type: 'string',
-          description: 'Store ID (e.g., "store-1", "store-2") from marketplace configuration'
+          description: 'Stable source ID returned by getAvailableStores'
         },
         cartId: {
           type: 'string',
-          description: 'Cart ID'
+          description: 'Optional cart ID. When omitted, the active cart for this store is reused or created automatically.'
         },
         variantId: {
           type: 'string',
@@ -125,8 +187,22 @@ export const cartTools: Tool[] = [
           type: 'number',
           description: 'Quantity to add (default: 1)'
         },
+        modifierIds: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Restaurant modifier IDs selected for this menu item'
+        },
+        specialInstructions: {
+          type: 'string',
+          description: 'Restaurant preparation instructions for this line item'
+        },
+        orderType: {
+          type: 'string',
+          enum: ['pickup', 'delivery'],
+          description: 'Restaurant order type (defaults to pickup)'
+        },
       },
-      required: ['storeId', 'cartId', 'variantId', 'quantity']
+      required: ['storeId', 'variantId', 'quantity']
     }
   },
   {
@@ -137,7 +213,7 @@ export const cartTools: Tool[] = [
       properties: {
         storeId: {
           type: 'string',
-          description: 'Store ID (e.g., "store-1", "store-2") from marketplace configuration'
+          description: 'Stable source ID returned by getAvailableStores'
         },
         cartId: {
           type: 'string',
@@ -163,7 +239,7 @@ export const cartTools: Tool[] = [
       properties: {
         storeId: {
           type: 'string',
-          description: 'Store ID (e.g., "store-1", "store-2") from marketplace configuration'
+          description: 'Stable source ID returned by getAvailableStores'
         },
         cartId: {
           type: 'string',
@@ -175,6 +251,39 @@ export const cartTools: Tool[] = [
         },
       },
       required: ['storeId', 'cartId', 'lineItemId']
+    }
+  },
+  {
+    name: 'setRestaurantFulfillment',
+    description: `Set a Restaurant cart to pickup or delivery and save parsed customer details.
+
+When the user pastes unstructured details from the Restaurant cart UI:
+- Parse only the real information supplied by the user.
+- For pickup, require customerName, email, and customerPhone.
+- For delivery, also require deliveryAddress, deliveryCity, deliveryZip, and a two-letter deliveryCountryCode. Include deliveryAddress2 and deliveryState only when supplied or unambiguous.
+- Never invent missing contact/address values. Ask the user for anything required that is missing instead of calling this tool.
+- Preserve the orderType named in the request.
+
+The Restaurant source validates delivery availability and delivery-zone eligibility.`,
+
+    inputSchema: {
+      type: 'object',
+      properties: {
+        storeId: { type: 'string', description: 'Stable Restaurant source ID' },
+        cartId: { type: 'string', description: 'Restaurant cart ID' },
+        orderType: { type: 'string', enum: ['pickup', 'delivery'] },
+        email: { type: 'string', maxLength: 320 },
+        customerName: { type: 'string', maxLength: 160 },
+        customerPhone: { type: 'string', maxLength: 64 },
+        deliveryAddress: { type: 'string', maxLength: 240 },
+        deliveryAddress2: { type: 'string', maxLength: 120 },
+        deliveryCity: { type: 'string', maxLength: 120 },
+        deliveryState: { type: 'string', maxLength: 120 },
+        deliveryZip: { type: 'string', maxLength: 32 },
+        deliveryCountryCode: { type: 'string', pattern: '^[A-Za-z]{2}$' },
+      },
+      required: ['storeId', 'cartId', 'orderType'],
+      additionalProperties: false,
     }
   },
   {
@@ -201,7 +310,7 @@ CRITICAL WORKFLOW:
       properties: {
         storeId: {
           type: 'string',
-          description: 'Store ID (e.g., "store-1", "store-2") from marketplace configuration'
+          description: 'Stable source ID returned by getAvailableStores'
         },
         cartId: {
           type: 'string',
@@ -259,7 +368,7 @@ CRITICAL WORKFLOW:
       properties: {
         storeId: {
           type: 'string',
-          description: 'Store ID (e.g., "store-1", "store-2") from marketplace configuration'
+          description: 'Stable source ID returned by getAvailableStores'
         },
         cartId: {
           type: 'string',
@@ -281,7 +390,7 @@ CRITICAL WORKFLOW:
       properties: {
         storeId: {
           type: 'string',
-          description: 'Store ID (e.g., "store-1", "store-2") from marketplace configuration'
+          description: 'Stable source ID returned by getAvailableStores'
         },
         cartId: {
           type: 'string',
@@ -303,7 +412,7 @@ CRITICAL WORKFLOW:
       properties: {
         storeId: {
           type: 'string',
-          description: 'Store ID (e.g., "store-1", "store-2") from marketplace configuration'
+          description: 'Stable source ID returned by getAvailableStores'
         },
         cartId: {
           type: 'string',
@@ -321,7 +430,7 @@ CRITICAL WORKFLOW:
       properties: {
         storeId: {
           type: 'string',
-          description: 'Store ID (e.g., "store-1", "store-2") from marketplace configuration'
+          description: 'Stable source ID returned by getAvailableStores'
         },
         cartId: {
           type: 'string',
@@ -343,7 +452,7 @@ CRITICAL WORKFLOW:
       properties: {
         storeId: {
           type: 'string',
-          description: 'Store ID (e.g., "store-1", "store-2") from marketplace configuration'
+          description: 'Stable source ID returned by getAvailableStores'
         },
         cartId: {
           type: 'string',
@@ -374,7 +483,7 @@ Returns interactive login form that handles authentication and session managemen
       properties: {
         storeId: {
           type: 'string',
-          description: 'Store ID (e.g., "store-1", "store-2") from marketplace configuration'
+          description: 'Stable source ID returned by getAvailableStores'
         },
         email: {
           type: 'string',
@@ -417,7 +526,7 @@ Returns interactive login form that handles authentication and session managemen
       properties: {
         storeId: {
           type: 'string',
-          description: 'Store ID (e.g., "store-1", "store-2") from marketplace configuration'
+          description: 'Stable source ID returned by getAvailableStores'
         },
         email: {
           type: 'string',
@@ -482,37 +591,14 @@ export async function handleCartTools(name: string, args: any, cookie: string, d
 
     const { store, adapter } = await resolveAdapter(storeId, customMarketplaceConfig);
 
-    const existingCartId = cartIds?.[storeId];
-
-    if (existingCartId) {
-      try {
-        const existingCart = await adapter.getCartRaw({ store, cartId: existingCartId, cookie, ctoken });
-        if (existingCart && existingCart.id && existingCart.status !== 'completed') {
-          return {
-            jsonrpc: '2.0',
-            result: {
-              content: [{
-                type: 'text',
-                text: JSON.stringify({
-                  cart: existingCart,
-                  countryCode,
-                  storeId,
-                  message: `Using existing cart ${existingCart.id}. Cart has ${existingCart.lineItems?.length || 0} items.`,
-                  instruction: 'Cart already exists and is active. Use this cart ID for cart operations.',
-                  isExistingCart: true,
-                }, null, 2),
-              }],
-            }
-          };
-        }
-      } catch (e) {
-        // Existing cart fetch failed, will create new one
-      }
-    }
-
-    // Create new cart via adapter then fetch raw cart for UI parity
-    const created = await adapter.createCart({ store, countryCode, cookie, ctoken });
-    const cart = await adapter.getCartRaw({ store, cartId: created.id, cookie, ctoken });
+    const resolved = await resolveActiveCart({
+      store,
+      adapter,
+      candidateCartId: cartIds?.[storeId],
+      countryCode,
+      cookie,
+      ctoken,
+    });
 
     return {
       jsonrpc: '2.0',
@@ -520,13 +606,18 @@ export async function handleCartTools(name: string, args: any, cookie: string, d
         content: [{
           type: 'text',
           text: JSON.stringify({
-            cart,
+            cart: resolved.cart,
             countryCode,
             storeId,
-            message: `Created new cart ${cart.id} for ${countryCode.toUpperCase()}.`,
-            instruction: 'Use this cart ID with other cart operations (addToCart, setShippingAddress, etc.)',
-            isNewCart: true,
-            __clientAction: { type: 'saveCartId', storeId, cartId: cart.id }
+            message: resolved.isNewCart
+              ? `Created new cart ${resolved.cartId} for ${countryCode.toUpperCase()}.`
+              : `Using existing cart ${resolved.cartId}. Cart has ${resolved.cart.lineItems?.length || 0} items.`,
+            instruction: resolved.isNewCart
+              ? 'Use this cart ID with other cart operations (addToCart, setShippingAddress, etc.)'
+              : 'Cart already exists and is active. Use this cart ID for cart operations.',
+            isNewCart: resolved.isNewCart,
+            isExistingCart: !resolved.isNewCart,
+            __clientAction: { type: 'saveCartId', storeId, cartId: resolved.cartId }
           }, null, 2),
         }],
       }
@@ -619,7 +710,15 @@ export async function handleCartTools(name: string, args: any, cookie: string, d
   }
 
   if (name === 'addToCart') {
-    const { storeId, cartId, variantId, quantity = 1 } = args;
+    const {
+      storeId,
+      cartId,
+      variantId,
+      quantity = 1,
+      modifierIds,
+      specialInstructions,
+      orderType,
+    } = args;
 
     if (quantity <= 0) {
       return { jsonrpc: '2.0', result: { content: [{ type: 'text', text: JSON.stringify({ error: 'Invalid quantity', message: 'Quantity must be greater than 0', variantId, attemptedQuantity: quantity }, null, 2) }] } };
@@ -632,18 +731,27 @@ export async function handleCartTools(name: string, args: any, cookie: string, d
 
     const { store, adapter } = await resolveAdapter(storeId, customMarketplaceConfig);
 
-    let finalCartId = cartId;
-    if (!finalCartId) {
-      const existingId = cartIds?.[storeId];
-      if (existingId) {
-        finalCartId = existingId;
-      } else {
-        const created = await adapter.createCart({ store, countryCode: args.countryCode || 'us', cookie, ctoken });
-        finalCartId = created.id;
-      }
-    }
+    const resolved = await resolveActiveCart({
+      store,
+      adapter,
+      candidateCartId: normalizeCartId(cartId) || cartIds?.[storeId],
+      countryCode: args.countryCode || 'us',
+      cookie,
+      ctoken,
+    });
+    const finalCartId = resolved.cartId;
 
-    await adapter.addToCart({ store, cartId: finalCartId, variantId, quantity, cookie, ctoken });
+    await adapter.addToCart({
+      store,
+      cartId: finalCartId,
+      variantId,
+      quantity,
+      modifierIds,
+      specialInstructions,
+      orderType,
+      cookie,
+      ctoken,
+    });
     const cart = await adapter.getCartRaw({ store, cartId: finalCartId, cookie, ctoken });
 
     dataHasChanged.value = true;
@@ -791,6 +899,60 @@ export async function handleCartTools(name: string, args: any, cookie: string, d
     };
   }
 
+  if (name === 'setRestaurantFulfillment') {
+    const {
+      storeId,
+      cartId,
+      orderType,
+      email,
+      customerName,
+      customerPhone,
+      deliveryAddress,
+      deliveryAddress2,
+      deliveryCity,
+      deliveryState,
+      deliveryZip,
+      deliveryCountryCode,
+    } = args;
+    const { store, adapter } = await resolveAdapter(storeId, customMarketplaceConfig);
+    if (store.platform !== 'openfront-restaurant' || !adapter.updateCartFulfillment) {
+      throw new Error('Restaurant fulfillment is not supported for this source');
+    }
+
+    const cart = await adapter.updateCartFulfillment({
+      store,
+      cartId,
+      orderType,
+      email,
+      customerName,
+      customerPhone,
+      deliveryAddress,
+      deliveryAddress2,
+      deliveryCity,
+      deliveryState,
+      deliveryZip,
+      deliveryCountryCode,
+      cookie,
+      ctoken,
+    });
+    dataHasChanged.value = true;
+
+    return {
+      jsonrpc: '2.0',
+      result: {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({
+            cart,
+            storeId,
+            orderType: cart?.orderType || orderType,
+            message: `Restaurant fulfillment updated to ${cart?.orderType || orderType}`,
+          }, null, 2),
+        }],
+      }
+    };
+  }
+
   if (name === 'setShippingMethod') {
     const { storeId, cartId, shippingMethodId } = args;
 
@@ -821,20 +983,28 @@ export async function handleCartTools(name: string, args: any, cookie: string, d
 
     const warnings: string[] = [];
     const recommendations: string[] = [];
+    const isRestaurantStore = store.platform === 'openfront-restaurant';
 
-    if (!cart.lineItems || cart.lineItems.length === 0) {
+    if (isRestaurantStore) {
+      for (const issue of getRestaurantCheckoutIssues(cart)) {
+        warnings.push(`⚠️  ${restaurantCheckoutIssueMessage(issue)}`);
+      }
+      if (warnings.length > 0) {
+        recommendations.push('Complete the Restaurant cart Fulfillment and Details tabs');
+      }
+    } else if (!cart.lineItems || cart.lineItems.length === 0) {
       warnings.push('⚠️  EMPTY CART: No products added to cart');
       recommendations.push('Use addToCart to add products before creating checkout link');
     }
-    if (!cart.shippingAddress) {
+    if (!isRestaurantStore && !cart.shippingAddress) {
       warnings.push('⚠️  MISSING SHIPPING: No shipping address set');
       recommendations.push('Use setShippingAddress to add customer details');
     }
-    if (!cart.shippingMethods || cart.shippingMethods.length === 0) {
+    if (!isRestaurantStore && (!cart.shippingMethods || cart.shippingMethods.length === 0)) {
       warnings.push('⚠️  MISSING SHIPPING METHOD: No shipping method selected');
       recommendations.push('Use getShippingOptions and setShippingMethod');
     }
-    if (!cart.email) {
+    if (!isRestaurantStore && !cart.email) {
       warnings.push('⚠️  MISSING EMAIL: No customer email provided');
       recommendations.push('Customer email is set via setShippingAddress');
     }
@@ -870,9 +1040,15 @@ export async function handleCartTools(name: string, args: any, cookie: string, d
       return { jsonrpc: '2.0', result: { content: [{ type: 'text', text: JSON.stringify({ isReady: false, error: 'Cart not found', cartId }, null, 2) }] } };
     }
 
-    if (!cart.lineItems || cart.lineItems.length === 0) { issues.push('Cart is empty - add products first'); isReady = false; }
-    if (!cart.shippingAddress) { issues.push('No shipping address set - call setShippingAddress or user can update it in the cart UI'); isReady = false; }
-    if (!cart.shippingMethods || cart.shippingMethods.length === 0) { issues.push('No shipping method selected - user needs to select shipping in cart UI or call setShippingMethod'); isReady = false; }
+    const isRestaurantStore = store.platform === 'openfront-restaurant';
+    if (isRestaurantStore) {
+      issues.push(...getRestaurantCheckoutIssues(cart).map(restaurantCheckoutIssueMessage));
+      isReady = issues.length === 0;
+    } else {
+      if (!cart.lineItems || cart.lineItems.length === 0) { issues.push('Cart is empty - add products first'); isReady = false; }
+      if (!cart.shippingAddress) { issues.push('No shipping address set - call setShippingAddress or user can update it in the cart UI'); isReady = false; }
+      if (!cart.shippingMethods || cart.shippingMethods.length === 0) { issues.push('No shipping method selected - user needs to select shipping in cart UI or call setShippingMethod'); isReady = false; }
+    }
 
     return {
       jsonrpc: '2.0',
@@ -889,17 +1065,37 @@ export async function handleCartTools(name: string, args: any, cookie: string, d
 
     // Fetch cart and validate readiness
     const cart = await adapter.getCartRaw({ store, cartId, cookie, ctoken });
-    if (!cart?.region?.id) {
+    const isRestaurantStore = store.platform === 'openfront-restaurant';
+    if (!cart || (!isRestaurantStore && !cart.region?.id)) {
       throw new Error('Cart or region not found');
     }
 
-    const validationIssues: string[] = [];
-    if (!cart.lineItems || cart.lineItems.length === 0) validationIssues.push('Cart is empty - add products first');
-    if (!cart.shippingAddress) validationIssues.push('No shipping address set - call setShippingAddress first');
-    if (!cart.shippingMethods || cart.shippingMethods.length === 0) validationIssues.push('No shipping method selected - user needs to select shipping in cart UI');
+    const validationIssues: string[] = isRestaurantStore
+      ? getRestaurantCheckoutIssues(cart).map(restaurantCheckoutIssueMessage)
+      : [];
+    if (!isRestaurantStore && (!cart.lineItems || cart.lineItems.length === 0)) validationIssues.push('Cart is empty - add products first');
+    if (!isRestaurantStore && !cart.shippingAddress) validationIssues.push('No shipping address set - call setShippingAddress first');
+    if (!isRestaurantStore && (!cart.shippingMethods || cart.shippingMethods.length === 0)) validationIssues.push('No shipping method selected - user needs to select shipping in cart UI');
 
     if (validationIssues.length > 0) {
-      // Return an error UI instead of plain text so the user can see it
+      if (isRestaurantStore) {
+        return {
+          jsonrpc: '2.0',
+          result: {
+            content: [{
+              type: 'text',
+              text: JSON.stringify({
+                error: 'Restaurant cart is not ready for payment',
+                issues: validationIssues,
+                storeId,
+                cartId,
+              }, null, 2),
+            }],
+          }
+        };
+      }
+
+      // Return an error UI for the legacy retail payment flow.
       const errorHTML = `
         <!DOCTYPE html>
         <html>
@@ -907,9 +1103,10 @@ export async function handleCartTools(name: string, args: any, cookie: string, d
           <meta charset="UTF-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
           <script src="https://cdn.tailwindcss.com"></script>
+          <style>${beautifulUIStyles}</style>
         </head>
         <body class="p-4 sm:p-6">
-          <div class="max-w-md mx-auto bg-red-50 border-l-4 border-red-500 rounded-lg p-4 sm:p-6">
+          <div class="mcp-card max-w-md mx-auto bg-red-tint border border-red rounded-lg p-4 sm:p-6">
             <div class="flex items-start">
               <div class="flex-shrink-0">
                 <svg class="h-5 w-5 sm:h-6 sm:w-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -927,19 +1124,7 @@ export async function handleCartTools(name: string, args: any, cookie: string, d
           </div>
 
           <script>
-            // Auto-resize iframe
-            const resizeObserver = new ResizeObserver((entries) => {
-              entries.forEach((entry) => {
-                window.parent.postMessage({
-                  type: "ui-size-change",
-                  payload: {
-                    height: entry.contentRect.height,
-                    width: entry.contentRect.width,
-                  },
-                }, "*");
-              });
-            });
-            resizeObserver.observe(document.documentElement);
+            ${iframeAutoResizeScript}
           </script>
         </body>
         </html>
@@ -949,18 +1134,6 @@ export async function handleCartTools(name: string, args: any, cookie: string, d
         uri: `ui://marketplace/payment-error?cart=${cartId}`,
         content: { type: 'rawHtml', htmlString: errorHTML },
         encoding: 'text',
-        adapters: {
-          appsSdk: {
-            enabled: true,
-            config: {
-              intentHandling: 'prompt',
-            },
-          },
-        },
-        metadata: {
-          'openai/widgetDescription': 'Payment validation error',
-          'openai/widgetPrefersBorder': true,
-        },
       });
 
       return {
@@ -977,7 +1150,7 @@ export async function handleCartTools(name: string, args: any, cookie: string, d
     if (matchedExisting) {
       const storeInfo = await adapter.getStoreInfo({ store, cookie, ctoken });
       const providerConfig = storeInfo?.paymentProviders?.find?.((p: any) => p.provider === paymentProvider);
-      const amountInCents = cart.rawTotal || 0;
+      const amountInCents = matchedExisting.amount || cart.rawTotal || 0;
       return {
         jsonrpc: '2.0',
         result: { content: [{ type: 'text', text: JSON.stringify({
@@ -1025,13 +1198,17 @@ export async function handleCartTools(name: string, args: any, cookie: string, d
       throw new Error('Failed to complete cart');
     }
 
-    const countryCode = order.shippingAddress?.country?.iso2?.toLowerCase();
-    if (!countryCode) {
-      throw new Error('No country code found in completed order');
-    }
-
     const secretKeyParam = order.secretKey ? `?secretKey=${order.secretKey}` : '';
-    const redirectUrl = `${store.baseUrl}/${countryCode}/order/confirmed/${order.id}${secretKeyParam}`;
+    let redirectUrl: string;
+    if (store.platform === 'openfront-restaurant') {
+      redirectUrl = `${store.baseUrl}/order/confirmed/${order.id}${secretKeyParam}`;
+    } else {
+      const countryCode = order.shippingAddress?.country?.iso2?.toLowerCase();
+      if (!countryCode) {
+        throw new Error('No country code found in completed order');
+      }
+      redirectUrl = `${store.baseUrl}/${countryCode}/order/confirmed/${order.id}${secretKeyParam}`;
+    }
 
     dataHasChanged.value = true;
 

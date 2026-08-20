@@ -24,7 +24,7 @@ export function ModeSplitButton({
   const isGlobalMode = aiConfig.keyMode === "env";
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-1">
       <ConfigToggleButton disabled={disabled} globalEnvsExist={!!sharedKeys} />
       <SimpleSettingsPopover disabled={disabled || isGlobalMode} />
       <AIModelSelector disabled={disabled || isGlobalMode} globalModel={sharedKeys?.model} />

@@ -1,6 +1,6 @@
 // Marketplace MCP Transport Route
 // Multi-platform e-commerce marketplace with platform adapters
-// Supports multiple stores via storeId parameter (e.g., "store-1", "store-2")
+// Supports multiple admitted sources via a stable origin/profile-bound storeId.
 
 import { storeTools, handleStoreTools } from '../tools/store-tools';
 import { productTools, handleProductTools } from '../tools/product-tools';
@@ -10,10 +10,10 @@ import { parseStoreConfigs } from '../types/store-config';
 
 export async function POST(request: Request, { params }: { params: Promise<{ transport: string }> }) {
   // Track if any CRUD operations occurred during this request
-  let dataHasChanged = { value: false };
+  const dataHasChanged = { value: false };
 
   try {
-    const { transport } = await params;
+    await params;
 
     // Extract cookie from request
     const cookie = request.headers.get('cookie') || '';
@@ -115,7 +115,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tra
         } else if (regionTools.some(tool => tool.name === name)) {
           result = await handleRegionTools(name, args, cookie, ctoken, customMarketplaceConfig);
         } else {
-          throw new Error(`Tool ${name} not found`);
+          throw new Error('Unknown tool');
         }
 
         // Add data change header if needed
@@ -138,16 +138,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ tra
           headers,
         });
 
-      } catch (error) {
-        // Return proper JSON-RPC error response to satisfy client Zod schemas
-        const message = (error instanceof Error) ? error.message : String(error);
+      } catch {
+        // Tool arguments can include credentials, address data, and cart IDs.
+        // Never return a source exception or argument echo through MCP/model output.
         return new Response(JSON.stringify({
           jsonrpc: '2.0',
           id: body.id,
           error: {
             code: -32603,
-            message: `Error executing ${name}: ${message}`,
-            data: message
+            message: 'Tool request failed',
+            data: { code: 'SOURCE_REQUEST_FAILED' }
           }
         }), {
           status: 200,
@@ -166,14 +166,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ tra
       });
     }
 
-  } catch (error) {
+  } catch {
     return new Response(JSON.stringify({
       jsonrpc: '2.0',
       id: null,
       error: {
         code: -32603,
         message: 'Internal error',
-        data: error instanceof Error ? error.message : String(error)
+        data: { code: 'INTERNAL_ERROR' }
       }
     }), {
       status: 500,

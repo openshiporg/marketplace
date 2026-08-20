@@ -25,7 +25,15 @@ export async function handleStoreTools(name: string, args: any, cookie: string, 
       
       try {
         const adapter = await getPlatformAdapter(s);
-        const info = await adapter.getStoreInfo({ store: s, cookie, ctoken });
+        const [infoResult, countriesResult] = await Promise.allSettled([
+          adapter.getStoreInfo({ store: s, cookie, ctoken }),
+          adapter.getAvailableCountries({ store: s, cookie, ctoken }),
+        ]);
+        const info = infoResult.status === 'fulfilled' ? infoResult.value : null;
+        const countries = countriesResult.status === 'fulfilled' ? countriesResult.value : [];
+        if (!info && countries.length === 0) {
+          throw infoResult.status === 'rejected' ? infoResult.reason : new Error('Store metadata unavailable');
+        }
         return {
           id: s.id,
           storeId: s.id,
@@ -34,6 +42,9 @@ export async function handleStoreTools(name: string, args: any, cookie: string, 
           baseUrl: s.baseUrl,
           logoIcon: info?.logoIcon || null,
           logoColor: info?.logoColor || null,
+          address: info?.address || null,
+          countryCode: info?.countryCode || null,
+          countries,
           paymentProviders: info?.paymentProviders || [],
         } as const;
       } catch (e) {
@@ -47,6 +58,9 @@ export async function handleStoreTools(name: string, args: any, cookie: string, 
           baseUrl: s.baseUrl,
           logoIcon: null,
           logoColor: null,
+          address: null,
+          countryCode: null,
+          countries: [] as Array<{ code: string; name: string; currency: string }>,
           paymentProviders: [] as any[],
         } as const;
       }
@@ -61,7 +75,7 @@ export async function handleStoreTools(name: string, args: any, cookie: string, 
             stores,
             totalStores: stores.length,
             message: `Found ${stores.length} stores in marketplace`,
-            instruction: 'Use the storeId for commerce operations (searchProducts, createCart, etc.)'
+            instruction: 'Use storeId for commerce operations. Route by platform, and use only explicit address/country metadata for location requests.'
           }, null, 2),
         }],
       }

@@ -4,6 +4,7 @@ import type { ParsedStore } from '../types/store-config';
 // Lazy-loaded adapters. Add new entries as platforms are implemented (Shopify, BigCommerce, WooCommerce).
 const platformAdapters: Record<string, () => Promise<{ default: PlatformAdapter }>> = {
   openfront: () => import('./openfront'),
+  'openfront-restaurant': () => import('./openfront-restaurant'),
 };
 
 const adapterCache = new Map<string, PlatformAdapter>();

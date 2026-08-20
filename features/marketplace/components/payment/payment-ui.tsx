@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { RiLoader2Fill } from "@remixicon/react"
 import { CheckCircle2 } from "lucide-react"
 import { useState } from "react"
+import { LoadingState } from "@/components/beautiful-ui/loading-state"
 
 interface PaymentUIProps {
   paymentProvider: 'stripe' | 'paypal'
@@ -21,10 +22,24 @@ interface PaymentUIProps {
   cart: {
     id: string
     total: number
+    currencyCode?: string
+    currency?: string
     shippingAddress?: {
       firstName?: string
       lastName?: string
+      address1?: string
+      city?: string
+      province?: string
+      postalCode?: string
+      countryCode?: string
     }
+    customerName?: string
+    customerPhone?: string
+    deliveryAddress?: string
+    deliveryCity?: string
+    deliveryState?: string
+    deliveryZip?: string
+    deliveryCountryCode?: string
     email?: string
     region?: {
       currency?: {
@@ -73,8 +88,10 @@ export function PaymentUI({
       <PayPalScriptProvider
         options={{
           clientId: publishableKey,
-          currency: cart?.region?.currency?.code?.toUpperCase() || 'USD',
-          intent: "authorize",
+          currency: (
+            cart?.region?.currency?.code || cart?.currencyCode || cart?.currency || 'USD'
+          ).toUpperCase(),
+          intent: "capture",
           components: "buttons",
         }}
       >
@@ -133,8 +150,16 @@ function StripePaymentForm({ paymentSession, cart, onPaymentComplete, paymentCom
           payment_method: {
             card: cardElement,
             billing_details: {
-              name: `${cart.shippingAddress?.firstName || ''} ${cart.shippingAddress?.lastName || ''}`,
+              name: cart.customerName || `${cart.shippingAddress?.firstName || ''} ${cart.shippingAddress?.lastName || ''}`.trim(),
               email: cart.email || '',
+              phone: cart.customerPhone || undefined,
+              address: {
+                line1: cart.deliveryAddress || cart.shippingAddress?.address1 || undefined,
+                city: cart.deliveryCity || cart.shippingAddress?.city || undefined,
+                state: cart.deliveryState || cart.shippingAddress?.province || undefined,
+                postal_code: cart.deliveryZip || cart.shippingAddress?.postalCode || undefined,
+                country: cart.deliveryCountryCode || cart.shippingAddress?.countryCode || undefined,
+              },
             },
           },
         }
@@ -162,20 +187,14 @@ function StripePaymentForm({ paymentSession, cart, onPaymentComplete, paymentCom
   // Show success state if payment is completed
   if (paymentCompleted && orderUrl) {
     return (
-      <div className="space-y-4">
-        <Button
-          className="w-full bg-emerald-600 hover:bg-emerald-700"
-          size="lg"
-          asChild
-        >
+      <div className="space-y-3 bg-surface p-3 shadow-hairline">
+        <Button className="w-full" size="lg" asChild>
           <a href={orderUrl} target="_blank" rel="noopener noreferrer">
-            <CheckCircle2 className="mr-2 h-4 w-4" />
-            Order Confirmation
+            <CheckCircle2 className="mr-2 size-3.5 text-green" />
+            Order confirmation
           </a>
         </Button>
-        <p className="text-sm text-center text-muted-foreground">
-          Your order has been placed successfully!
-        </p>
+        <p className="text-center text-[12px] text-green">Your order has been placed successfully.</p>
       </div>
     )
   }
@@ -183,23 +202,16 @@ function StripePaymentForm({ paymentSession, cart, onPaymentComplete, paymentCom
   // Show completing state
   if (completingOrder) {
     return (
-      <div className="space-y-4">
-        <Button
-          className="w-full"
-          size="lg"
-          disabled
-        >
-          <RiLoader2Fill className="mr-2 h-4 w-4 animate-spin" />
-          Completing Order...
-        </Button>
+      <div className="bg-surface p-3 shadow-hairline">
+        <LoadingState label="Completing order" variant="Orbit" />
       </div>
     )
   }
 
   // Show payment form
   return (
-    <div className="space-y-4">
-      <div className="p-4 border rounded-lg">
+    <div className="space-y-3 bg-surface p-3 shadow-hairline">
+      <div className="rounded-control bg-field p-3 shadow-hairline">
         <CardElement
           options={{
             style: {
@@ -229,7 +241,7 @@ function StripePaymentForm({ paymentSession, cart, onPaymentComplete, paymentCom
       </Button>
 
       {errorMessage && (
-        <div className="text-sm text-red-600 mt-2">
+        <div className="mt-2 rounded-control bg-red-tint p-2 text-[12px] text-red">
           {errorMessage}
         </div>
       )}
@@ -261,20 +273,14 @@ function PayPalPaymentForm({ paymentSession, cart, onPaymentComplete, paymentCom
   // Show success state if payment is completed
   if (paymentCompleted && orderUrl) {
     return (
-      <div className="space-y-4">
-        <Button
-          className="w-full bg-emerald-600 hover:bg-emerald-700"
-          size="lg"
-          asChild
-        >
+      <div className="space-y-3 bg-surface p-3 shadow-hairline">
+        <Button className="w-full" size="lg" asChild>
           <a href={orderUrl} target="_blank" rel="noopener noreferrer">
-            <CheckCircle2 className="mr-2 h-4 w-4" />
-            Order Confirmation
+            <CheckCircle2 className="mr-2 size-3.5 text-green" />
+            Order confirmation
           </a>
         </Button>
-        <p className="text-sm text-center text-muted-foreground">
-          Your order has been placed successfully!
-        </p>
+        <p className="text-center text-[12px] text-green">Your order has been placed successfully.</p>
       </div>
     )
   }
@@ -282,29 +288,22 @@ function PayPalPaymentForm({ paymentSession, cart, onPaymentComplete, paymentCom
   // Show completing state
   if (completingOrder) {
     return (
-      <div className="space-y-4">
-        <Button
-          className="w-full"
-          size="lg"
-          disabled
-        >
-          <RiLoader2Fill className="mr-2 h-4 w-4 animate-spin" />
-          Completing Order...
-        </Button>
+      <div className="bg-surface p-3 shadow-hairline">
+        <LoadingState label="Completing order" variant="Orbit" />
       </div>
     )
   }
 
   if (isPending) {
-    return <RiLoader2Fill className="animate-spin mx-auto" />
+    return <LoadingState label="Loading PayPal" variant="Dots" />
   }
 
   if (!paymentSession?.data?.orderId) {
-    return <div className="text-sm text-red-600">PayPal order ID not found.</div>
+    return <div className="rounded-control bg-red-tint p-2 text-[12px] text-red">PayPal order ID not found.</div>
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3 bg-surface p-3 shadow-hairline">
       <PayPalButtons
         style={{ layout: "vertical" }}
         createOrder={async () => paymentSession.data?.orderId as string}
@@ -313,7 +312,7 @@ function PayPalPaymentForm({ paymentSession, cart, onPaymentComplete, paymentCom
       />
 
       {errorMessage && (
-        <div className="text-sm text-red-600 mt-2">
+        <div className="mt-2 rounded-control bg-red-tint p-2 text-[12px] text-red">
           {errorMessage}
         </div>
       )}

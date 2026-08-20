@@ -3,36 +3,34 @@
 /* eslint-disable react/no-unescaped-entities */
 
 import { ArrowUpRight } from "lucide-react";
-import { CombinedLogo } from "@/components/CombinedLogo";
 
 export default function EthosPage() {
   return (
-    <div className="min-h-screen">
-      <section className="relative overflow-hidden">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6">
-          <div className="pt-28 pb-8 md:pt-36 md:pb-16">
-            <div className="max-w-2xl text-left">
-              <div className="flex items-center justify-start mb-4">
-                <CombinedLogo />
-              </div>
+    <div className="flex min-h-[calc(100dvh-3rem)] items-center justify-center p-3 sm:p-5">
+      <section className="flex h-[min(580px,calc(100dvh-5rem))] min-h-[480px] w-full max-w-2xl flex-col overflow-hidden rounded-card bg-surface shadow-card">
+        <div className="flex shrink-0 items-center border-b border-line p-1.5">
+          <span className="rounded-[6px] bg-field px-2 py-[3px] text-[13px] font-medium text-ink">Ethos</span>
+        </div>
+
+        <article className="min-h-0 flex-1 overflow-y-auto">
+          <div className="border-b border-dashed border-line px-5 py-8 sm:px-10 sm:py-12">
+            <div className="mx-auto max-w-2xl text-left">
               <a
                 href="https://openship.org/products/marketplace"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center text-sm text-muted-foreground mb-4 uppercase font-medium tracking-wide hover:text-foreground transition-colors"
+                className="mb-4 flex items-center gap-1 font-mono text-[10.5px] font-medium uppercase tracking-[.08em] text-ink-3 transition-colors hover:text-ink"
               >
-                An Openship initiative <ArrowUpRight className="size-4 ml-1" />
+                An Openship initiative <ArrowUpRight className="ml-1 size-4" />
               </a>
-              <h1 className="text-4xl sm:text-5xl md:text-6xl font-light mb-6 tracking-tight bg-gradient-to-br from-foreground to-foreground/60 bg-clip-text text-transparent font-instrument-serif">
+              <h1 className="max-w-[14ch] text-[clamp(2.5rem,7vw,5rem)] font-bold leading-[.95] tracking-[-.05em] text-ink">
                 A Market Without Masters
               </h1>
             </div>
           </div>
-        </div>
-      </section>
 
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 pb-16">
-        <div className="max-w-2xl space-y-8">
+          <div className="ethos-document px-5 py-8 sm:px-10 sm:py-12">
+            <div className="mx-auto max-w-2xl divide-y divide-dashed divide-line">
           <div>
             <h2 className="text-4xl font-semibold mb-4 font-instrument-serif">The Office Chair Empire That Wasn't</h2>
             <p className="text-fd-muted-foreground leading-relaxed mb-4">
@@ -304,8 +302,10 @@ export default function EthosPage() {
               you need to.
             </p>
           </div>
-        </div>
-      </div>
+            </div>
+          </div>
+        </article>
+      </section>
     </div>
   );
 }

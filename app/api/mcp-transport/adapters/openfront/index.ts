@@ -3,6 +3,13 @@ import { executeGraphQL } from '../../tools/utils';
 import { randomBytes } from 'crypto';
 import { generateOpenFrontCartUI, generateOpenFrontLoginUI, generateOpenFrontEmailConflictUI } from './ui';
 
+function paymentProviderName(code: string): string {
+  if (code.startsWith('pp_stripe')) return 'stripe';
+  if (code.startsWith('pp_paypal')) return 'paypal';
+  if (code === 'pp_system_default' || code.startsWith('pp_manual')) return 'cash';
+  return code;
+}
+
 const openfrontAdapter: PlatformAdapter = {
   async searchProducts({ store, countryCode, limit = 10, cookie, ctoken }): Promise<Product[]> {
     const query = `
@@ -12,6 +19,10 @@ const openfrontAdapter: PlatformAdapter = {
           title
           handle
           thumbnail
+          productCategories {
+            title
+            handle
+          }
           productVariants {
             id
             title
@@ -50,6 +61,12 @@ const openfrontAdapter: PlatformAdapter = {
       title: p.title,
       handle: p.handle,
       thumbnail: normalizeImageUrl(p.thumbnail),
+      metadata: {
+        categories: (p.productCategories || []).flatMap((category: any) => [
+          category.title,
+          category.handle,
+        ]).filter(Boolean),
+      },
       variants: (p.productVariants || []).map((v: any) => ({
         id: v.id,
         title: v.title,
@@ -124,7 +141,7 @@ const openfrontAdapter: PlatformAdapter = {
       title: p.title,
       handle: p.handle,
       description: extractTextFromDocument(p.description),
-      thumbnail: normalizeImageUrl(p.thumbnail),
+      thumbnail: normalizeImageUrl(p.thumbnail) ?? undefined,
       variants: (p.productVariants || []).map((v: any) => ({
         id: v.id,
         title: v.title,
@@ -548,12 +565,23 @@ const openfrontAdapter: PlatformAdapter = {
   },
 
   // UI Generation Methods
-  async generateCartUI({ store, cartId, storeInfo, cartData, shippingOptions }) {
+  async generateCartUI({ store, cartId, storeInfo, cartData, shippingOptions, cookie, ctoken }) {
+    const regionId = cartData?.region?.id;
+    const availableMethods = regionId
+      ? await this.getAvailablePaymentMethods({ store, regionId, cookie, ctoken })
+      : [];
+    const activeProviders = new Set(
+      availableMethods.map((provider: any) => paymentProviderName(provider.code || provider.name))
+    );
+    const paymentProviders = (storeInfo?.paymentProviders || []).filter(
+      (provider: any) => activeProviders.has(provider.provider)
+    );
+
     return generateOpenFrontCartUI({
       storeId: store.id,
       cartId,
       cart: cartData,
-      storeInfo: { ...storeInfo, url: store.baseUrl },
+      storeInfo: { ...storeInfo, paymentProviders, url: store.baseUrl },
       shippingOptions
     });
   },

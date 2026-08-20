@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { ShoppingCart, ShoppingBag, ExternalLink, Edit3, MoreVertical, Store as StoreIcon } from "lucide-react";
+import { ShoppingCart, ShoppingBag, ExternalLink, ListFilter, MoreVertical, Plus, Store as StoreIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -13,6 +13,7 @@ import {
   DropdownMenuSubContent,
 } from "@/components/ui/dropdown-menu";
 import {
+  getDefaultMarketplaceConfig,
   getMarketplaceConfig,
   setMarketplaceConfig,
   resetMarketplaceConfig,
@@ -22,6 +23,8 @@ import {
   type MarketplaceStore,
 } from "@/lib/marketplace-storage";
 import { StoreEditor } from "./store-editor-redesigned";
+import { StoreLogo } from "../store-logo";
+import { getStorePlatformLabel } from "@/lib/store-platform";
 
 interface Cart {
   storeId: string;
@@ -47,8 +50,8 @@ export function CartsDropdown({
   const [carts, setCarts] = useState<Cart[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [open, setOpen] = useState(false);
-  const [editMode, setEditMode] = useState<'idle' | 'confirm'>('idle');
   const [showEditor, setShowEditor] = useState(false);
+  const [startAdding, setStartAdding] = useState(false);
   const [currentConfig, setCurrentConfig] = useState<MarketplaceStore[]>([]);
   const [isCustomConfig, setIsCustomConfig] = useState(false);
   const latestStoreInfoRequest = useRef(0);
@@ -126,14 +129,15 @@ export function CartsDropdown({
     const handleConfigUpdate = () => {
       const config = getMarketplaceConfig();
       setIsCustomConfig(!isDefaultConfig());
+      setCurrentConfig(config);
       // Reflect additions/removals immediately; the request below only enriches
-      // these entries with live names and logos.
-      setCarts(currentCarts => config.map((store, index) => {
-        const storeId = `store-${index + 1}`;
-        const current = currentCarts.find(cart => cart.baseUrl === store.baseUrl);
+      // these entries with live names and logos. Source IDs are origin/profile
+      // identities and must never be reconstructed from array position.
+      setCarts(currentCarts => config.map((store) => {
+        const current = currentCarts.find(cart => cart.storeId === store.id);
         return {
-          storeId,
-          cartId: cartIds[storeId] || '',
+          storeId: store.id,
+          cartId: cartIds[store.id] || '',
           storeName: store.name || store.storeName || current?.storeName,
           logoIcon: current?.logoIcon,
           logoColor: current?.logoColor,
@@ -161,21 +165,16 @@ export function CartsDropdown({
 
   const totalStores = carts.length;
 
-  // Handle Edit button click
-  const handleEditClick = () => {
-    if (editMode === 'idle') {
-      setEditMode('confirm');
-      setTimeout(() => setEditMode('idle'), 3000);
-    } else if (editMode === 'confirm') {
-      setCurrentConfig(getMarketplaceConfig());
-      setShowEditor(true);
-      setEditMode('idle');
-    }
+  const openDirectory = (addStore = false) => {
+    setCurrentConfig(getMarketplaceConfig());
+    setStartAdding(addStore);
+    setShowEditor(true);
+    setOpen(false);
   };
 
   // Handle saving edited config
   const handleSaveConfig = (newConfig: MarketplaceStore[]) => {
-    setMarketplaceConfig(newConfig);
+    return setMarketplaceConfig(newConfig);
   };
 
   return (
@@ -184,91 +183,59 @@ export function CartsDropdown({
         <button
           type="button"
           disabled={disabled || isLoading}
-          className="inline-flex items-center justify-center whitespace-nowrap text-sm font-medium transition-[color,box-shadow] disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive text-secondary-foreground shadow-xs hover:bg-secondary/80 dark:border-none border-border dark:bg-secondary h-8 rounded-full border bg-transparent w-auto p-1 pl-1.5 pr-1.5 sm:pr-3"
+          className="ml-1.5 flex shrink-0 items-center gap-1.5 rounded-[6px] px-1 py-0.5 text-left outline-none transition-colors duration-150 hover:bg-hover disabled:pointer-events-none disabled:opacity-40"
         >
-          <div className="flex -space-x-2 mr-1.5 overflow-hidden">
+          <span className="flex -space-x-1">
             {totalStores === 0 && (
-              <div className="w-6 h-6 rounded-full ring-2 ring-background bg-muted flex items-center justify-center">
-                <StoreIcon className="w-3 h-3 text-muted-foreground" />
-              </div>
+              <span className="flex size-3.5 items-center justify-center rounded-full bg-inset text-ink-3 shadow-[0_0_0_1.5px_var(--canvas)]">
+                <StoreIcon className="size-2.5" />
+              </span>
             )}
-            {carts.slice(0, 2).map((cart) => (
-              <div
+            {carts.slice(0, 3).map((cart) => (
+              <StoreLogo
                 key={cart.storeId}
-                className="w-6 h-6 rounded-full ring-2 ring-background flex items-center justify-center overflow-hidden pointer-events-none"
-                style={{
-                  backgroundColor: cart.logoColor || "#000",
-                }}
-              >
-                {cart.logoIcon ? (
-                  <div
-                    dangerouslySetInnerHTML={{ __html: cart.logoIcon }}
-                    className="w-4 h-4 flex items-center justify-center [&>*]:pointer-events-none [&>*]:w-full [&>*]:h-full [&>*]:text"
-                    style={{
-                      filter: `hue-rotate(${cart.logoColor || "0"}deg)`,
-                    }}
-                  />
-                ) : (
-                  <ShoppingCart className="w-3 h-3 text-white flex-shrink-0" />
-                )}
-              </div>
+                logoIcon={cart.logoIcon}
+                logoColor={cart.logoColor}
+                className="pointer-events-none size-3.5 rounded-full bg-surface shadow-[0_0_0_1.5px_var(--canvas)]"
+                iconClassName="size-2.5 [&>svg]:pointer-events-none"
+                fallback={<ShoppingCart className="size-2.5 shrink-0 text-ink-3" />}
+              />
             ))}
-          </div>
-          {totalStores > 2 ? (
-            <span className="text-xs text-muted-foreground">
-              +{totalStores - 2}
-            </span>
-          ) : (
-            <span className="hidden sm:inline text-sm text-muted-foreground whitespace-nowrap">
-              <strong className="font-medium text-foreground">{totalStores}</strong> {totalStores === 1 ? 'cart' : 'carts'}
-            </span>
-          )}
+          </span>
+          <span className="whitespace-nowrap text-[12px] text-ink-2">
+            {totalStores} {totalStores === 1 ? 'store' : 'stores'}
+          </span>
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-80 p-2">
+      <DropdownMenuContent align="start" className="w-72 p-1.5">
+        <div className="px-1.5 pb-1 pt-0.5 font-mono text-[10px] uppercase tracking-[.08em] text-ink-3">Store directory</div>
         {carts.map((cart, index) => {
           return (
             <div key={cart.storeId}>
-              {index > 0 && <div className="h-px bg-border my-2" />}
-              <div className="flex items-center justify-between gap-2 group">
+              {index > 0 && <div className="mx-1 h-px bg-line" />}
+              <div className="group flex items-center justify-between gap-2 py-1">
                 {/* Store Info - always visible */}
                 <div
-                  className="flex items-center gap-2 flex-1 min-w-0 px-1.5 py-1 rounded-md hover:bg-muted/50 cursor-pointer transition-colors"
+                  className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-[7px] px-1.5 py-1 transition-colors duration-150 hover:bg-hover"
                   onClick={() => {
                     onCartSelect(cart.storeName || "Store", cart.storeId);
                     setOpen(false);
                   }}
                 >
-                  <div
-                    className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
-                    style={{
-                      backgroundColor: cart.logoIcon
-                        ? cart.logoColor || "#e5e7eb"
-                        : "#f3f4f6",
-                      border: cart.logoIcon ? "none" : "2px solid #e5e7eb",
-                    }}
-                  >
-                    {cart.logoIcon ? (
-                      <div
-                        dangerouslySetInnerHTML={{ __html: cart.logoIcon }}
-                        className="w-3.5 h-3.5"
-                        style={{
-                          filter: `hue-rotate(${cart.logoColor || "0"}deg)`,
-                        }}
-                      />
-                    ) : (
-                      <StoreIcon className="w-3.5 h-3.5 text-muted-foreground" />
-                    )}
-                  </div>
+                  <StoreLogo
+                    logoIcon={cart.logoIcon}
+                    logoColor={cart.logoColor}
+                    className="size-7 rounded-control bg-inset shadow-hairline"
+                    iconClassName="size-3.5"
+                    fallback={<StoreIcon className="size-3.5 text-ink-3" />}
+                  />
                   <div className="flex flex-col min-w-0 flex-1">
-                    <span className="font-medium text-sm truncate">
+                    <span className="truncate text-[12.5px] font-medium text-ink">
                       {cart.storeName || cart.baseUrl || "Unknown Store"}
                     </span>
-                    {cart.cartId && (
-                      <span className="text-xs text-muted-foreground truncate">
-                        Active cart
-                      </span>
-                    )}
+                    <span className="truncate text-[10.5px] text-ink-3">
+                      {getStorePlatformLabel(cart.platform)}
+                    </span>
                   </div>
                 </div>
 
@@ -277,7 +244,7 @@ export function CartsDropdown({
                   <DropdownMenuSubTrigger asChild>
                     <button
                       type="button"
-                      className="inline-flex items-center justify-center h-7 w-7 opacity-60 hover:opacity-100 hover:bg-accent rounded-md transition-colors"
+                      className="beautiful-icon-button"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <MoreVertical className="h-3.5 w-3.5" />
@@ -316,30 +283,32 @@ export function CartsDropdown({
           );
         })}
 
-        {/* Separator */}
-        <div className="h-px bg-border my-2" />
-
-        {/* Edit button */}
-        <Button
-          onClick={handleEditClick}
-          variant="ghost"
-          className="w-full justify-start text-sm"
-        >
-          <Edit3 className="size-4 mr-2" />
-          {editMode === 'confirm' ? 'Are you sure?' : 'Manage Stores'}
-        </Button>
+        <div className="mx-1 my-1 h-px bg-line" />
+        <div className="grid grid-cols-2 gap-1">
+          <Button onClick={() => openDirectory(true)} variant="default" size="sm" className="justify-center">
+            <Plus className="size-3.5" /> Add store
+          </Button>
+          <Button onClick={() => openDirectory(false)} variant="ghost" size="sm" className="justify-center">
+            <ListFilter className="size-3.5" /> Edit directory
+          </Button>
+        </div>
       </DropdownMenuContent>
 
       {/* Store Editor Dialog */}
       <StoreEditor
         open={showEditor}
-        onOpenChange={setShowEditor}
+        onOpenChange={(nextOpen) => {
+          setShowEditor(nextOpen);
+          if (!nextOpen) setStartAdding(false);
+        }}
         currentConfig={currentConfig}
+        admittedConfig={getDefaultMarketplaceConfig()}
         onSave={handleSaveConfig}
         cartsData={carts}
         onCartSelect={onCartSelect}
         onResetToDefault={resetMarketplaceConfig}
         isDefaultConfig={!isCustomConfig}
+        startAdding={startAdding}
       />
     </DropdownMenu>
   );

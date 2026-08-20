@@ -1,11 +1,12 @@
 "use client"
 
 import { cn } from "@/lib/utils"
-import { StickToBottom } from "use-stick-to-bottom"
+import { StickToBottom, type StickToBottomContext } from "use-stick-to-bottom"
 
 export type ChatContainerRootProps = {
   children: React.ReactNode
   className?: string
+  contextRef?: React.Ref<StickToBottomContext>
 } & React.HTMLAttributes<HTMLDivElement>
 
 export type ChatContainerContentProps = {
@@ -21,11 +22,13 @@ export type ChatContainerScrollAnchorProps = {
 function ChatContainerRoot({
   children,
   className,
+  contextRef,
   ...props
 }: ChatContainerRootProps) {
   return (
     <StickToBottom
-      className={cn("flex overflow-y-auto", className)}
+      contextRef={contextRef}
+      className={cn("flex overflow-hidden", className)}
       resize="smooth"
       initial="instant"
       role="log"

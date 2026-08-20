@@ -31,7 +31,7 @@ interface SimpleSettingsPopoverProps {
 
 const PROVIDERS = [
   { value: "openrouter", label: "OpenRouter" },
-  { value: "custom", label: "Custom" },
+  { value: "custom", label: "Custom OpenAI" },
 ];
 
 export function SimpleSettingsPopover({ disabled = false }: SimpleSettingsPopoverProps) {
@@ -77,14 +77,9 @@ export function SimpleSettingsPopover({ disabled = false }: SimpleSettingsPopove
     <button
       type="button"
       disabled={disabled}
-      className={`inline-flex items-center justify-center whitespace-nowrap text-sm font-medium transition-[color,box-shadow] disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive shadow-xs dark:border-none gap-1.5 px-3 has-[>svg]:px-2.5 size-8 rounded-full border
-        ${showWarning
-          ? "bg-red-500/15 text-red-700 dark:bg-red-500/10 dark:text-red-400 border-red-200 dark:border-red-800/50 hover:bg-red-500/20"
-          : "text-secondary-foreground hover:bg-secondary/80 border-border dark:bg-secondary bg-transparent"
-        }`
-      }
+      className={`beautiful-icon-button size-7 rounded-[5px] bg-surface shadow-btn disabled:pointer-events-none disabled:opacity-40 ${showWarning ? "text-red" : "text-ink-3"}`}
     >
-      <Settings2 className="size-3.5" />
+      <Settings2 className="size-3" />
     </button>
   );
 
@@ -111,7 +106,7 @@ export function SimpleSettingsPopover({ disabled = false }: SimpleSettingsPopove
         {button}
       </PopoverTrigger>
       <PopoverContent
-        className="w-[340px] p-0"
+        className="w-[min(320px,calc(100vw-16px))] p-0"
         align="start"
         side="top"
         sideOffset={8}
@@ -120,7 +115,7 @@ export function SimpleSettingsPopover({ disabled = false }: SimpleSettingsPopove
           <h3 className="font-medium text-sm">AI Assistant Settings</h3>
         </div> */}
 
-        <div className="p-4">
+        <div className="p-3">
           {/* Provider Selection */}
           <div className="mb-4">
             <Label htmlFor="provider" className="text-xs font-medium">
@@ -140,13 +135,20 @@ export function SimpleSettingsPopover({ disabled = false }: SimpleSettingsPopove
             </Select>
             
             {provider === "custom" && (
-              <div className="mt-1.5">
+              <div className="mt-3">
+                <Label htmlFor="custom-endpoint" className="text-xs font-medium">
+                  Endpoint
+                </Label>
                 <Input
-                  placeholder="https://api.example.com/v1"
+                  id="custom-endpoint"
+                  placeholder="8317"
                   value={customEndpoint}
                   onChange={(e) => setCustomEndpoint(e.target.value)}
-                  className="h-9 text-sm"
+                  className="mt-1.5 h-9 text-sm"
                 />
+                <p className="mt-1.5 text-[11px] leading-[1.35] text-ink-3">
+                  Enter a local port such as 8317, a server URL, /v1, or /v1/models. Models are loaded automatically.
+                </p>
               </div>
             )}
           </div>
@@ -168,8 +170,10 @@ export function SimpleSettingsPopover({ disabled = false }: SimpleSettingsPopove
               onChange={(e) => setApiKey(e.target.value)}
               className="h-9 text-sm font-mono mt-1.5"
             />
-            <p className="text-xs text-muted-foreground mt-3">
-              Your key is only saved locally in your browser
+            <p className="mt-3 text-[11.5px] text-ink-3">
+              {provider === "custom"
+                ? "Use any non-empty value if your local proxy does not require a key."
+                : "Your key is only saved locally in your browser."}
             </p>
           </div>
 
@@ -191,7 +195,7 @@ export function SimpleSettingsPopover({ disabled = false }: SimpleSettingsPopove
           </div>
         </div>
 
-        <div className="flex items-center justify-end gap-2 px-4 py-3">
+        <div className="flex items-center justify-end gap-2 border-t border-line px-3 py-2.5">
           {/* <Button
             type="button"
             variant="ghost"
@@ -205,7 +209,10 @@ export function SimpleSettingsPopover({ disabled = false }: SimpleSettingsPopove
             variant="outline"
             size="sm"
             onClick={handleSave}
-            disabled={!apiKey && !config.localKeys?.apiKey}
+            disabled={
+              (!apiKey && !config.localKeys?.apiKey) ||
+              (provider === "custom" && !customEndpoint.trim())
+            }
           >
             Save
           </Button>

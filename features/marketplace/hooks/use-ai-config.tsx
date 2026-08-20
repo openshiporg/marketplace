@@ -6,7 +6,7 @@ type KeyMode = "env" | "local"
 type ChatMode = "sidebar" | "chatbox"
 
 interface LocalKeys {
-  provider: string // "openrouter" | "ai-gateway" | "custom" or custom URL
+  provider: string // "openrouter" | "custom"
   apiKey: string
   model: string
   maxTokens: string
@@ -68,6 +68,8 @@ const saveToLS = (storageKey: string, config: AiConfig) => {
       localStorage.setItem("openRouterMaxTokens", config.localKeys.maxTokens)
       if (config.localKeys.customEndpoint) {
         localStorage.setItem("aiCustomEndpoint", config.localKeys.customEndpoint)
+      } else {
+        localStorage.removeItem("aiCustomEndpoint")
       }
     }
 
@@ -83,13 +85,15 @@ const loadFromLS = (storageKey: string, defaultConfig: AiConfig): AiConfig => {
     const savedConfig = localStorage.getItem(storageKey)
     if (savedConfig) {
       const parsed = JSON.parse(savedConfig) as AiConfig
-      const shouldUseEnvMode = defaultConfig.keyMode === "env"
+      const savedKeyMode = parsed.keyMode === "env" || parsed.keyMode === "local"
+        ? parsed.keyMode
+        : defaultConfig.keyMode
       return {
         ...defaultConfig,
         ...parsed,
         enabled: defaultConfig.enabled || parsed.enabled,
         onboarded: defaultConfig.onboarded || parsed.onboarded,
-        keyMode: shouldUseEnvMode ? "env" : parsed.keyMode,
+        keyMode: savedKeyMode,
       }
     }
 

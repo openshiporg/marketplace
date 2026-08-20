@@ -27,7 +27,7 @@ This allows showing products immediately without asking the user, while keeping 
       properties: {
         storeId: {
           type: 'string',
-          description: 'Store ID (e.g., "store-1", "store-2") from marketplace configuration'
+          description: 'Stable source ID returned by getAvailableStores'
         }
       },
       required: ['storeId']
@@ -46,7 +46,7 @@ Use the same automatic country selection logic:
       properties: {
         storeId: {
           type: 'string',
-          description: 'Store ID (e.g., "store-1", "store-2") from marketplace configuration'
+          description: 'Stable source ID returned by getAvailableStores'
         }
       },
       required: ['storeId']

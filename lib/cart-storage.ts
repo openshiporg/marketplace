@@ -3,8 +3,7 @@
  *
  * Structure:
  * {
- *   "store-1": { cartId: "cart_123", createdAt: 1234567890 },
- *   "store-2": { cartId: "cart_456", createdAt: 1234567890 }
+ *   "source-openfront-https_3A_2F_2Fmerchant.example": { cartId: "cart_123", createdAt: 1234567890 }
  * }
  */
 

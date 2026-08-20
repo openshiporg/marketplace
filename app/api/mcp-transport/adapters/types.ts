@@ -18,6 +18,7 @@ export interface Product {
   thumbnail?: string;
   description?: string;
   variants: ProductVariant[];
+  metadata?: Record<string, any>;
 }
 
 export interface CartLineItem {
@@ -41,7 +42,17 @@ export interface StoreInfo {
   name: string;
   logoIcon?: string;
   logoColor?: string;
+  address?: string;
+  countryCode?: string;
   paymentProviders?: Array<{ provider: string; publishableKey?: string }>;
+  deliveryEnabled?: boolean;
+  deliveryPostalCodes?: string[];
+  deliveryFee?: string | number;
+  deliveryMinimum?: string | number;
+  pickupDiscount?: number;
+  estimatedDelivery?: string;
+  estimatedPickup?: string;
+  locale?: string;
 }
 
 export interface PlatformAdapter {
@@ -75,6 +86,9 @@ export interface PlatformAdapter {
     cartId: string;
     variantId: string;
     quantity: number;
+    modifierIds?: string[];
+    specialInstructions?: string;
+    orderType?: string;
     cookie?: string;
     ctoken?: string;
   }): Promise<Cart>;
@@ -168,6 +182,23 @@ export interface PlatformAdapter {
     ctoken?: string;
   }): Promise<Cart>;
 
+  updateCartFulfillment?(params: {
+    store: ParsedStore;
+    cartId: string;
+    orderType: 'pickup' | 'delivery';
+    email?: string;
+    customerName?: string;
+    customerPhone?: string;
+    deliveryAddress?: string;
+    deliveryAddress2?: string;
+    deliveryCity?: string;
+    deliveryState?: string;
+    deliveryZip?: string;
+    deliveryCountryCode?: string;
+    cookie?: string;
+    ctoken?: string;
+  }): Promise<any>;
+
   buildCheckoutLink(params: {
     store: ParsedStore;
     cartId: string;
@@ -209,6 +240,13 @@ export interface PlatformAdapter {
   }): Promise<Array<{ code: string; name: string; currency: string }>>;
 
   // Optional UI generation methods
+  generateProductUI?(params: {
+    store: ParsedStore;
+    storeId: string;
+    product: Product;
+    countryCode: string;
+  }): Promise<string>;
+
   generateCartUI?(params: {
     store: ParsedStore;
     cartId: string;

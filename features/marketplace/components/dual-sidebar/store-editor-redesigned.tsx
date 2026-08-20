@@ -1,46 +1,30 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useEffect, useMemo, useState } from "react";
+import {
+  ArrowLeft,
+  ExternalLink,
+  Plus,
+  RotateCcw,
+  ShoppingBag,
+  Store as StoreIcon,
+  Trash2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu";
-import {
-  ShoppingBag,
-  Store as StoreIcon,
-  Plus,
-  Trash2,
-  Edit3,
-  ExternalLink,
-  X,
-  RotateCcw,
-  MoreVertical,
-} from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
+import { StoreLogo } from "../store-logo";
+import { getStorePlatformLabel } from "@/lib/store-platform";
+import { normalizeSourceBaseUrl, sourceIdFor, type SourcePlatform } from "@/lib/source-identity";
 
 interface Store {
+  id: string;
   storeId?: string;
   cartId?: string;
   baseUrl: string;
-  platform: string;
+  platform: SourcePlatform;
   name?: string;
   storeName?: string;
   logoIcon?: string;
@@ -61,278 +45,156 @@ interface StoreEditorProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   currentConfig: Store[];
-  onSave: (newConfig: Store[]) => void;
+  admittedConfig: Store[];
+  onSave: (newConfig: Store[]) => Store[];
   cartsData?: CartData[];
   onCartSelect?: (storeName: string, storeId: string) => void;
   onResetToDefault?: () => void;
   isDefaultConfig?: boolean;
+  startAdding?: boolean;
 }
 
-const PLATFORMS = {
-  shopify: {
-    name: "Shopify",
-    icon: ShoppingBag,
-    exampleUrl: "https://your-store.myshopify.com",
-  },
-  openfront: {
-    name: "Openfront",
-    icon: StoreIcon,
-    exampleUrl: "https://your-store.openship.org",
-  },
-} as const;
+type PlatformKey = "openfront" | "openfront-restaurant" | "shopify";
 
-type PlatformKey = keyof typeof PLATFORMS;
+const PLATFORMS: Record<PlatformKey, { label: string; example: string }> = {
+  openfront: { label: "E-commerce", example: "https://your-store.openship.org" },
+  "openfront-restaurant": { label: "Restaurant", example: "https://your-restaurant.openship.org" },
+  shopify: { label: "Shopify", example: "https://your-store.myshopify.com" },
+};
 
-function StoreCard({
-  store,
-  onEdit,
-  onDelete,
-  onCartSelect,
-  onOpenChange,
-}: {
-  store: Store;
-  onEdit: () => void;
-  onDelete: () => void;
-  onCartSelect?: (storeName: string, storeId: string) => void;
-  onOpenChange?: () => void;
-}) {
-  const displayName = store.storeName || store.name || (() => {
-    try {
-      const url = new URL(store.baseUrl);
-      const hostname = url.hostname.replace('www.', '');
-      return hostname.split('.')[0].charAt(0).toUpperCase() + hostname.split('.')[0].slice(1);
-    } catch {
-      return 'Unknown Store';
-    }
-  })();
+function storeName(store: Store) {
+  if (store.storeName || store.name) return store.storeName || store.name || "Store";
+  try {
+    const hostname = new URL(store.baseUrl).hostname.replace(/^www\./, "");
+    const name = hostname.split(".")[0];
+    return name.charAt(0).toUpperCase() + name.slice(1);
+  } catch {
+    return "Store";
+  }
+}
 
-  const logoIcon = store.logoIcon;
-  const logoColor = store.logoColor;
-
+function StoreMark({ store }: { store: Store }) {
   return (
-    <div className="flex items-center justify-between gap-2 group">
-        {/* Store Info - always visible */}
-        <div
-          className="flex items-center gap-2 flex-1 min-w-0 px-1.5 py-1 rounded-md hover:bg-muted/50 cursor-pointer transition-colors"
-          onClick={() => {
-            // View cart action handled in dropdown menu
-          }}
-        >
-          <div
-            className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
-            style={{
-              backgroundColor: logoIcon
-                ? logoColor || "#e5e7eb"
-                : "#f3f4f6",
-              border: logoIcon ? "none" : "2px solid #e5e7eb",
-            }}
-          >
-            {logoIcon ? (
-              <div
-                dangerouslySetInnerHTML={{ __html: logoIcon }}
-                className="w-3.5 h-3.5"
-                style={{
-                  filter: `hue-rotate(${logoColor || "0"}deg)`,
-                }}
-              />
-            ) : (
-              <StoreIcon className="w-3.5 h-3.5 text-muted-foreground" />
-            )}
-          </div>
-          <div className="flex flex-col min-w-0 flex-1">
-            <span className="font-medium text-sm truncate">
-              {displayName}
-            </span>
-            {store.cartId && (
-              <span className="text-xs text-muted-foreground truncate">
-                Active cart
-              </span>
-            )}
-          </div>
-        </div>
-
-        {/* Ellipsis menu for store actions */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              className="inline-flex items-center justify-center h-7 w-7 opacity-60 hover:opacity-100 hover:bg-accent rounded-md transition-colors"
-            >
-              <MoreVertical className="h-3.5 w-3.5" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent sideOffset={4} align="end">
-            {/* View Cart */}
-            {store.cartId && store.storeId && (
-              <DropdownMenuItem onClick={() => {
-                if (onCartSelect && store.storeId) {
-                  onCartSelect(store.storeName || store.name || 'Store', store.storeId);
-                  if (onOpenChange) onOpenChange();
-                }
-              }}>
-                <ShoppingBag className="h-4 w-4 mr-2" />
-                View Cart
-              </DropdownMenuItem>
-            )}
-
-            {/* Open in new tab */}
-            {store.baseUrl && (
-              <DropdownMenuItem onClick={() => window.open(store.baseUrl, "_blank")}>
-                <ExternalLink className="h-4 w-4 mr-2" />
-                Open in new tab
-              </DropdownMenuItem>
-            )}
-
-            {/* Edit Store */}
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={onEdit}>
-              <Edit3 className="h-4 w-4 mr-2" />
-              Edit Store
-            </DropdownMenuItem>
-
-            {/* Delete Store */}
-            <DropdownMenuItem onClick={onDelete} className="text-destructive">
-              <Trash2 className="h-4 w-4 mr-2" />
-              Remove Store
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-    );
+    <StoreLogo
+      logoIcon={store.logoIcon}
+      logoColor={store.logoColor}
+      className="size-7 rounded-control bg-inset shadow-hairline"
+      iconClassName="size-3.5"
+      fallback={<StoreIcon className="size-3.5 text-ink-3" />}
+    />
+  );
 }
 
-function AddStoreForm({
-  onSave,
+function StoreForm({
+  initial,
+  existingStoreIds,
+  admittedStores,
   onCancel,
-  existingUrls,
-  isEditing,
-  initialValues,
+  onSubmit,
 }: {
-  onSave: (store: Store) => void;
+  initial?: Store;
+  existingStoreIds: string[];
+  admittedStores: Store[];
   onCancel: () => void;
-  existingUrls: string[];
-  isEditing?: boolean;
-  initialValues?: Store;
+  onSubmit: (store: Store) => void;
 }) {
-  const [platform, setPlatform] = useState<PlatformKey | "">((initialValues?.platform as PlatformKey) || "");
-  const [baseUrl, setBaseUrl] = useState(initialValues?.baseUrl || "");
-  const [name, setName] = useState(initialValues?.name || initialValues?.storeName || "");
-  const [isValid, setIsValid] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [platform, setPlatform] = useState<PlatformKey>((initial?.platform as PlatformKey) || "openfront");
+  const [baseUrl, setBaseUrl] = useState(initial?.baseUrl || "");
+  const [name, setName] = useState(initial?.name || initial?.storeName || "");
 
-  useEffect(() => {
-    // Only auto-generate name if user hasn't typed one and we're not in editing mode (unless initial name was empty)
-    if (baseUrl && !name && !isEditing) {
-      try {
-        const url = new URL(baseUrl);
-        const hostname = url.hostname.replace('www.', '');
-        const generatedName = hostname
-          .split('.')[0]
-          .charAt(0)
-          .toUpperCase() + hostname.split('.')[0].slice(1);
-        setName(generatedName);
-      } catch {}
-    }
-  }, [baseUrl, name, isEditing]);
-
-  useEffect(() => {
-    let valid = true;
-    const errors = [];
-
-    if (!baseUrl) {
-      valid = false;
-    } else {
-      try {
-        new URL(baseUrl);
-      } catch {
-        errors.push("Invalid URL format");
-        valid = false;
-      }
+  const error = useMemo(() => {
+    if (!baseUrl) return null;
+    let normalizedBaseUrl: string;
+    try {
+      normalizedBaseUrl = normalizeSourceBaseUrl(baseUrl);
+    } catch {
+      return "Enter a credential-free HTTPS URL.";
     }
 
-    if (!platform) {
-      valid = false;
+    const id = sourceIdFor({ baseUrl: normalizedBaseUrl, platform });
+    if (existingStoreIds.includes(id)) return "This store is already connected.";
+    if (!admittedStores.some((store) => store.id === id)) {
+      return "This endpoint must be admitted in marketplace.config.json first.";
     }
+    return null;
+  }, [admittedStores, baseUrl, existingStoreIds, platform]);
 
-    if (existingUrls.includes(baseUrl)) {
-      errors.push("This store is already in your list");
-      valid = false;
-    }
+  const valid = !!baseUrl && !error;
 
-    setError(errors.length > 0 ? errors[0] : null);
-    setIsValid(valid);
-  }, [baseUrl, platform, existingUrls]);
-
-  const selectedPlatform = platform ? PLATFORMS[platform] : null;
-
-  const handleSave = () => {
-    if (!isValid || !platform) return;
-
-    onSave({
-      storeId: initialValues?.storeId,
-      baseUrl: baseUrl.trim(),
+  const save = () => {
+    if (!valid) return;
+    const resolvedName = name.trim() || undefined;
+    const normalizedBaseUrl = normalizeSourceBaseUrl(baseUrl);
+    onSubmit({
+      ...initial,
+      id: sourceIdFor({ baseUrl: normalizedBaseUrl, platform }),
+      baseUrl: normalizedBaseUrl,
       platform,
-      name: name.trim() || undefined,
-      storeName: name.trim() || undefined, // Also set storeName for display
+      name: resolvedName,
+      storeName: resolvedName,
     });
   };
 
   return (
-    <div className="space-y-4 py-2">
-      {/* Platform */}
-      <div className="space-y-2">
-        <Label className="text-xs font-medium">Platform</Label>
-        <Select value={platform} onValueChange={(v) => setPlatform(v as PlatformKey)}>
-          <SelectTrigger className="h-9 text-sm">
-            <SelectValue placeholder="Select platform" />
-          </SelectTrigger>
-          <SelectContent>
-            {Object.entries(PLATFORMS).map(([key, config]) => {
-              return (
-                <SelectItem key={key} value={key}>
-                  <span>{config.name}</span>
-                </SelectItem>
-              );
-            })}
-          </SelectContent>
-        </Select>
+    <>
+      <div className="space-y-4 px-4 py-4">
+        <div>
+          <Label className="text-[11.5px] font-medium text-ink-2">Platform</Label>
+          <div className="mt-1.5 grid grid-cols-3 gap-1 rounded-control bg-inset p-1 shadow-hairline">
+            {(Object.keys(PLATFORMS) as PlatformKey[]).map((key) => (
+              <button
+                key={key}
+                type="button"
+                aria-pressed={platform === key}
+                onClick={() => setPlatform(key)}
+                className={cn(
+                  "h-7 rounded-[6px] text-[12px] font-medium transition-[background-color,color,box-shadow] duration-100",
+                  platform === key ? "bg-surface text-ink shadow-hairline" : "text-ink-3 hover:text-ink-2"
+                )}
+              >
+                {PLATFORMS[key].label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <Label htmlFor="store-url" className="text-[11.5px] font-medium text-ink-2">Store URL</Label>
+          <Input
+            id="store-url"
+            type="url"
+            list="admitted-store-urls"
+            value={baseUrl}
+            onChange={(event) => setBaseUrl(event.target.value)}
+            placeholder={PLATFORMS[platform].example}
+            className="mt-1.5"
+            autoFocus
+          />
+          <datalist id="admitted-store-urls">
+            {admittedStores.map((store) => (
+              <option key={store.id} value={store.baseUrl}>{store.name || store.storeName}</option>
+            ))}
+          </datalist>
+          {error && <p className="mt-1.5 text-[11px] text-red">{error}</p>}
+        </div>
+
+        <div>
+          <Label htmlFor="store-name" className="text-[11.5px] font-medium text-ink-2">Display name <span className="text-ink-3">optional</span></Label>
+          <Input
+            id="store-name"
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            placeholder="Derived from the store URL"
+            className="mt-1.5"
+          />
+        </div>
       </div>
 
-      {/* URL */}
-      <div className="space-y-2">
-        <Label className="text-xs font-medium">Store URL</Label>
-        <Input
-          type="url"
-          placeholder={selectedPlatform?.exampleUrl || "https://your-store.com"}
-          value={baseUrl}
-          onChange={(e) => setBaseUrl(e.target.value)}
-          className={`h-9 text-sm ${error ? "border-destructive" : ""}`}
-        />
-        {error && <p className="text-xs text-destructive">{error}</p>}
+      <div className="flex items-center justify-end gap-2 border-t border-line bg-inset px-3 py-2.5">
+        <Button type="button" variant="ghost" size="sm" onClick={onCancel}>Cancel</Button>
+        <Button type="button" size="sm" disabled={!valid} onClick={save}>{initial ? "Save changes" : "Add store"}</Button>
       </div>
-
-      {/* Name */}
-      <div className="space-y-2">
-        <Label className="text-xs font-medium">Store Name (optional)</Label>
-        <Input
-          placeholder="Auto-generated"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          className="h-9 text-sm"
-        />
-      </div>
-
-      {/* Actions */}
-      <div className="flex gap-2 pt-2">
-        <Button variant="outline" onClick={onCancel} className="flex-1 h-9 text-sm">
-          Cancel
-        </Button>
-        <Button onClick={handleSave} disabled={!isValid} className="flex-1 h-9 text-sm">
-          <Plus className="w-3.5 h-3.5 mr-1.5" />
-          {isEditing ? "Save" : "Add"}
-        </Button>
-      </div>
-    </div>
+    </>
   );
 }
 
@@ -340,167 +202,175 @@ export function StoreEditor({
   open,
   onOpenChange,
   currentConfig,
+  admittedConfig,
   onSave,
   cartsData,
   onCartSelect,
   onResetToDefault,
   isDefaultConfig,
+  startAdding = false,
 }: StoreEditorProps) {
   const [stores, setStores] = useState<Store[]>([]);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
-  const [isAdding, setIsAdding] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
-  // Initialize the editable list only when the dialog/config changes. Store-info
-  // refreshes must never replace in-progress edits with the stale config prop.
   useEffect(() => {
-    if (open && currentConfig) {
-      setStores(currentConfig.map(store => ({ ...store })));
-      setEditingIndex(null);
-      setIsAdding(false);
-    }
+    if (!open) return;
+    setStores(currentConfig.map((store) => ({ ...store })));
   }, [open, currentConfig]);
 
-  // Live API metadata is presentation-only. Merge it into stores that still
-  // exist instead of rebuilding the list, which could resurrect removed stores.
+  // Opening mode is one-shot. Config events emitted by a successful save must
+  // not reopen the add/edit form while the dialog remains mounted.
+  useEffect(() => {
+    if (!open) return;
+    setEditingIndex(null);
+    setAdding(startAdding);
+    setSaveError(null);
+  }, [open, startAdding]);
+
   useEffect(() => {
     if (!open || !cartsData) return;
-
-    setStores(currentStores => currentStores.map(store => {
-      const cartData = cartsData.find(cart =>
+    setStores((current) => current.map((store) => {
+      const metadata = cartsData.find((cart) =>
+        cart.storeId === store.id ||
         (store.storeId && cart.storeId === store.storeId) ||
-        (cart.baseUrl && store.baseUrl && cart.baseUrl === store.baseUrl)
+        (cart.baseUrl && store.baseUrl === cart.baseUrl)
       );
-      if (!cartData) return store;
-
+      if (!metadata) return store;
       return {
         ...store,
-        storeId: cartData.storeId || store.storeId,
-        cartId: cartData.cartId,
-        logoIcon: cartData.logoIcon || store.logoIcon,
-        logoColor: cartData.logoColor || store.logoColor,
-        storeName: store.storeName || store.name || cartData.storeName,
+        storeId: metadata.storeId || store.storeId,
+        cartId: metadata.cartId,
+        logoIcon: metadata.logoIcon || store.logoIcon,
+        logoColor: metadata.logoColor || store.logoColor,
+        storeName: store.storeName || store.name || metadata.storeName,
       };
     }));
   }, [open, cartsData]);
 
-  const handleAddStore = (newStore: Store) => {
-    const updatedStores = [...stores, newStore];
-    setStores(updatedStores);
-    setIsAdding(false);
-    onSave(updatedStores);
+  const persist = (next: Store[]): boolean => {
+    try {
+      const saved = onSave(next);
+      setStores(saved);
+      setSaveError(null);
+      return true;
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "Could not save the store directory.");
+      return false;
+    }
   };
 
-  const handleUpdateStore = (index: number, updatedStore: Store) => {
-    const newStores = [...stores];
-    newStores[index] = updatedStore;
-    setStores(newStores);
-    setEditingIndex(null);
-    onSave(newStores);
-  };
-
-  const handleDeleteStore = (index: number) => {
-    const newStores = stores.filter((_, i) => i !== index);
-    setStores(newStores);
-    onSave(newStores);
-  };
+  const editing = editingIndex !== null ? stores[editingIndex] : undefined;
+  const formOpen = adding || editingIndex !== null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-sm p-0">
-        <DialogTitle className="sr-only">Manage Stores</DialogTitle>
-        <div className="p-4">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="font-semibold text-sm">Stores</h3>
-            {!isDefaultConfig && onResetToDefault && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  onResetToDefault();
-                  onOpenChange(false);
-                }}
-                className="h-7 px-2 text-xs"
-              >
-                <RotateCcw className="w-3 h-3 mr-1" />
-                Reset
-              </Button>
-            )}
-          </div>
-
-          {isAdding || editingIndex !== null ? (
-            <motion.div
-              initial={{ opacity: 0, y: -5 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="border rounded-md p-3 bg-muted/50"
+      <DialogContent className="max-w-[440px] gap-0 p-0">
+        <div className="flex min-h-12 items-center border-b border-line px-3 pr-12">
+          {formOpen ? (
+            <button
+              type="button"
+              onClick={() => { setAdding(false); setEditingIndex(null); }}
+              className="mr-2 flex size-6 items-center justify-center rounded-[6px] text-ink-3 transition-colors hover:bg-hover hover:text-ink"
+              aria-label="Back to stores"
             >
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-sm font-medium">
-                  {isAdding ? "Add Store" : "Edit Store"}
-                </span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 w-6 p-0"
-                  onClick={() => {
-                    setIsAdding(false);
-                    setEditingIndex(null);
-                  }}
-                >
-                  <X className="w-3.5 h-3.5" />
-                </Button>
-              </div>
-              <AddStoreForm
-                onSave={isAdding ? handleAddStore : (store) => handleUpdateStore(editingIndex!, store)}
-                onCancel={() => {
-                  setIsAdding(false);
-                  setEditingIndex(null);
-                }}
-                existingUrls={stores
-                  .filter((_, i) => i !== editingIndex)
-                  .map(s => s.baseUrl)}
-                isEditing={editingIndex !== null}
-                initialValues={editingIndex !== null ? stores[editingIndex] : undefined}
-              />
-            </motion.div>
-          ) : (
-            <div className="space-y-2">
-              <AnimatePresence mode="popLayout">
-                {stores.map((store, index) => {
-                  return (
-                    <div key={index}>
-                      {index > 0 && <div className="h-px bg-border" />}
-                      <StoreCard
-                        store={store}
-                        onEdit={() => setEditingIndex(index)}
-                        onDelete={() => handleDeleteStore(index)}
-                        onCartSelect={onCartSelect}
-                        onOpenChange={() => onOpenChange(false)}
-                      />
-                    </div>
-                  );
-                })}
-              </AnimatePresence>
+              <ArrowLeft className="size-3.5" />
+            </button>
+          ) : null}
+          <div className="min-w-0">
+            <DialogTitle className="text-[13px] font-semibold text-ink">{adding ? "Add store" : editing ? "Edit store" : "Store directory"}</DialogTitle>
+            <DialogDescription className="text-[11px] leading-normal text-ink-3">{formOpen ? "Select an endpoint admitted by this marketplace." : `${stores.length} connected ${stores.length === 1 ? "store" : "stores"}`}</DialogDescription>
+          </div>
+          {!formOpen && !isDefaultConfig && onResetToDefault ? (
+            <button
+              type="button"
+              onClick={() => { onResetToDefault(); onOpenChange(false); }}
+              className="ml-auto flex h-6 items-center gap-1 rounded-[6px] px-2 text-[11.5px] text-ink-3 transition-colors hover:bg-hover hover:text-ink"
+            >
+              <RotateCcw className="size-3" /> Reset
+            </button>
+          ) : null}
+        </div>
 
-              {stores.length === 0 && (
-                <div className="text-center py-8">
-                  <StoreIcon className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-                  <p className="text-xs text-muted-foreground">No stores</p>
+        {saveError ? (
+          <div role="alert" className="border-b border-red/20 bg-red-tint px-4 py-2 text-[11.5px] text-red">
+            {saveError}
+          </div>
+        ) : null}
+
+        {formOpen ? (
+          <StoreForm
+            initial={editing}
+            existingStoreIds={stores.filter((_, index) => index !== editingIndex).map((store) => store.id)}
+            admittedStores={admittedConfig}
+            onCancel={() => { setAdding(false); setEditingIndex(null); setSaveError(null); }}
+            onSubmit={(store) => {
+              if (editingIndex !== null) {
+                const next = [...stores];
+                next[editingIndex] = store;
+                if (persist(next)) setEditingIndex(null);
+              } else {
+                if (persist([...stores, store])) setAdding(false);
+              }
+            }}
+          />
+        ) : (
+          <>
+            <div className="max-h-72 overflow-y-auto">
+              {stores.length ? stores.map((store, index) => (
+                <div key={store.id} className="group flex h-12 items-center gap-2.5 border-b border-line px-3 last:border-0 hover:bg-inset">
+                  <StoreMark store={store} />
+                  <button type="button" onClick={() => setEditingIndex(index)} className="min-w-0 flex-1 text-left">
+                    <span className="block truncate text-[12.5px] font-medium text-ink">{storeName(store)}</span>
+                    <span className="block truncate text-[10.5px] text-ink-3">{store.baseUrl}</span>
+                  </button>
+                  <span className="hidden text-[10.5px] text-ink-3 sm:inline">
+                    {getStorePlatformLabel(store.platform)}
+                  </span>
+                  {store.cartId && store.storeId && onCartSelect ? (
+                    <button
+                      type="button"
+                      aria-label={`View ${storeName(store)} cart`}
+                      onClick={() => { onCartSelect(storeName(store), store.storeId!); onOpenChange(false); }}
+                      className="flex size-6 items-center justify-center rounded-[6px] text-ink-3 hover:bg-hover hover:text-ink"
+                    >
+                      <ShoppingBag className="size-3.5" />
+                    </button>
+                  ) : null}
+                  <a
+                    href={store.baseUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={`Open ${storeName(store)}`}
+                    className="flex size-6 items-center justify-center rounded-[6px] text-ink-3 hover:bg-hover hover:text-ink"
+                  >
+                    <ExternalLink className="size-3.5" />
+                  </a>
+                  <button
+                    type="button"
+                    aria-label={`Remove ${storeName(store)}`}
+                    onClick={() => persist(stores.filter((_, storeIndex) => storeIndex !== index))}
+                    className="flex size-6 items-center justify-center rounded-[6px] text-ink-3 hover:bg-red-tint hover:text-red"
+                  >
+                    <Trash2 className="size-3.5" />
+                  </button>
+                </div>
+              )) : (
+                <div className="flex flex-col items-center px-4 py-10 text-center">
+                  <span className="mb-2 flex size-8 items-center justify-center rounded-control bg-inset text-ink-3 shadow-hairline"><StoreIcon className="size-4" /></span>
+                  <p className="text-[13px] font-medium text-ink">No stores connected</p>
+                  <p className="mt-0.5 text-[11.5px] text-ink-3">Add an Openfront or Shopify store to begin.</p>
                 </div>
               )}
             </div>
-          )}
-
-          {!isAdding && editingIndex === null && (
-            <Button
-              variant="outline"
-              className="w-full mt-3 h-8 text-xs"
-              onClick={() => setIsAdding(true)}
-            >
-              <Plus className="w-3 h-3 mr-1.5" />
-              Add Store
-            </Button>
-          )}
-        </div>
+            <div className="border-t border-line bg-inset p-2.5">
+              <Button type="button" size="sm" onClick={() => setAdding(true)} className="w-full">
+                <Plus className="size-3.5" /> Add store
+              </Button>
+            </div>
+          </>
+        )}
       </DialogContent>
     </Dialog>
   );

@@ -7,9 +7,9 @@ function Input({ className, type, ...props }: React.ComponentProps<"input">) {
       type={type}
       data-slot="input"
       className={cn(
-        "border-input file:text-foreground placeholder:text-muted-foreground/70 flex h-11 w-full min-w-0 rounded-md border bg-transparent px-4 py-1 shadow-xs transition-[color,box-shadow] outline-none file:inline-flex file:h-7 file:border-0 file:bg-transparent file:font-medium disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50",
-        "focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]",
-        "aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
+        "placeholder:text-ink-3 flex h-8 w-full min-w-0 rounded-control border border-line-strong bg-field px-2.5 py-1 text-[13px] text-ink shadow-[var(--shadow-inset-field)] outline-none transition-[background-color,border-color,box-shadow] duration-150 file:inline-flex file:h-6 file:border-0 file:bg-transparent file:text-[12px] file:font-medium disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-40",
+        "focus-visible:border-signal focus-visible:bg-surface focus-visible:ring-2 focus-visible:ring-signal/20",
+        "aria-invalid:border-red aria-invalid:ring-red/20",
         type === "search" &&
           "[&::-webkit-search-cancel-button]:appearance-none [&::-webkit-search-decoration]:appearance-none [&::-webkit-search-results-button]:appearance-none [&::-webkit-search-results-decoration]:appearance-none",
         type === "file" &&

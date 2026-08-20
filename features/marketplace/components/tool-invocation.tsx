@@ -3,7 +3,6 @@
 import { useState, memo } from 'react';
 import {
   ChevronDownIcon,
-  ChevronUpIcon,
   Loader2,
   CheckCircle2,
   TerminalSquare,
@@ -11,11 +10,15 @@ import {
   ArrowRight,
   Circle,
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
 import { PaymentUI } from './payment/payment-ui';
-import { getAllCarts, removeCartId } from '@/lib/cart-storage';
+import { getAllCarts } from '@/lib/cart-storage';
 import { getSessionToken } from '@/lib/session-storage';
 import { getMarketplaceConfig } from '@/lib/marketplace-storage';
+import {
+  applyCartLifecycleFromToolResult,
+  getMcpToolResultData,
+  serializeCartMutation,
+} from '@/lib/cart-client-actions';
 
 interface ToolInvocationProps {
   toolName: string;
@@ -71,66 +74,49 @@ export const ToolInvocation = memo(function ToolInvocation({
         return;
       }
 
-      // Build headers with cart IDs and session token
-      let xCartIds = '{}';
-      try {
-        const carts = getAllCarts();
-        const ids: Record<string, string> = {};
-        Object.entries(carts).forEach(([k, v]: any) => { if (v?.cartId) ids[k] = v.cartId; });
-        xCartIds = JSON.stringify(ids);
-      } catch {}
+      const completeResult = await serializeCartMutation(storeId, async () => {
+        const cartIds = Object.fromEntries(
+          Object.entries(getAllCarts()).map(([key, value]) => [key, value.cartId])
+        );
+        const token = getSessionToken(storeId);
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+          'x-cart-ids': JSON.stringify(cartIds),
+          'x-marketplace-config': JSON.stringify(getMarketplaceConfig()),
+        };
+        if (token) headers.Authorization = `Bearer ${token}`;
 
-      const token = getSessionToken(storeId);
-      const marketplaceConfig = getMarketplaceConfig();
-      // No global UCP mode needed
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        'x-cart-ids': xCartIds,
-        'x-marketplace-config': JSON.stringify(marketplaceConfig),
-      };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
-      // Call completeCart MCP tool directly
-      const response = await fetch('/api/mcp-transport/http', {
-        method: 'POST',
-        headers,
-        credentials: 'include',
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          id: `complete-cart-${Date.now()}`,
-          method: 'tools/call',
-          params: {
-            name: 'completeCart',
-            arguments: {
-              storeId,
-              cartId,
-              paymentSessionId,
-              ...(paypalOrderId && { paypalOrderId })
+        const response = await fetch('/api/mcp-transport/http', {
+          method: 'POST',
+          headers,
+          credentials: 'include',
+          body: JSON.stringify({
+            jsonrpc: '2.0',
+            id: `complete-cart-${Date.now()}`,
+            method: 'tools/call',
+            params: {
+              name: 'completeCart',
+              arguments: {
+                storeId,
+                cartId,
+                paymentSessionId,
+                ...(paypalOrderId && { paypalOrderId })
+              },
             },
-          },
-        }),
+          }),
+        });
+
+        const result = await response.json();
+        applyCartLifecycleFromToolResult(result);
+        return result;
       });
 
-      const completeResult = await response.json();
-
       if (completeResult.result) {
-        // Parse the result to get the order details
-        const text = completeResult.result?.content?.[0]?.text;
-
-        if (text) {
-          const orderData = JSON.parse(text);
-
-          // Store the order URL for the success button
-          if (orderData.redirectUrl) {
+        const orderData = getMcpToolResultData(completeResult);
+        if (orderData) {
+          if (typeof orderData.redirectUrl === 'string') {
             setOrderUrl(orderData.redirectUrl);
           }
-
-          // Clear cart ID from localStorage since order is complete
-          if (orderData.clearCartId && storeId) {
-            removeCartId(storeId);
-          }
-
-          // Mark payment as completed
           setPaymentCompleted(true);
         }
       }
@@ -149,16 +135,6 @@ export const ToolInvocation = memo(function ToolInvocation({
       return <Circle className="h-3.5 w-3.5 fill-muted-foreground/10 text-muted-foreground/70" />;
     }
     return <CheckCircle2 size={14} className="text-primary/90" />;
-  };
-
-  const getStatusClass = () => {
-    if (state === 'call') {
-      if (isLatestMessage && status !== 'ready') {
-        return 'text-primary';
-      }
-      return 'text-muted-foreground';
-    }
-    return 'text-primary';
   };
 
   const formatContent = (content: any): string => {
@@ -182,49 +158,71 @@ export const ToolInvocation = memo(function ToolInvocation({
 
 
   return (
-    <div
-      className={cn(
-        'flex flex-col mb-2 rounded-md border border-border/50 overflow-hidden',
-        'bg-gradient-to-b from-background to-muted/30 backdrop-blur-sm',
-        'transition-all duration-200 hover:border-border/80 group'
-      )}
-    >
-      <div
-        className={cn(
-          'flex items-center gap-2.5 px-3 py-2 cursor-pointer transition-colors',
-          'hover:bg-muted/20'
-        )}
+    <div className="mb-2">
+      <button
+        type="button"
+        className="group/row -mx-[3px] flex h-7 w-[calc(100%+6px)] min-w-0 items-center gap-2 rounded-control px-[3px] text-left transition-colors duration-100 hover:bg-hover-2"
         onClick={() => setIsExpanded(!isExpanded)}
+        aria-expanded={isExpanded}
       >
-        <div className="flex items-center justify-center rounded-full w-5 h-5 bg-primary/5 text-primary">
-          <TerminalSquare className="h-3.5 w-3.5" />
-        </div>
-        <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground flex-1">
-          <span className="text-foreground font-semibold tracking-tight">{toolName}</span>
-          <ArrowRight className="h-3 w-3 text-muted-foreground/50" />
-          <span className={cn('font-medium', getStatusClass())}>
-            {state === 'call'
-              ? isLatestMessage && status !== 'ready'
-                ? 'Running'
-                : 'Waiting'
-              : 'Completed'}
+        <span className="relative flex size-4 shrink-0 items-center justify-center text-ink-3">
+          <TerminalSquare className="size-3.5 transition-opacity duration-100 group-hover/row:opacity-0" />
+          <ChevronDownIcon
+            className="absolute size-3 opacity-0 transition-[opacity,transform] duration-150 group-hover/row:opacity-100"
+            style={{ transform: isExpanded ? 'rotate(0deg)' : 'rotate(-90deg)' }}
+          />
+        </span>
+        <span className="shrink-0 font-mono text-[11.5px] font-medium tracking-tight text-ink">{toolName}</span>
+        {state === 'call' ? (
+          <span className="min-w-0 flex-1 truncate text-[11.5px] text-ink-3">
+            {isLatestMessage && status !== 'ready' ? 'Running…' : 'Waiting'}
           </span>
-        </div>
-        <div className="flex items-center gap-2 opacity-70 group-hover:opacity-100 transition-opacity">
+        ) : (
+          <span className="flex-1" />
+        )}
+        <span className="flex size-4 shrink-0 items-center justify-center text-ink-3">
           {getStatusIcon()}
-          <div className="bg-muted/30 rounded-full p-0.5 border border-border/30">
-            {isExpanded ? (
-              <ChevronUpIcon className="h-3 w-3 text-foreground/70" />
-            ) : (
-              <ChevronDownIcon className="h-3 w-3 text-foreground/70" />
+        </span>
+      </button>
+
+      <div
+        className="grid transition-[grid-template-rows,opacity] duration-300"
+        style={{
+          gridTemplateRows: isExpanded ? '1fr' : '0fr',
+          opacity: isExpanded ? 1 : 0,
+          transitionTimingFunction: 'cubic-bezier(0.23, 1, 0.32, 1)',
+        }}
+      >
+        <div className="min-h-0 overflow-hidden">
+          <div className="mb-1 ml-2 mt-0.5 space-y-2 border-l border-line py-1 pl-3.5">
+            {!!args && (
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-1.5 font-mono text-[10.5px] text-ink-3">
+                  <Code className="size-3" />
+                  <span>Arguments</span>
+                </div>
+                <pre className="overflow-x-auto rounded-control bg-inset p-2.5 font-mono text-[11px] text-ink-2 shadow-hairline">
+                  {formatContent(args)}
+                </pre>
+              </div>
+            )}
+            {!!result && (
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-1.5 font-mono text-[10.5px] text-ink-3">
+                  <ArrowRight className="size-3" />
+                  <span>Result</span>
+                </div>
+                <pre className="max-h-[300px] overflow-x-auto overflow-y-auto rounded-control bg-inset p-2.5 font-mono text-[11px] text-ink-2 shadow-hairline">
+                  {formatContent(result)}
+                </pre>
+              </div>
             )}
           </div>
         </div>
       </div>
 
-      {/* Render payment UI if this is a payment session */}
       {paymentData && !isExpanded && (
-        <div className="px-3 pb-3 pt-2">
+        <div className="mt-2">
           <PaymentUI
             paymentProvider={paymentData.paymentProvider}
             paymentSession={paymentData.paymentSession}
@@ -236,45 +234,6 @@ export const ToolInvocation = memo(function ToolInvocation({
             completingOrder={completingOrder}
             orderUrl={orderUrl}
           />
-        </div>
-      )}
-
-      {isExpanded && (
-        <div className="space-y-2 px-3 pb-3">
-          {!!args && (
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground/70 pt-1.5">
-                <Code className="h-3 w-3" />
-                <span className="font-medium">Arguments</span>
-              </div>
-              <pre
-                className={cn(
-                  'text-xs font-mono p-2.5 rounded-md overflow-x-auto',
-                  'border border-border/40 bg-muted/10'
-                )}
-              >
-                {formatContent(args)}
-              </pre>
-            </div>
-          )}
-
-          {!!result && (
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground/70">
-                <ArrowRight className="h-3 w-3" />
-                <span className="font-medium">Result</span>
-              </div>
-
-              <pre
-                className={cn(
-                  'text-xs font-mono p-2.5 rounded-md overflow-x-auto max-h-[300px] overflow-y-auto',
-                  'border border-border/40 bg-muted/10'
-                )}
-              >
-                {formatContent(result)}
-              </pre>
-            </div>
-          )}
         </div>
       )}
     </div>

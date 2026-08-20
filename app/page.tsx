@@ -1,25 +1,29 @@
 "use client";
 
-import { Syne } from "next/font/google";
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import {
   ChatContainerRoot,
   ChatContainerContent,
   ChatContainerScrollAnchor,
 } from "../features/marketplace/components/dual-sidebar/chat-container";
 import { ScrollButton } from "../features/marketplace/components/dual-sidebar/scroll-button";
-import { ArrowUp, ArrowUpRight, Search, ShoppingCart } from "lucide-react";
+import { ArrowUp } from "lucide-react";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
-import { AnimatePresence, motion } from "framer-motion";
+import { LoadingState } from "@/components/beautiful-ui/loading-state";
+import { cn } from "@/lib/utils";
 
 // UI Components
-import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { checkSharedKeysAvailable } from "@/features/marketplace/actions/ai-chat";
 import { ModeSplitButton } from "../features/marketplace/components/dual-sidebar/mode-split-button";
 import { useAiConfig } from "../features/marketplace/hooks/use-ai-config";
-import { setCartId as saveCartToLocalStorage, removeCartId } from "@/lib/cart-storage";
+import {
+  applyCartLifecycleFromToolResult,
+  getMcpToolResultData,
+  serializeCartMutation,
+} from "@/lib/cart-client-actions";
+import { getAllCarts } from "@/lib/cart-storage";
 import { getAllSessions } from "@/lib/session-storage";
 import {
   getDefaultMarketplaceConfig,
@@ -34,20 +38,13 @@ import { ChatUnactivatedState } from "../features/marketplace/components/dual-si
 import { AIMessage } from "../features/marketplace/components/ai-message";
 import { PromptSuggestions } from "../features/marketplace/components/dual-sidebar/prompt-suggestions";
 import { CartsDropdown } from "../features/marketplace/components/dual-sidebar/carts-dropdown";
-import { LogoIcon as OpenFrontIcon } from "@/components/OpenfrontLogo";
-import { LogoIcon as OpenShipIcon } from "@/components/OpenshipLogo";
-import { LogoIcon as OpenSupportIcon } from "@/components/OpensupportLogo";
-
-const syne = Syne({
-  subsets: ["latin"],
-  display: "swap",
-});
-
+import type { StickToBottomContext } from "use-stick-to-bottom";
+import type { MarketplaceDiscoveryRequest } from "@/lib/marketplace-discovery";
 // Main AI Chat Page Component
 export default function HomePage() {
   const [user] = useState<{ name?: string } | null>(null);
   const { config: aiConfig, sharedKeys } = useAiConfig();
-  const savedCartIds = useRef<Set<string>>(new Set()); 
+  const chatScrollContextRef = useRef<StickToBottomContext | null>(null);
   const [cartIdsState, setCartIdsState] = useState<Record<string, string>>({}); 
   const [sessionTokensState, setSessionTokensState] = useState<Record<string, string>>({}); 
   const [input, setInput] = useState("");
@@ -188,18 +185,55 @@ export default function HomePage() {
     };
   }, [aiConfig.keyMode, aiConfig.localKeys, cartIdsState, sessionTokensState, marketplaceConfig]);
 
+  // useChat creates its Chat instance once. Keep one transport and resolve the
+  // request body at send time so switching Global/Local never uses stale keys.
+  const chatBodyRef = useRef(chatBody);
+  chatBodyRef.current = chatBody;
+  const chatTransport = useMemo(() => new DefaultChatTransport({
+    api: "/api/completion",
+    prepareSendMessagesRequest: ({ id, messages, trigger, messageId, body }) => ({
+      body: {
+        ...body,
+        ...chatBodyRef.current,
+        id,
+        messages,
+        trigger,
+        messageId,
+      },
+    }),
+  }), []);
+
   const { messages, status, sendMessage, stop, setMessages } =
     useChat({
-      transport: new DefaultChatTransport({
-        api: "/api/completion",
-        body: chatBody,
-      }),
+      transport: chatTransport,
       onError: (error) => {
         console.error("Chat error:", error);
       },
     });
 
   const isLoading = status === 'streaming' || status === 'submitted';
+
+  const beginFollowingLatest = useCallback(() => {
+    const context = chatScrollContextRef.current;
+    if (!context) return () => undefined;
+
+    let finishDuration!: () => void;
+    let finished = false;
+    const duration = new Promise<void>((resolve) => {
+      finishDuration = resolve;
+    });
+
+    void context.scrollToBottom({
+      animation: "smooth",
+      duration,
+    });
+
+    return () => {
+      if (finished) return;
+      finished = true;
+      requestAnimationFrame(finishDuration);
+    };
+  }, []);
 
   const handleActivationComplete = () => {
     setSelectedMode(aiConfig.keyMode);
@@ -223,79 +257,87 @@ export default function HomePage() {
     }
   };
 
-  const handleSuggestionClick = async (suggestion: string) => {
-    if (suggestion.toLowerCase().includes("show me products")) {
-      stop();
-      try {
-        const marketplaceConfig = getMarketplaceConfig();
-        const discoverResponse = await fetch('/api/mcp-transport/http', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-marketplace-config': JSON.stringify(marketplaceConfig),
+  const handleSuggestionClick = async ({
+    prompt,
+    toolName,
+    input,
+  }: MarketplaceDiscoveryRequest) => {
+    stop();
+    try {
+      const discoverResponse = await fetch('/api/mcp-transport/http', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-marketplace-config': JSON.stringify(getMarketplaceConfig()),
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: `${toolName}-${Date.now()}`,
+          method: 'tools/call',
+          params: {
+            name: toolName,
+            arguments: input,
           },
-          credentials: 'include',
-          body: JSON.stringify({
-            jsonrpc: '2.0',
-            id: `discover-products-${Date.now()}`,
-            method: 'tools/call',
-            params: {
-              name: 'discoverProducts',
-              arguments: {},
-            },
-          }),
-        });
-        const discoverResult = await discoverResponse.json();
-        if (discoverResult.result) {
-          const toolCallId = `call_${Date.now()}`;
-          setMessages([...messages, {
-            id: `msg-${Date.now()}`,
-            role: 'assistant',
-            parts: [{
-              type: 'dynamic-tool',
-              toolCallId,
-              toolName: 'discoverProducts',
-              input: {},
-              state: 'output-available',
-              output: discoverResult.result,
-            }],
-          } as any]);
-        }
-      } catch (error) {
-        console.error('[handleSuggestionClick] Error calling discoverProducts directly:', error);
-        sendMessage({ text: suggestion });
+        }),
+      });
+      if (!discoverResponse.ok) throw new Error('Discovery request failed');
+
+      const discoverResult = await discoverResponse.json();
+      if (!discoverResult.result || discoverResult.error) {
+        throw new Error('Discovery tool returned no result');
       }
-    } else {
-      sendMessage({ text: suggestion });
+
+      const timestamp = Date.now();
+      setMessages((currentMessages) => [
+        ...currentMessages,
+        {
+          id: `suggestion-${timestamp}`,
+          role: 'user',
+          parts: [{ type: 'text', text: prompt }],
+        } as any,
+        {
+          id: `msg-${timestamp}`,
+          role: 'assistant',
+          parts: [{
+            type: 'dynamic-tool',
+            toolCallId: `call_${timestamp}`,
+            toolName,
+            input,
+            state: 'output-available',
+            output: discoverResult.result,
+          }],
+        } as any,
+      ]);
+    } catch (error) {
+      console.error(`[handleSuggestionClick] Error calling ${toolName} directly:`, error);
+      sendMessage({ text: prompt });
     }
   };
 
   const handleCartSelect = async (storeName: string, storeId: string) => {
     stop();
-    let cartId = cartIdsState[storeId];
-    try {
-      const marketplaceConfig = getMarketplaceConfig();
-      let xCartIds = '{}';
-      try {
-        const ids: Record<string, string> = {};
-        Object.entries(cartIdsState).forEach(([k, v]) => { if (v) ids[k] = v; });
-        xCartIds = JSON.stringify(ids);
-      } catch (e) {
-        console.warn('[handleCartSelect] Failed to serialize cart IDs:', e);
-      }
-      const sessionTokens = getAllSessions();
-      const token = sessionTokens[storeId];
+    const finishFollowingLatest = beginFollowingLatest();
+
+    const buildHeaders = () => {
+      const cartIds = Object.fromEntries(
+        Object.entries(getAllCarts()).map(([key, value]) => [key, value.cartId])
+      );
+      const token = getAllSessions()[storeId];
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
-        'x-cart-ids': xCartIds,
-        'x-marketplace-config': JSON.stringify(marketplaceConfig),
+        'x-cart-ids': JSON.stringify(cartIds),
+        'x-marketplace-config': JSON.stringify(getMarketplaceConfig()),
       };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
+      if (token) headers.Authorization = `Bearer ${token}`;
+      return headers;
+    };
 
-      if (!cartId) {
+    try {
+      const cartId = await serializeCartMutation(storeId, async () => {
         const createCartResponse = await fetch('/api/mcp-transport/http', {
           method: 'POST',
-          headers,
+          headers: buildHeaders(),
           credentials: 'include',
           body: JSON.stringify({
             jsonrpc: '2.0',
@@ -308,20 +350,21 @@ export default function HomePage() {
           }),
         });
         const createCartResult = await createCartResponse.json();
-        if (createCartResult.result?.content?.[0]?.text) {
-          const cartData = JSON.parse(createCartResult.result.content[0].text);
-          cartId = cartData.cart?.id;
-          if (cartData.__clientAction?.type === 'saveCartId' && cartData.__clientAction.cartId) {
-            cartId = cartData.__clientAction.cartId;
-            saveCartToLocalStorage(storeId, cartId);
-          }
-        }
-        if (!cartId) throw new Error('Failed to create or retrieve cart');
-      }
+        const cartChange = applyCartLifecycleFromToolResult(createCartResult);
+        const cartData = getMcpToolResultData(createCartResult);
+        const resolvedCartId = cartChange?.type === 'saved'
+          ? cartChange.cartId
+          : typeof (cartData?.cart as { id?: unknown } | undefined)?.id === 'string'
+            ? (cartData?.cart as { id: string }).id
+            : undefined;
+
+        if (!resolvedCartId) throw new Error('Failed to create or retrieve cart');
+        return resolvedCartId;
+      });
 
       const viewCartResponse = await fetch('/api/mcp-transport/http', {
         method: 'POST',
-        headers,
+        headers: buildHeaders(),
         credentials: 'include',
         body: JSON.stringify({
           jsonrpc: '2.0',
@@ -352,6 +395,8 @@ export default function HomePage() {
     } catch (error) {
       console.error('[handleCartSelect] Error:', error);
       sendMessage({ text: `Please show me my cart from ${storeName} (storeId: ${storeId})` });
+    } finally {
+      finishFollowingLatest();
     }
   };
 
@@ -370,27 +415,7 @@ export default function HomePage() {
       if (message.role === 'assistant' && message.parts) {
         message.parts.forEach((part: any) => {
           if (part.type === 'dynamic-tool' && part.state === 'output-available' && part.output) {
-            try {
-              const result = typeof part.output === 'string' ? JSON.parse(part.output) : part.output;
-              if (result.content?.[0]?.text) {
-                const parsedText = JSON.parse(result.content[0].text);
-                if (parsedText.clearCartId && parsedText.storeId) {
-                  removeCartId(parsedText.storeId);
-                }
-                if (parsedText.__clientAction?.type === 'saveCartId') {
-                  const { storeId, cartId } = parsedText.__clientAction;
-                  if (storeId && cartId) {
-                    const cacheKey = `${storeId}:${cartId}`;
-                    if (!savedCartIds.current.has(cacheKey)) {
-                      saveCartToLocalStorage(storeId, cartId);
-                      savedCartIds.current.add(cacheKey);
-                    }
-                  }
-                }
-              }
-            } catch {
-              // Expected for non-JSON or non-cart tool outputs - ignore silently
-            }
+            applyCartLifecycleFromToolResult(part.output);
           }
         });
       }
@@ -402,154 +427,119 @@ export default function HomePage() {
   const showOnboarding = isAiChatReady && messages.length === 0;
 
   return (
-    <div className="flex flex-col h-dvh relative bg-background">
-      {isAiChatReady ? (
-        <div className={cn(
-          "@container/main relative z-10 flex flex-1 min-h-0 w-full flex-col items-center justify-center overflow-x-hidden pt-16"
-        )}>
-          <AnimatePresence initial={false} mode="popLayout">
-            {showOnboarding ? (
-              <motion.div
-                key="onboarding"
-                className="relative mx-auto max-w-[50rem] mb-8 px-2 sm:px-0"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                layout="position"
-                layoutId="onboarding"
-              >
-                <div className="mb-4 sm:mb-5 flex flex-col items-center px-4">
-                  <div className="flex flex-col items-center gap-1 sm:gap-1.5 mb-3 sm:mb-4">
-                    <OpenFrontIcon className="size-4 sm:size-8" suffix="-hero-top" />
-                    <div className="flex items-center gap-1.5 sm:gap-3">
-                      <OpenShipIcon className="size-4 sm:size-8" suffix="-hero-left" />
-                      <OpenSupportIcon className="size-4 sm:size-8" suffix="-hero-right" />
-                    </div>
-                  </div>
-                  <h1 className={`${syne.className} text-[1.2rem] sm:text-[1.5rem] tracking-tight leading-none text-center bg-gradient-to-br from-foreground to-foreground/50 bg-clip-text text-transparent`}>
-                    <span className="font-medium">the / </span>
-                    <span className="font-bold">marketplace</span>
-                  </h1>
-                </div>
-                <p className="text-base sm:text-2xl opacity-60 text-center mb-2 sm:mb-3 font-instrument-serif px-4 leading-tight">
-                  Discover products • Shop seamlessly • Checkout instantly
-                </p>
-                <div className="flex justify-center px-4">
-                  <a
-                    href="https://openship.org/products/marketplace"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className={`${syne.className} inline-flex items-center gap-1 text-sm sm:text-base text-muted-foreground hover:text-foreground transition-colors`}
-                  >
-                    Learn more <ArrowUpRight className="size-4" />
-                  </a>
-                </div>
-              </motion.div>
-            ) : (
-              <ChatContainerRoot key="conversation" className="relative flex-1 w-full min-h-0">
-                <ChatContainerContent className="flex w-full flex-col items-center pt-3 pb-4">
-                  <div className="w-full max-w-3xl px-2 space-y-3">
-                    {messages.map((message, index) => (
-                      <AIMessage
-                        key={index}
-                        message={message}
-                        isLoading={isLoading}
-                        status={status}
-                        isLatestMessage={index === messages.length - 1}
-                        sendMessage={sendMessage as any}
-                        stop={stop}
-                        setMessages={setMessages}
-                        messages={messages}
-                      />
-                    ))}
-                    {isLoading && messages.length > 0 && messages[messages.length - 1].role === "user" && (
-                      <div className="text-base flex justify-start">
-                        <div className="w-[90%] flex flex-col space-y-3">
-                          <div className="flex items-center gap-1 text-muted-foreground">
-                            <span className="animate-pulse">Thinking...</span>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                  <ChatContainerScrollAnchor />
-                  <div className="absolute bottom-4 right-4">
-                    <ScrollButton />
-                  </div>
-                </ChatContainerContent>
-              </ChatContainerRoot>
-            )}
-          </AnimatePresence>
-
-          <motion.div
-            className={cn("sticky inset-x-0 bottom-0 z-0 w-full flex justify-center")}
-            layout="position"
-            layoutId="chat-input-container"
-          >
-            <div className="relative flex w-full flex-col gap-4 px-2 pb-3 sm:pb-4 max-w-3xl">
-              {showOnboarding && (
-                <div className="relative order-1 w-full md:absolute md:bottom-[-70px] md:order-2 md:h-[70px] md:left-0 md:right-0 md:px-2">
-                  <PromptSuggestions onSuggestionClick={handleSuggestionClick} />
-                </div>
-              )}
-
-              <form
-                onSubmit={(e) => { e.preventDefault(); if (input.trim()) { sendMessage({ text: input }); setInput(""); } }}
-                className="order-2 md:order-1 group flex flex-col w-full"
-              >
-                <div className="border flex flex-col items-center justify-center p-[6.71px] relative w-full bg-gradient-to-br from-gray-100 to-gray-50 dark:from-gray-900 dark:to-gray-800 rounded-[28px] shadow-md ring-foreground/5 ring-1">
-                  <div className="bg-white dark:bg-gray-950 relative rounded-[23.49px] shadow-[0px_0px_0.492px_0px_rgba(0,0,0,0.18),0px_0.984px_2.953px_0px_rgba(0,0,0,0.1)] w-full p-2 sm:p-3">
-                    <div className="flex flex-row items-start gap-1 sm:gap-2">
-                      <textarea
-                        value={input}
-                        onChange={(e) => setInput(e.target.value)}
-                        onKeyDown={handleKeyDown}
-                        placeholder="Ask me anything..."
-                        className="grow resize-none border-0 bg-transparent p-2 text-base outline-none ring-0 placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50"
-                        disabled={isLoading}
-                        rows={3}
-                        style={{ minHeight: '44px' }}
-                      />
-                    </div>
-                    <div className="flex items-center justify-between border-t-0 p-0 pt-2">
-                      <div className="flex items-center gap-1.5 sm:gap-2">
-                        <ModeSplitButton
-                          disabled={isLoading}
-                          onSettingsClick={() => setShowSettingsDialog(true)}
-                          sharedKeys={sharedKeys}
-                        />
-                        <CartsDropdown
-                          cartIds={cartIdsState}
-                          onCartSelect={handleCartSelect}
-                          disabled={isLoading}
-                        />
-                      </div>
-                      <Button
-                        type="submit"
-                        disabled={isLoading || !input.trim()}
-                        className="size-8 sm:size-9 rounded-full bg-primary text-primary-foreground flex-shrink-0"
-                      >
-                        {isLoading ? (
-                          <svg className="animate-spin size-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                        ) : (
-                          <svg xmlns="http://www.w3.org/2000/svg" className="size-4" viewBox="0 -960 960 960" fill="currentColor"><path d="M442.39-616.87 309.78-487.26q-11.82 11.83-27.78 11.33t-27.78-12.33q-11.83-11.83-11.83-27.78 0-15.96 11.83-27.79l198.43-199q11.83-11.82 28.35-11.82t28.35 11.82l198.43 199q11.83 11.83 11.83 27.79 0 15.95-11.83 27.78-11.82 11.83-27.78 11.83t-27.78-11.83L521.61-618.87v348.83q0 16.95-11.33 28.28-11.32 11.33-28.28 11.33t-28.28-11.33q-11.33-11.33-11.33-28.28z"/></svg>
-                        )}
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </form>
-            </div>
-          </motion.div>
-        </div>
-      ) : (
-        <div className="flex-1 flex items-center justify-center relative z-10">
-          <ChatUnactivatedState
-            userName={user?.name}
-            onActivate={handleActivationOpen}
-          />
-        </div>
+    <div
+      className={cn(
+        "flex min-h-[calc(100dvh-3rem)] items-center justify-center p-3 sm:p-5",
+        isAiChatReady && !showOnboarding &&
+          "h-[calc(100dvh-3rem)] min-h-0 items-stretch p-0 sm:h-auto sm:min-h-[calc(100dvh-3rem)] sm:items-center sm:p-5"
       )}
+    >
+      <section
+        className={cn(
+          "flex h-[min(580px,calc(100dvh-5rem))] min-h-[480px] w-full max-w-2xl flex-col overflow-hidden rounded-card bg-surface shadow-card",
+          isAiChatReady && !showOnboarding &&
+            "h-full min-h-0 rounded-none shadow-none sm:h-[min(580px,calc(100dvh-5rem))] sm:min-h-[480px] sm:rounded-card sm:shadow-card"
+        )}
+      >
+        <div className="flex shrink-0 items-center border-b border-line p-1.5">
+          <CartsDropdown cartIds={cartIdsState} onCartSelect={handleCartSelect} disabled={isLoading} />
+        </div>
+
+        {isAiChatReady ? (
+          <>
+            <div className="relative min-h-0 flex-1">
+              {showOnboarding ? (
+                <div className="flex h-full items-center justify-center overflow-y-auto px-4 py-5">
+                  <div className="w-full max-w-110">
+                    <div className="mb-4 flex w-full flex-col gap-1.5" style={{ animation: "fade-up 400ms cubic-bezier(0.23,1,0.32,1) both" }}>
+                      <h1 className="text-[16px] font-semibold leading-tight tracking-[-0.015em] text-ink">
+                        Welcome to the only marketplace you&apos;ll ever need.
+                      </h1>
+                      <p className="text-[13px] leading-[1.45] text-ink-2">
+                        Search for anything, from restaurants in Toronto to hotels in New York, on one open marketplace that connects you directly with stores and sellers through open-source commerce. <a href="/ethos" className="font-medium text-signal-ink underline decoration-signal/30 underline-offset-2 transition-colors hover:text-ink">Read our ethos</a>.
+                      </p>
+                    </div>
+                    <PromptSuggestions onSuggestionClick={handleSuggestionClick} />
+                  </div>
+                </div>
+              ) : (
+                <ChatContainerRoot contextRef={chatScrollContextRef} className="relative h-full min-h-0">
+                  <ChatContainerContent className="flex w-full flex-col px-3 pb-1 pt-2.5">
+                    <div className="w-full space-y-2.5">
+                      {messages.map((message, index) => (
+                        <AIMessage
+                          key={message.id || index}
+                          message={message}
+                          isLoading={isLoading}
+                          status={status}
+                          isLatestMessage={index === messages.length - 1}
+                          sendMessage={sendMessage as any}
+                          stop={stop}
+                          setMessages={setMessages}
+                          messages={messages}
+                          beginFollowingLatest={beginFollowingLatest}
+                        />
+                      ))}
+                      {isLoading && messages.length > 0 && messages[messages.length - 1].role === "user" && (
+                        <LoadingState label="Thinking" variant="Drive" />
+                      )}
+                    </div>
+                    <ChatContainerScrollAnchor />
+                    <div className="absolute bottom-2 right-2"><ScrollButton /></div>
+                  </ChatContainerContent>
+                </ChatContainerRoot>
+              )}
+            </div>
+
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (input.trim()) {
+                  sendMessage({ text: input });
+                  setInput("");
+                }
+              }}
+              className={cn(
+                "mt-auto shrink-0 p-1.5",
+                !showOnboarding && "pb-[max(0.375rem,env(safe-area-inset-bottom))]"
+              )}
+            >
+              <div className="flex cursor-text flex-col gap-2.5 rounded-control border border-line bg-field p-3 shadow-[0_1px_2px_rgba(0,0,0,0.035)] transition-[border-color,box-shadow] duration-150 focus-within:border-line-strong focus-within:shadow-[0_1px_2px_rgba(0,0,0,0.025)]">
+                <textarea
+                  value={input}
+                  onChange={(event) => setInput(event.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Ask for products, menus, or places"
+                  disabled={isLoading}
+                  rows={1}
+                  className="min-h-6 w-full resize-none bg-transparent text-[16px] leading-[1.4] text-ink outline-none placeholder:text-ink-3 disabled:cursor-not-allowed disabled:opacity-40"
+                />
+                <div className="flex items-center justify-between gap-2">
+                  <ModeSplitButton
+                    disabled={isLoading}
+                    onSettingsClick={() => setShowSettingsDialog(true)}
+                    sharedKeys={sharedKeys}
+                  />
+                  <Button
+                    type="submit"
+                    size="icon"
+                    disabled={isLoading || !input.trim()}
+                    aria-label="Send message"
+                    className="size-7 rounded-[5px]"
+                  >
+                    <ArrowUp className="size-4" strokeWidth={2.4} />
+                  </Button>
+                </div>
+              </div>
+            </form>
+          </>
+        ) : (
+          <div className="flex min-h-0 flex-1 items-center justify-center p-4">
+            <ChatUnactivatedState userName={user?.name} onActivate={handleActivationOpen} />
+          </div>
+        )}
+      </section>
+
       <AIActivationDialog open={showActivationDialog} onOpenChange={setShowActivationDialog} onComplete={handleActivationComplete} sharedKeysStatus={sharedKeysStatus} />
       <AISettingsDialog open={showSettingsDialog} onOpenChange={setShowSettingsDialog} onSave={handleSettingsSave} sharedKeysStatus={sharedKeysStatus} />
     </div>

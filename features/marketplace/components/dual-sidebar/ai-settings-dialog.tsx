@@ -307,7 +307,7 @@ function AISettingsDialogInner({ onSave, onOpenChange, sharedKeysStatus }: { onS
                 {localKeys.provider === "custom" && (
                   <Input
                     id="custom-endpoint"
-                    placeholder="https://your-api-endpoint.com/v1"
+                    placeholder="http://127.0.0.1:8317/v1"
                     value={localKeys.customEndpoint}
                     onChange={(e) => setLocalKeys(prev => ({ ...prev, customEndpoint: e.target.value }))}
                     className="shadow-sm mt-3"
@@ -380,7 +380,9 @@ function AISettingsDialogInner({ onSave, onOpenChange, sharedKeysStatus }: { onS
                   </Popover>
                 </div>
                   <p className="text-xs text-muted-foreground mt-2">
-                    Enter any model slug or choose from popular options above.
+                    {localKeys.provider === "custom"
+                      ? "Enter an exact model ID returned by /v1/models."
+                      : "Enter any OpenRouter model slug or choose from popular options above."}
                   </p>
                 </div>
 
@@ -401,11 +403,7 @@ function AISettingsDialogInner({ onSave, onOpenChange, sharedKeysStatus }: { onS
                   <Input
                     id="api-key"
                     type="password"
-                    placeholder={
-                      localKeys.provider === "openrouter" ? "sk-or-v1-..." :
-                      localKeys.provider === "ai-gateway" ? "Your AI Gateway API key" :
-                      "Your API key"
-                    }
+                    placeholder={localKeys.provider === "openrouter" ? "sk-or-v1-..." : "Any non-empty API key"}
                     value={localKeys.apiKey}
                     onChange={(e) => setLocalKeys(prev => ({ ...prev, apiKey: e.target.value }))}
                     className="shadow-sm mt-3"
@@ -414,10 +412,7 @@ function AISettingsDialogInner({ onSave, onOpenChange, sharedKeysStatus }: { onS
                     {localKeys.provider === "openrouter" && (
                       <>Get your API key from <a href="https://openrouter.ai/keys" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">openrouter.ai/keys</a></>
                     )}
-                    {localKeys.provider === "ai-gateway" && (
-                      <>Configure your gateway at <a href="https://dash.cloudflare.com/" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Cloudflare Dashboard</a></>
-                    )}
-                    {localKeys.provider === "custom" && "Enter the API key for your custom endpoint"}
+                    {localKeys.provider === "custom" && "Use any non-empty value if your proxy does not require authentication."}
                   </p>
                 </div>
 

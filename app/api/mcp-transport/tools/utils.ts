@@ -5,6 +5,18 @@ import {
   isNonNullType,
   isListType,
 } from 'graphql';
+import { createTrustedFetch } from '@/lib/remote-endpoint';
+import { parseStoreConfigs } from '../types/store-config';
+
+const SOURCE_REQUEST_TIMEOUT_MS = 8_000;
+const admittedSourceOrigins = parseStoreConfigs().map(store => new URL(store.baseUrl).origin);
+const fetchTrustedSource = createTrustedFetch({
+  allowedOrigins: admittedSourceOrigins,
+  developmentPrivateOrigins: admittedSourceOrigins.filter(origin => {
+    const hostname = new URL(origin).hostname;
+    return hostname.endsWith('.local') || hostname.endsWith('.localhost');
+  }),
+});
 
 // Get simple type name for display
 export function getSimpleTypeName(type: any): string {
@@ -30,17 +42,18 @@ export async function executeGraphQL(query: string, graphqlEndpoint: string, coo
     headers['Cookie'] = cookie;
   }
 
-  const response = await fetch(graphqlEndpoint, {
+  const response = await fetchTrustedSource(graphqlEndpoint, {
     method: 'POST',
     headers,
     body: JSON.stringify({ query, variables }),
+    signal: AbortSignal.timeout(SOURCE_REQUEST_TIMEOUT_MS),
   });
 
   const result = await response.json();
   if (result.errors) {
-    const compactQuery = query.replace(/\s+/g, ' ').trim();
-    const vars = variables ? JSON.stringify(variables) : '{}';
-    throw new Error(`GraphQL execution failed: ${JSON.stringify(result.errors)} | Query: ${compactQuery} | Vars: ${vars}`);
+    // Variables may contain credentials, addresses, and payment references.
+    // Preserve diagnostics at the trusted source, never in MCP/model output.
+    throw new Error('Source GraphQL request failed');
   }
   return result;
 }
@@ -58,10 +71,11 @@ export async function getGraphQLSchema(graphqlEndpoint: string, cookie: string, 
     headers['Cookie'] = cookie;
   }
 
-  const response = await fetch(graphqlEndpoint, {
+  const response = await fetchTrustedSource(graphqlEndpoint, {
     method: 'POST',
     headers,
     body: JSON.stringify({ query: getIntrospectionQuery() }),
+    signal: AbortSignal.timeout(SOURCE_REQUEST_TIMEOUT_MS),
   });
 
   if (!response.ok) {
@@ -70,7 +84,7 @@ export async function getGraphQLSchema(graphqlEndpoint: string, cookie: string, 
 
   const result = await response.json();
   if (result.errors) {
-    throw new Error(`GraphQL introspection failed: ${JSON.stringify(result.errors)}`);
+    throw new Error('Source GraphQL introspection failed');
   }
 
   return buildClientSchema(result.data);

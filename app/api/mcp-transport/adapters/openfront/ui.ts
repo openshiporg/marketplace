@@ -1,3 +1,7 @@
+/* Hallmark · pre-emit critique: P5 H5 E5 S5 R5 V4 */
+import { beautifulUIStyles, iframeAutoResizeScript } from '../../ui/beautiful-ui';
+import { getStoreLogoHue } from '@/lib/store-logo';
+
 /**
  * OpenFront UI Generators
  *
@@ -17,6 +21,7 @@ export function generateOpenFrontCartUI(params: {
   shippingOptions: any[];
 }): string {
   const { storeId, cartId, cart, storeInfo, shippingOptions } = params;
+  const storeLogoHue = getStoreLogoHue(storeInfo?.logoColor);
 
   const storeDisplayName = (() => {
     const n = (storeInfo?.name || 'store').trim();
@@ -50,7 +55,7 @@ export function generateOpenFrontCartUI(params: {
     const total = formatPrice(item.total || 0, currencyCode);
 
     return `
-      <div class="cart-item p-2 sm:p-4 border-b">
+      <div class="cart-item p-2 sm:p-4">
         <div class="flex gap-2 sm:gap-3 mb-1.5 sm:mb-3">
           ${thumbnailUrl ? `
             <img src="${thumbnailUrl}" alt="${productTitle}"
@@ -111,6 +116,40 @@ export function generateOpenFrontCartUI(params: {
   const taxTotal = cart.tax || null;
   const discountTotal = cart.discount || null;
   const total = formatPrice(cart.total || 0, currencyCode);
+  const checkoutIssues = [
+    ...(!cart.lineItems?.length ? ['Add at least one item to the cart'] : []),
+    ...(!cart.shippingAddress ? ['Add a shipping address'] : []),
+    ...(!cart.shippingMethods?.length ? ['Select a shipping method'] : []),
+  ];
+  const paymentReady = checkoutIssues.length === 0;
+  const paymentLockTarget = !cart.lineItems?.length
+    ? { tab: 'cart', label: 'Review cart' }
+    : !cart.shippingAddress
+      ? { tab: 'address', label: 'Add shipping address' }
+      : { tab: 'shipping', label: 'Choose shipping method' };
+  const paymentIssueList = checkoutIssues.map((issue) => `<li>${issue}</li>`).join('');
+  const paymentProviderRows = (storeInfo?.paymentProviders || []).map((provider: any) => `
+    <button
+      onclick="selectPaymentProvider('${provider.provider}')"
+      class="payment-method-btn w-full border rounded-md p-4 text-left transition-colors bg-white"
+      data-provider="${provider.provider}"
+      aria-pressed="false"
+      ${paymentReady ? '' : 'disabled tabindex="-1"'}>
+      <div class="flex justify-between items-center">
+        <div class="flex items-center gap-4">
+          <div class="choice-radio w-4 h-4 border-2 rounded-full flex items-center justify-center"><div class="payment-radio w-0 h-0 rounded-full transition-all"></div></div>
+          <span class="font-medium capitalize">${provider.provider}</span>
+        </div>
+        <div class="flex items-center justify-center">
+          ${provider.provider === 'stripe' ? '<svg class="h-5 w-5" viewBox="0 0 24 24"><path fill="#635BFF" d="M13.976 9.15c-2.172-.806-3.356-1.426-3.356-2.409 0-.831.683-1.305 1.901-1.305 2.227 0 4.515.858 6.09 1.631l.89-5.494C18.252.975 15.697 0 12.165 0 9.667 0 7.589.654 6.104 1.872 4.56 3.147 3.757 4.992 3.757 7.218c0 4.039 2.467 5.76 6.476 7.219 2.585.92 3.445 1.574 3.445 2.583 0 .98-.84 1.545-2.354 1.545-1.875 0-4.965-.921-6.99-2.109l-.9 5.555C5.175 22.99 8.385 24 11.714 24c2.641 0 4.843-.624 6.328-1.813 1.664-1.305 2.525-3.236 2.525-5.732 0-4.128-2.524-5.851-6.594-7.305h.003z"/></svg>' : ''}
+          ${provider.provider === 'paypal' ? '<svg class="h-5 w-5" role="img" viewBox="0 0 24 24" style="color: var(--signal-ink)" xmlns="http://www.w3.org/2000/svg"><title>PayPal</title><path fill="currentColor" d="M15.607 4.653H8.941L6.645 19.251H1.82L4.862 0h7.995c3.754 0 6.375 2.294 6.473 5.513-.648-.478-2.105-.86-3.722-.86m6.57 5.546c0 3.41-3.01 6.853-6.958 6.853h-2.493L11.595 24H6.74l1.845-11.538h3.592c4.208 0 7.346-3.634 7.153-6.949a5.24 5.24 0 0 1 2.848 4.686M9.653 5.546h6.408c.907 0 1.942.222 2.363.541-.195 2.741-2.655 5.483-6.441 5.483H8.714Z"/></svg>' : ''}
+        </div>
+      </div>
+    </button>`).join('');
+  const checkoutPaymentRow = `
+    <button onclick="selectPaymentProvider('checkout')" class="payment-method-btn w-full border rounded-md p-4 text-left transition-colors bg-white" data-provider="checkout" aria-pressed="false" ${paymentReady ? '' : 'disabled tabindex="-1"'}>
+      <div class="flex justify-between items-center"><div class="flex items-center gap-4"><div class="choice-radio w-4 h-4 border-2 rounded-full flex items-center justify-center"><div class="payment-radio w-0 h-0 rounded-full transition-all"></div></div><span class="font-medium">Checkout on ${storeInfo?.name || 'Store'}</span></div><div class="cart-store-logo flex w-5 h-5 items-center justify-center" style="filter: hue-rotate(${storeLogoHue}deg);">${storeInfo?.logoIcon || ''}</div></div>
+    </button>`;
 
   const htmlContent = `
     <!DOCTYPE html>
@@ -120,31 +159,90 @@ export function generateOpenFrontCartUI(params: {
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <script src="https://cdn.tailwindcss.com"></script>
       <style>
-        body { font-family: system-ui, -apple-system, sans-serif; }
+        ${beautifulUIStyles}
+        body { font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
         button { transition: all 0.2s; }
         button:hover:not(:disabled) { transform: translateY(-1px); }
         .tab-button { position: relative; }
+        body > div > .cart-shell,
+        .cart-shell .rounded,
+        .cart-shell .rounded-md,
+        .cart-shell .rounded-lg {
+          border-radius: 0 !important;
+        }
+        body > div > .cart-shell {
+          border-color: var(--line) !important;
+          box-shadow: none !important;
+        }
+        .cart-shell .cart-header,
+        .cart-shell .cart-tabs,
+        .cart-shell .border,
+        .cart-shell .border-b,
+        .cart-shell .border-t,
+        .cart-shell .divide-y > :not([hidden]) ~ :not([hidden]) {
+          border-color: var(--line) !important;
+        }
+        .cart-shell .payment-method-btn {
+          border-radius: 0 !important;
+          border-color: var(--line-strong) !important;
+          box-shadow: none !important;
+        }
+        .cart-shell .cart-store-logo {
+          overflow: hidden;
+          background: var(--surface);
+        }
+        .cart-shell .cart-store-logo > svg {
+          display: block;
+          width: 100%;
+          height: 100%;
+        }
+        .cart-shell .choice-radio {
+          border-color: var(--line-strong) !important;
+          background: transparent !important;
+        }
+        .cart-shell .is-selected .choice-radio,
+        .cart-shell .choice-radio.is-selected {
+          border-color: var(--signal) !important;
+        }
+        .cart-shell .is-selected .payment-radio,
+        .cart-shell .choice-radio.is-selected .choice-radio-dot {
+          width: 8px !important;
+          height: 8px !important;
+          background: var(--signal) !important;
+        }
         .tab-button.active::after {
           content: '';
           position: absolute;
           bottom: -1px;
-          left: 0;
-          right: 0;
-          height: 2px;
-          background-color: #000;
+          left: 12px;
+          right: 12px;
+          height: 1px;
+          background: var(--signal) !important;
           z-index: 1;
         }
+        .payment-lock-stage { position: relative; min-height: 390px; overflow: hidden; border: 1px solid var(--line); background: var(--inset); }
+        .payment-lock-preview { min-height: 390px; padding: 204px 12px 12px; opacity: .42; filter: saturate(.35); pointer-events: none; user-select: none; }
+        .payment-lock-card { position: absolute; z-index: 2; top: 12px; left: 50%; width: min(420px, calc(100% - 24px)); transform: translateX(-50%); border: 1px solid var(--line-strong); background: var(--surface); box-shadow: var(--shadow-raised); padding: 16px; }
+        .payment-lock-icon { display: grid; place-items: center; width: 30px; height: 30px; flex: 0 0 auto; border: 1px solid var(--line); background: var(--inset); color: var(--ink-2); }
+        .payment-lock-icon svg { width: 15px; height: 15px; }
+        .payment-lock-card h4 { margin: 0; font-size: 14px; line-height: 1.3; }
+        .payment-lock-card p { margin: 3px 0 0; color: var(--ink-2); font-size: 12px; }
+        .payment-lock-card ul { margin: 12px 0 14px; padding: 0; list-style: none; display: grid; gap: 6px; }
+        .payment-lock-card li { display: flex; align-items: center; gap: 8px; color: var(--ink-2); font-size: 12px; }
+        .payment-lock-card li::before { content: ''; width: 5px; height: 5px; flex: 0 0 auto; border-radius: 999px; background: var(--ink-3); }
+        .payment-lock-card button { white-space: nowrap; }
+        @media (max-width: 374px) { .payment-lock-card { padding: 14px; } .payment-lock-preview { padding: 8px; } }
       </style>
     </head>
     <body>
       <div class="max-w-4xl mx-auto">
-        <div class="bg-gray-50 rounded-lg shadow border">
+        <div class="cart-shell bg-gray-50 border">
           <!-- Store Logo & Header -->
-          <div class="border-b p-3 sm:p-6">
+          <div class="cart-header border-b p-3 sm:p-6">
             <p class="text-xs sm:text-sm text-gray-500 mb-1 sm:mb-2">Your cart from</p>
             <div class="flex items-center gap-2 sm:gap-3">
               ${storeInfo?.logoIcon ? `
-                <div class="flex items-center justify-center w-6 h-6 sm:w-7 sm:h-7" style="background-color: ${storeInfo?.logoColor || '#000'}; filter: hue-rotate(${storeInfo?.logoColor || '0'}deg);">
+                <div class="cart-store-logo flex w-6 h-6 sm:w-7 sm:h-7 items-center justify-center" style="filter: hue-rotate(${storeLogoHue}deg);">
                   ${storeInfo.logoIcon}
                 </div>
               ` : ''}
@@ -153,7 +251,7 @@ export function generateOpenFrontCartUI(params: {
           </div>
 
           <!-- Tabs -->
-          <div class="border-b border-gray-200">
+          <div class="cart-tabs border-b border-gray-200">
             <div class="flex">
               <button onclick="switchTab('cart')" id="tab-cart" class="tab-button active flex-1 px-2 sm:px-4 pb-2 sm:pb-3 pt-1.5 sm:pt-2 text-xs sm:text-sm font-medium hover:text-gray-600">
                 Cart
@@ -240,11 +338,11 @@ export function generateOpenFrontCartUI(params: {
                     return `
                     <button
                       onclick="selectShippingMethod('${option.id}', '${option.name}')"
-                      class="w-full border rounded-md p-4 text-left hover:border-gray-900 transition-colors ${isSelected ? 'border-gray-900 bg-white' : 'border-gray-300 bg-white'}">
+                      class="shipping-method-btn ${isSelected ? 'is-selected' : ''} w-full border rounded-md p-4 text-left transition-colors bg-white">
                       <div class="flex justify-between items-center">
                         <div class="flex items-center gap-4">
-                          <div class="w-4 h-4 border-2 rounded-full flex items-center justify-center ${isSelected ? 'border-gray-900' : 'border-gray-300'}">
-                            ${isSelected ? '<div class="w-2 h-2 bg-gray-900 rounded-full"></div>' : ''}
+                          <div class="choice-radio ${isSelected ? 'is-selected' : ''} w-4 h-4 border-2 rounded-full flex items-center justify-center">
+                            ${isSelected ? '<div class="choice-radio-dot rounded-full"></div>' : ''}
                           </div>
                           <span class="font-medium">${option.name}</span>
                         </div>
@@ -266,73 +364,22 @@ export function generateOpenFrontCartUI(params: {
             <div id="content-payment" class="tab-content hidden">
               <h3 class="font-semibold text-lg mb-4">Payment Method</h3>
 
-              <!-- Step 1: Payment Method Selection -->
-              <div id="payment-selection">
-                <p class="text-sm text-gray-600 mb-4">Select your payment method</p>
-                <div class="space-y-2">
-                  ${storeInfo?.paymentProviders && storeInfo.paymentProviders.length > 0 ? storeInfo.paymentProviders.map((provider: any) => `
-                    <button
-                      onclick="selectPaymentProvider('${provider.provider}')"
-                      class="payment-method-btn w-full border rounded-md p-4 text-left hover:border-gray-900 transition-colors bg-white border-gray-300"
-                      data-provider="${provider.provider}">
-                      <div class="flex justify-between items-center">
-                        <div class="flex items-center gap-4">
-                          <div class="w-4 h-4 border-2 rounded-full flex items-center justify-center border-gray-300">
-                            <div class="payment-radio w-0 h-0 rounded-full transition-all"></div>
-                          </div>
-                          <span class="font-medium capitalize">${provider.provider}</span>
-                        </div>
-                        <div class="flex items-center justify-center">
-                          ${provider.provider === 'stripe' ? '<svg class="h-5 w-5" viewBox="0 0 24 24"><path fill="#635BFF" d="M13.976 9.15c-2.172-.806-3.356-1.426-3.356-2.409 0-.831.683-1.305 1.901-1.305 2.227 0 4.515.858 6.09 1.631l.89-5.494C18.252.975 15.697 0 12.165 0 9.667 0 7.589.654 6.104 1.872 4.56 3.147 3.757 4.992 3.757 7.218c0 4.039 2.467 5.76 6.476 7.219 2.585.92 3.445 1.574 3.445 2.583 0 .98-.84 1.545-2.354 1.545-1.875 0-4.965-.921-6.99-2.109l-.9 5.555C5.175 22.99 8.385 24 11.714 24c2.641 0 4.843-.624 6.328-1.813 1.664-1.305 2.525-3.236 2.525-5.732 0-4.128-2.524-5.851-6.594-7.305h.003z"/></svg>' : ''}
-                          ${provider.provider === 'paypal' ? '<svg class="h-5 w-5" role="img" viewBox="0 0 24 24" color="#002991" xmlns="http://www.w3.org/2000/svg"><title>PayPal</title><path d="M15.607 4.653H8.941L6.645 19.251H1.82L4.862 0h7.995c3.754 0 6.375 2.294 6.473 5.513-.648-.478-2.105-.86-3.722-.86m6.57 5.546c0 3.41-3.01 6.853-6.958 6.853h-2.493L11.595 24H6.74l1.845-11.538h3.592c4.208 0 7.346-3.634 7.153-6.949a5.24 5.24 0 0 1 2.848 4.686M9.653 5.546h6.408c.907 0 1.942.222 2.363.541-.195 2.741-2.655 5.483-6.441 5.483H8.714Z"/></svg>' : ''}
-                        </div>
-                      </div>
-                    </button>
-                  `).join('') : ''}
-
-                  <!-- Checkout on Store Option -->
-                  <button
-                    onclick="selectPaymentProvider('checkout')"
-                    class="payment-method-btn w-full border rounded-md p-4 text-left hover:border-gray-900 transition-colors bg-white border-gray-300"
-                    data-provider="checkout">
-                    <div class="flex justify-between items-center">
-                      <div class="flex items-center gap-4">
-                        <div class="w-4 h-4 border-2 rounded-full flex items-center justify-center border-gray-300">
-                          <div class="payment-radio w-0 h-0 rounded-full transition-all"></div>
-                        </div>
-                        <span class="font-medium">Checkout on ${storeInfo?.name || 'Store'}</span>
-                      </div>
-                      <div class="flex items-center justify-center w-5 h-5" style="background-color: ${storeInfo?.logoColor || '#000'}; filter: hue-rotate(${storeInfo?.logoColor || '0'}deg);">
-                        ${storeInfo?.logoIcon || ''}
-                      </div>
-                    </div>
-                  </button>
-                </div>
-              </div>
+              ${paymentReady ? `<!-- Step 1: Payment Method Selection -->
+              <div id="payment-selection"><p class="text-sm text-gray-600 mb-4">Select your payment method</p><div class="space-y-2">${paymentProviderRows}${checkoutPaymentRow}</div></div>
 
               <!-- Step 2: Payment Action -->
               <div id="payment-action" class="hidden mt-6">
-                <div id="stripe-action" class="hidden">
-                  <p class="text-sm text-gray-600 mb-4">Complete your payment with Stripe</p>
-                  <button onclick="processStripePayment()" class="w-full bg-gray-900 text-white py-3 rounded-md hover:bg-gray-800 font-medium">
-                    Pay with Stripe
-                  </button>
+                <div id="stripe-action" class="hidden"><p class="text-sm text-gray-600 mb-4">Complete your payment with Stripe</p><button onclick="processStripePayment()" class="w-full bg-gray-900 text-white py-3 rounded-md hover:bg-gray-800 font-medium">Pay with Stripe</button></div>
+                <div id="paypal-action" class="hidden"><p class="text-sm text-gray-600 mb-4">Complete your payment with PayPal</p><button onclick="processPayPalPayment()" class="w-full bg-blue-600 text-white py-3 rounded-md hover:bg-blue-700 font-medium">Pay with PayPal</button></div>
+                <div id="checkout-action" class="hidden"><p class="text-sm text-gray-600 mb-4">Complete your purchase on ${storeInfo?.name || 'the store'}</p><button onclick="goToStoreCheckout()" class="w-full bg-gray-900 text-white py-3 rounded-md hover:bg-gray-800 font-medium">Go to ${storeInfo?.name || 'Store'}</button></div>
+              </div>` : `<div class="payment-lock-stage" data-lock-target="${paymentLockTarget.tab}">
+                <div class="payment-lock-preview" aria-hidden="true"><p class="text-sm text-gray-600 mb-3">Available payment methods</p><div class="space-y-2">${paymentProviderRows || '<div class="payment-method-btn border p-4 bg-white"><span class="font-medium">Secure payment</span></div>'}${checkoutPaymentRow}</div></div>
+                <div class="payment-lock-card" role="status" aria-labelledby="payment-lock-title">
+                  <div class="flex items-start gap-3"><span class="payment-lock-icon"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="5" y="10" width="14" height="10" rx="2" stroke="currentColor" stroke-width="1.7"/><path d="M8 10V7a4 4 0 0 1 8 0v3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></span><div><h4 id="payment-lock-title">Complete checkout details to pay</h4><p>Your available payment methods are ready once these steps are complete.</p></div></div>
+                  <ul>${paymentIssueList}</ul>
+                  <button type="button" onclick="switchTab('${paymentLockTarget.tab}')" class="w-full bg-gray-900 text-white py-2.5 px-4 rounded-md hover:bg-gray-800">${paymentLockTarget.label}</button>
                 </div>
-
-                <div id="paypal-action" class="hidden">
-                  <p class="text-sm text-gray-600 mb-4">Complete your payment with PayPal</p>
-                  <button onclick="processPayPalPayment()" class="w-full bg-blue-600 text-white py-3 rounded-md hover:bg-blue-700 font-medium">
-                    Pay with PayPal
-                  </button>
-                </div>
-
-                <div id="checkout-action" class="hidden">
-                  <p class="text-sm text-gray-600 mb-4">Complete your purchase on ${storeInfo?.name || 'the store'}</p>
-                  <button onclick="goToStoreCheckout()" class="w-full bg-gray-900 text-white py-3 rounded-md hover:bg-gray-800 font-medium">
-                    Go to ${storeInfo?.name || 'Store'}
-                  </button>
-                </div>
-              </div>
+              </div>`}
             </div>
           </div>
         </div>
@@ -342,22 +389,7 @@ export function generateOpenFrontCartUI(params: {
         const cartId = '${cartId}';
         const storeId = '${storeId}';
 
-        // Auto-resize iframe based on content
-        const resizeObserver = new ResizeObserver((entries) => {
-          entries.forEach((entry) => {
-            window.parent.postMessage(
-              {
-                type: "ui-size-change",
-                payload: {
-                  height: entry.contentRect.height,
-                  width: entry.contentRect.width,
-                },
-              },
-              "*"
-            );
-          });
-        });
-        resizeObserver.observe(document.documentElement);
+        ${iframeAutoResizeScript}
 
         // Tab switching
         function switchTab(tabName) {
@@ -599,23 +631,9 @@ export function generateOpenFrontCartUI(params: {
           // Update radio button selection
           const allBtns = document.querySelectorAll('.payment-method-btn');
           allBtns.forEach(btn => {
-            const radioOuter = btn.querySelector('.w-4.h-4.border-2');
-            const radioInner = btn.querySelector('.payment-radio');
-            if (btn.dataset.provider === provider) {
-              btn.classList.remove('border-gray-300');
-              btn.classList.add('border-gray-900');
-              radioOuter.classList.remove('border-gray-300');
-              radioOuter.classList.add('border-gray-900');
-              radioInner.classList.remove('w-0', 'h-0');
-              radioInner.classList.add('w-2', 'h-2', 'bg-gray-900');
-            } else {
-              btn.classList.remove('border-gray-900');
-              btn.classList.add('border-gray-300');
-              radioOuter.classList.remove('border-gray-900');
-              radioOuter.classList.add('border-gray-300');
-              radioInner.classList.remove('w-2', 'h-2', 'bg-gray-900');
-              radioInner.classList.add('w-0', 'h-0');
-            }
+            const isSelected = btn.dataset.provider === provider;
+            btn.classList.toggle('is-selected', isSelected);
+            btn.setAttribute('aria-pressed', String(isSelected));
           });
 
           // Show payment action section
@@ -714,10 +732,11 @@ export function generateOpenFrontLoginUI(params: {
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <script src="https://cdn.tailwindcss.com"></script>
+      <style>${beautifulUIStyles}</style>
     </head>
     <body>
       <div class="max-w-3xl mx-auto">
-        <div class="bg-white border border-gray-200 rounded-lg p-4 sm:p-5">
+        <div class="mcp-card bg-white border border-gray-200 rounded-lg p-4 sm:p-5">
           <h2 class="text-base font-bold text-gray-900 mb-1">Login to Continue</h2>
           <p class="text-sm text-gray-700 mb-3 sm:mb-4 leading-tight">${message || 'An account with this email already exists. Please login.'}</p>
 
@@ -877,21 +896,7 @@ export function generateOpenFrontLoginUI(params: {
 
         }
 
-        // Auto-resize iframe
-        const resizeObserver = new ResizeObserver((entries) => {
-          entries.forEach((entry) => {
-            window.parent.postMessage(
-              {
-                type: "ui-size-change",
-                payload: {
-                  height: entry.contentRect.height,
-                },
-              },
-              "*"
-            );
-          });
-        });
-        resizeObserver.observe(document.body);
+        ${iframeAutoResizeScript}
       </script>
     </body>
     </html>
@@ -929,10 +934,11 @@ export function generateOpenFrontEmailConflictUI(params: {
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <script src="https://cdn.tailwindcss.com"></script>
+      <style>${beautifulUIStyles}</style>
     </head>
     <body>
       <div class="max-w-3xl mx-auto">
-        <div class="bg-white border border-gray-200 rounded-lg p-4 sm:p-5">
+        <div class="mcp-card bg-white border border-gray-200 rounded-lg p-4 sm:p-5">
           <h2 class="text-base font-bold text-gray-900 mb-1">Email Already in Use</h2>
           <p class="text-sm text-gray-700 mb-3 sm:mb-4 leading-tight">The email address <strong>${email}</strong> already has an account with ${storeName}.</p>
 
@@ -1000,21 +1006,7 @@ export function generateOpenFrontEmailConflictUI(params: {
 
         let selectedOption = null;
 
-        // Auto-resize iframe
-        const resizeObserver = new ResizeObserver((entries) => {
-          entries.forEach((entry) => {
-            window.parent.postMessage(
-              {
-                type: "ui-size-change",
-                payload: {
-                  height: entry.contentRect.height,
-                },
-              },
-              "*"
-            );
-          });
-        });
-        resizeObserver.observe(document.body);
+        ${iframeAutoResizeScript}
 
         function selectOption(option) {
           selectedOption = option;

@@ -10,19 +10,40 @@ import remarkBreaks from "remark-breaks";
 import { cn } from "@/lib/utils";
 import { ToolInvocation } from "./tool-invocation";
 import { UIResourceRenderer, isUIResource } from '@mcp-ui/client';
-import { getAllCarts, getCartId as getLocalCartId, setCartId as saveCartToLocalStorage } from '@/lib/cart-storage';
+import { getAllCarts } from '@/lib/cart-storage';
 import { getSessionToken, setSession } from '@/lib/session-storage';
 import { getMarketplaceConfig } from '@/lib/marketplace-storage';
+import { LoadingState } from '@/components/beautiful-ui/loading-state';
+import { useTheme } from 'next-themes';
+import {
+  applyCartLifecycleFromToolResult,
+  getCartIdentityFromToolResult,
+  getMcpToolResultData,
+  isCartMutationTool,
+  serializeCartMutation,
+} from '@/lib/cart-client-actions';
+import { isPermittedMcpUiAction } from '@/lib/mcp-action-policy';
+
+const TOOLS_THAT_APPEND_CHAT_UI = new Set([
+  'addToCart',
+  'authenticateUser',
+  'discoverProducts',
+  'discoverRestaurantMenus',
+  'getProduct',
+  'initiatePaymentSession',
+  'loginUser',
+]);
 
 interface AIMessageProps {
   message: TMessage;
   isLoading: boolean;
   status: "error" | "submitted" | "streaming" | "ready";
   isLatestMessage: boolean;
-  sendMessage: UseChatHelpers["sendMessage"];
-  stop: UseChatHelpers["stop"];
-  setMessages: UseChatHelpers["setMessages"];
+  sendMessage: UseChatHelpers<TMessage>["sendMessage"];
+  stop: UseChatHelpers<TMessage>["stop"];
+  setMessages: UseChatHelpers<TMessage>["setMessages"];
   messages: TMessage[];
+  beginFollowingLatest: () => () => void;
 }
 
 const PureAIMessage = ({
@@ -34,7 +55,10 @@ const PureAIMessage = ({
   stop,
   setMessages,
   messages,
+  beginFollowingLatest,
 }: AIMessageProps) => {
+  const { resolvedTheme } = useTheme();
+
   const callViewCartDirectly = async (storeId: string, cartId: string) => {
     try {
       let xCartIds = '{}';
@@ -93,9 +117,18 @@ const PureAIMessage = ({
     }
   };
 
-  const handleUiAction = useCallback(async (actionResult: any) => {
+  const handleUiAction = useCallback(async (actionResult: any, resourceUri?: string) => {
     const { messageId, type, payload } = actionResult;
+    if (type === 'tool' && !isPermittedMcpUiAction(resourceUri, payload?.toolName, payload?.params)) {
+      console.warn('[MCP UI] Rejected an action outside the resource capability.', resourceUri);
+      return undefined;
+    }
+    const shouldFollowLatest = type === 'prompt' || (
+      type === 'tool' && TOOLS_THAT_APPEND_CHAT_UI.has(payload?.toolName)
+    );
+    const finishFollowingLatest = shouldFollowLatest ? beginFollowingLatest() : null;
 
+    try {
     if (type === 'tool' && payload?.toolName) {
       try {
         if (payload.toolName === 'authenticateUser') {
@@ -134,11 +167,8 @@ const PureAIMessage = ({
           });
 
           const result = await response.json();
-          let authData: any = null;
-          try {
-            const text = result?.result?.content?.[0]?.text;
-            if (text) authData = JSON.parse(text);
-          } catch (e) {}
+          applyCartLifecycleFromToolResult(result);
+          const authData: any = getMcpToolResultData(result);
 
           try {
             const ca = authData?.__clientAction;
@@ -149,9 +179,6 @@ const PureAIMessage = ({
                 userId: ca.userId,
                 activeCartId: ca.activeCartId,
               });
-              if (ca.activeCartId) {
-                saveCartToLocalStorage(storeId, ca.activeCartId);
-              }
             }
           } catch {}
 
@@ -205,105 +232,125 @@ const PureAIMessage = ({
           return result.result;
         }
 
-        let xCartIdsForCall = '{}';
-        try {
-          const carts = getAllCarts();
-          const ids: Record<string, string> = {};
-          Object.entries(carts).forEach(([k, v]: any) => { if (v?.cartId) ids[k] = v.cartId; });
-          xCartIdsForCall = JSON.stringify(ids);
-        } catch {}
+        const storeIdForCall = payload.params?.storeId || '';
+        const executeToolCall = async () => {
+          let xCartIdsForCall = '{}';
+          try {
+            const carts = getAllCarts();
+            const ids: Record<string, string> = {};
+            Object.entries(carts).forEach(([key, value]: any) => {
+              if (value?.cartId) ids[key] = value.cartId;
+            });
+            xCartIdsForCall = JSON.stringify(ids);
+          } catch {}
 
-        const storeIdForCall = payload.params?.storeId;
-        const tokenForCall = getSessionToken(storeIdForCall);
-        const marketplaceConfig = getMarketplaceConfig();
-        // No global UCP mode needed
-        const callHeaders: Record<string, string> = {
-          'Content-Type': 'application/json',
-          'x-cart-ids': xCartIdsForCall,
-          'x-marketplace-config': JSON.stringify(marketplaceConfig),
+          const tokenForCall = getSessionToken(storeIdForCall);
+          const marketplaceConfig = getMarketplaceConfig();
+          const callHeaders: Record<string, string> = {
+            'Content-Type': 'application/json',
+            'x-cart-ids': xCartIdsForCall,
+            'x-marketplace-config': JSON.stringify(marketplaceConfig),
+          };
+          if (tokenForCall) callHeaders['Authorization'] = `Bearer ${tokenForCall}`;
+
+          const response = await fetch('/api/mcp-transport/http', {
+            method: 'POST',
+            headers: callHeaders,
+            credentials: 'include',
+            body: JSON.stringify({
+              jsonrpc: '2.0',
+              id: messageId || `ui-action-${Date.now()}`,
+              method: 'tools/call',
+              params: {
+                name: payload.toolName,
+                arguments: payload.params || {},
+              },
+            }),
+          });
+
+          const result = await response.json();
+          applyCartLifecycleFromToolResult(result);
+          return { result, callHeaders };
         };
-        if (tokenForCall) callHeaders['Authorization'] = `Bearer ${tokenForCall}`;
 
-        const response = await fetch('/api/mcp-transport/http', {
-          method: 'POST',
-          headers: callHeaders,
-          credentials: 'include',
-          body: JSON.stringify({
-            jsonrpc: '2.0',
-            id: messageId || `ui-action-${Date.now()}`,
-            method: 'tools/call',
-            params: {
-              name: payload.toolName,
-              arguments: payload.params || {},
-            },
-          }),
-        });
-
-        const result = await response.json();
+        const { result, callHeaders } = isCartMutationTool(payload.toolName)
+          ? await serializeCartMutation(storeIdForCall, executeToolCall)
+          : await executeToolCall();
 
         if (payload.toolName === 'addToCart') {
           try {
-            const text = result?.result?.content?.[0]?.text;
-            if (text) {
-              const responseData = JSON.parse(text);
-              if (!responseData.error && responseData.cart?.id) {
-                const storeId = responseData.storeId;
-                const cartId = responseData.cart.id;
-                const thinkingMessageId = `thinking-${Date.now()}`;
-                stop();
-                setMessages((currentMessages) => [...currentMessages, {
-                  id: thinkingMessageId,
-                  role: 'assistant',
-                  parts: [],
-                } as any]);
+            const responseData = getMcpToolResultData(result);
+            const cartIdentity = getCartIdentityFromToolResult(result);
+            if (responseData && !responseData.error && cartIdentity) {
+              const { storeId, cartId } = cartIdentity;
+              const thinkingMessageId = `thinking-${Date.now()}`;
+              stop();
+              setMessages((currentMessages) => [...currentMessages, {
+                id: thinkingMessageId,
+                role: 'assistant',
+                parts: [],
+              } as any]);
 
-                Promise.resolve().then(async () => {
-                  try {
-                    const viewCartResponse = await fetch('/api/mcp-transport/http', {
-                      method: 'POST',
-                      headers: callHeaders,
-                      credentials: 'include',
-                      body: JSON.stringify({
-                        jsonrpc: '2.0',
-                        id: `view-cart-${Date.now()}`,
-                        method: 'tools/call',
-                        params: {
-                          name: 'viewCart',
-                          arguments: { storeId, cartId },
-                        },
-                      }),
-                    });
-                    const viewCartResult = await viewCartResponse.json();
-                    if (viewCartResult.result) {
-                      setMessages((currentMessages) =>
-                        currentMessages.map(msg =>
-                          msg.id === thinkingMessageId
-                            ? {
-                                id: `msg-${Date.now()}`,
-                                role: 'assistant',
-                                parts: [{
-                                  type: 'dynamic-tool',
-                                  toolCallId: `call_${Date.now()}`,
-                                  toolName: 'viewCart',
-                                  input: { storeId, cartId },
-                                  state: 'output-available',
-                                  output: viewCartResult.result,
-                                }],
-                              } as any
-                            : msg
-                        )
-                      );
-                    }
-                  } catch (e) {
-                    setMessages((currentMessages) => currentMessages.filter(msg => msg.id !== thinkingMessageId));
-                  }
+              try {
+                const viewCartResponse = await fetch('/api/mcp-transport/http', {
+                  method: 'POST',
+                  headers: callHeaders,
+                  credentials: 'include',
+                  body: JSON.stringify({
+                    jsonrpc: '2.0',
+                    id: `view-cart-${Date.now()}`,
+                    method: 'tools/call',
+                    params: {
+                      name: 'viewCart',
+                      arguments: { storeId, cartId },
+                    },
+                  }),
                 });
+                const viewCartResult = await viewCartResponse.json();
+                if (viewCartResult.result) {
+                  setMessages((currentMessages) =>
+                    currentMessages.map(msg =>
+                      msg.id === thinkingMessageId
+                        ? {
+                            id: `msg-${Date.now()}`,
+                            role: 'assistant',
+                            parts: [{
+                              type: 'dynamic-tool',
+                              toolCallId: `call_${Date.now()}`,
+                              toolName: 'viewCart',
+                              input: { storeId, cartId },
+                              state: 'output-available',
+                              output: viewCartResult.result,
+                            }],
+                          } as any
+                        : msg
+                    )
+                  );
+                } else {
+                  setMessages((currentMessages) => currentMessages.filter(msg => msg.id !== thinkingMessageId));
+                }
+              } catch {
+                setMessages((currentMessages) => currentMessages.filter(msg => msg.id !== thinkingMessageId));
               }
+            } else if (result?.error) {
+              stop();
+              setMessages((currentMessages) => [...currentMessages, {
+                id: `msg-${Date.now()}`,
+                role: 'assistant',
+                parts: [{
+                  type: 'text',
+                  text: 'This restaurant is not accepting Marketplace cart requests right now. Try another restaurant source.',
+                }],
+              } as any]);
             }
-          } catch (e) {}
+          } catch {}
         }
 
-        if (['initiatePaymentSession', 'discoverProducts', 'loginUser', 'getProduct'].includes(payload.toolName)) {
+        const responseData = getMcpToolResultData(result);
+        if (
+          ['discoverProducts', 'discoverRestaurantMenus', 'loginUser', 'getProduct'].includes(payload.toolName) ||
+          (payload.toolName === 'initiatePaymentSession' && !responseData?.error)
+        ) {
           stop();
           const toolCallId = `call_${Date.now()}`;
           setMessages((currentMessages) => [...currentMessages, {
@@ -330,35 +377,47 @@ const PureAIMessage = ({
       return Promise.resolve({ status: 'ok' });
     }
     return Promise.resolve({ status: 'ok' });
-  }, [sendMessage, stop, setMessages, messages]);
+    } finally {
+      finishFollowingLatest?.();
+    }
+  }, [sendMessage, stop, setMessages, messages, beginFollowingLatest]);
 
   return (
-    <div className={`text-base flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
-      <div className={cn("break-words overflow-hidden min-w-0", message.role === "user" ? "max-w-[calc(100%-2rem)] bg-muted text-foreground px-4 py-2 rounded-md" : "w-[90%] flex flex-col space-y-3")}>
+    <div className={cn("flex w-full", message.role === "user" ? "justify-end" : "justify-start")}>
+      <div className={cn("min-w-0 break-words", message.role === "user" ? "max-w-[calc(100%-3.5rem)] rounded-xl bg-field px-3 py-1.5 text-[13px] leading-[1.4] text-ink sm:max-w-[72%]" : "w-full space-y-2.5")}>
         {message.role === "user" ? (
           <p className="whitespace-pre-wrap break-words">
             {message.parts?.filter((p: any) => p.type === 'text').map((p: any) => p.text).join('')}
           </p>
         ) : (
-          <div className="space-y-3 w-full">
+          <div className="w-full space-y-2">
             {message.parts?.map((part, i) => {
               switch (part.type) {
                 case "text":
                   return part.text ? (
-                    <div key={`message-part-${i}`} className="space-y-3">
-                      <ReactMarkdown
-                        remarkPlugins={[remarkGfm, remarkBreaks]}
-                        components={{
-                          p: ({ children }) => <div className="mb-1 last:mb-0 break-words">{children}</div>,
-                          a: ({ href, children }) => <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 underline font-semibold break-all">{children}</a>,
-                          ul: ({ children }) => <ul className="mb-1 last:mb-0 pl-2">{children}</ul>,
-                          ol: ({ children }) => <ol className="mb-1 last:mb-0 pl-2">{children}</ol>,
-                          li: ({ children }) => <li className="mb-0.5">{children}</li>,
-                          strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
-                          code: ({ children, ...props }) => (props as any).inline ? <code className="bg-muted px-1 rounded font-mono break-all">{children}</code> : <pre className="bg-muted border rounded p-2 overflow-x-auto"><code className="font-mono break-all">{children}</code></pre>,
-                          pre: ({ children }) => <div className="mb-1 last:mb-0">{children}</div>,
-                        }}
-                      >{part.text}</ReactMarkdown>
+                    <div
+                      key={`message-part-${i}`}
+                      className="flex w-full flex-col gap-1.5"
+                      style={{ animation: "fade-up 400ms cubic-bezier(0.23,1,0.32,1) both" }}
+                    >
+                      <div className="text-[12px] font-medium leading-[1.3] text-ink">
+                        Assistant
+                      </div>
+                      <div className="text-[13px] leading-normal text-ink">
+                        <ReactMarkdown
+                          remarkPlugins={[remarkGfm, remarkBreaks]}
+                          components={{
+                            p: ({ children }) => <div className="mb-1.5 last:mb-0 break-words">{children}</div>,
+                            a: ({ href, children }) => <a href={href} target="_blank" rel="noopener noreferrer" className="font-medium text-signal-ink underline decoration-signal/30 underline-offset-2 hover:decoration-signal break-all">{children}</a>,
+                            ul: ({ children }) => <ul className="mb-1.5 list-disc space-y-1 pl-4 last:mb-0">{children}</ul>,
+                            ol: ({ children }) => <ol className="mb-1.5 list-decimal space-y-1 pl-4 last:mb-0">{children}</ol>,
+                            li: ({ children }) => <li>{children}</li>,
+                            strong: ({ children }) => <strong className="font-semibold text-ink">{children}</strong>,
+                            code: ({ children, ...props }) => (props as any).inline ? <code className="rounded-[4px] bg-inset px-1 py-0.5 font-mono text-[11.5px] break-all">{children}</code> : <pre className="overflow-x-auto rounded-control bg-inset p-3 shadow-hairline"><code className="font-mono text-[11.5px] break-all">{children}</code></pre>,
+                            pre: ({ children }) => <div className="mb-1 last:mb-0">{children}</div>,
+                          }}
+                        >{part.text}</ReactMarkdown>
+                      </div>
                     </div>
                   ) : null;
 
@@ -384,18 +443,32 @@ const PureAIMessage = ({
                         isLatestMessage={isLatestMessage}
                         status={status}
                       />
-                      {uiResources.length > 0 && uiResources.map((content: any, index: number) => (
-                        <div key={content.resource?.uri || `ui-resource-${index}`}>
-                          <UIResourceRenderer
-                            resource={content.resource || content}
-                            htmlProps={{
-                              autoResizeIframe: { height: true, width: false },
-                              style: { width: '100%', minHeight: '425px', border: 'none', borderRadius: '0.375rem' },
-                            }}
-                            onUIAction={handleUiAction}
-                          />
-                        </div>
-                      ))}
+                      {uiResources.length > 0 && uiResources.map((content: any, index: number) => {
+                        const resource = content.resource || content;
+                        const isFlushCommerceResource = ['/cart/', '/product/', '/discover-products'].some((path) =>
+                          resource?.uri?.includes(path)
+                        );
+
+                        return (
+                          <div
+                            key={resource?.uri || `ui-resource-${index}`}
+                            className={cn(
+                              "overflow-hidden bg-surface",
+                              !isFlushCommerceResource && "rounded-card shadow-card"
+                            )}
+                          >
+                            <UIResourceRenderer
+                              resource={resource}
+                              htmlProps={{
+                                autoResizeIframe: { height: true, width: false },
+                                iframeRenderData: { theme: resolvedTheme || 'light' },
+                                style: { display: 'block', width: '100%', height: '1px', overflow: 'hidden', border: 'none', borderRadius: isFlushCommerceResource ? '0' : '10px', background: 'var(--surface)', colorScheme: resolvedTheme === 'dark' ? 'dark' : 'light' },
+                              }}
+                              onUIAction={(action) => handleUiAction(action, resource?.uri)}
+                            />
+                          </div>
+                        );
+                      })}
                     </div>
                   );
                 }
@@ -419,7 +492,7 @@ const PureAIMessage = ({
               }
             })}
             {(!message.parts || message.parts.length === 0) && (
-              <div className="flex items-center gap-1 text-muted-foreground"><span className="animate-pulse">Thinking...</span></div>
+              <LoadingState label="Thinking" variant="Drive" />
             )}
           </div>
         )}
