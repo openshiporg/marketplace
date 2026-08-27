@@ -21,12 +21,10 @@ function extractDocumentText(value: any): string {
   return document.map(collect).filter(Boolean).join('\n').trim();
 }
 
-function cartCookie(existingCookie: string | undefined, cartId: string): string {
-  const withoutRestaurantCart = (existingCookie || '')
-    .split(';')
-    .map((part) => part.trim())
-    .filter((part) => part && !part.startsWith('_restaurant_cart_id='));
-  return [...withoutRestaurantCart, `_restaurant_cart_id=${encodeURIComponent(cartId)}`].join('; ');
+function cartCookie(_existingCookie: string | undefined, cartId: string): string {
+  // Build a source-scoped cookie from the selected Restaurant cart only. Never
+  // mix the Marketplace origin's cookie jar into a merchant request.
+  return `_restaurant_cart_id=${encodeURIComponent(cartId)}`;
 }
 
 function countryName(countryCode: string): string {
@@ -125,8 +123,9 @@ async function getRestaurantCartAvailability(
       result.data?.__type?.fields?.map((field: any) => field.name)
     );
   } catch {
-    // If introspection is unavailable, preserve older optimistic behavior.
-    return undefined;
+    // Marketplace must never advertise cart controls without confirming both
+    // required public mutations from the source.
+    return false;
   }
 }
 

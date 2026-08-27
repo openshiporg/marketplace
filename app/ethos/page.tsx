@@ -1,17 +1,73 @@
 "use client";
 
-/* eslint-disable react/no-unescaped-entities */
-
-import { ArrowUpRight } from "lucide-react";
+import { useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { ArrowLeft, ArrowUpRight, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { MarketplaceSidebar } from "../_components/marketplace-sidebar";
+import { useChatThreads } from "@/features/marketplace/hooks/use-chat-threads";
+import { MarketplaceFederationVisual } from "./_components/marketplace-federation-visual";
 
 export default function EthosPage() {
-  return (
-    <div className="flex min-h-[calc(100dvh-3rem)] items-center justify-center p-3 sm:p-5">
-      <section className="flex h-[min(580px,calc(100dvh-5rem))] min-h-[480px] w-full max-w-2xl flex-col overflow-hidden rounded-card bg-surface shadow-card">
-        <div className="flex shrink-0 items-center border-b border-line p-1.5">
-          <span className="rounded-[6px] bg-field px-2 py-[3px] text-[13px] font-medium text-ink">Ethos</span>
-        </div>
+  const router = useRouter();
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const { threads, activeThreadId, isHydrated, createThread, selectThread } = useChatThreads();
 
+  const openNewChat = () => {
+    createThread();
+    router.push("/");
+  };
+  const openThread = (threadId: string) => {
+    selectThread(threadId);
+    router.push("/");
+  };
+
+  if (!isHydrated) return null;
+
+  return (
+    <div className="flex h-dvh gap-0 overflow-hidden bg-canvas p-2.5 text-ink lg:pl-0">
+      <MarketplaceSidebar
+        threads={threads}
+        activeThreadId={activeThreadId}
+        collapsed={sidebarCollapsed}
+        mobileOpen={mobileSidebarOpen}
+        onMobileClose={() => setMobileSidebarOpen(false)}
+        onNew={openNewChat}
+        onSelect={openThread}
+      />
+      <section className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-[14px] border border-line bg-page shadow-card">
+        <div className="flex h-11 shrink-0 items-center gap-1 border-b border-line px-2">
+          <button
+            type="button"
+            aria-label="Open sidebar"
+            aria-controls="marketplace-sidebar"
+            aria-expanded={mobileSidebarOpen}
+            title="Open sidebar"
+            onClick={() => setMobileSidebarOpen(true)}
+            className="flex size-6 shrink-0 items-center justify-center text-ink-3 transition-[color,transform] duration-150 hover:text-ink active:scale-[.96] lg:hidden"
+          >
+            <PanelLeftOpen className="size-3.5" strokeWidth={1.8} />
+          </button>
+          <button
+            type="button"
+            aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            aria-controls="marketplace-sidebar"
+            aria-expanded={!sidebarCollapsed}
+            title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            onClick={() => setSidebarCollapsed((value) => !value)}
+            className="hidden size-6 shrink-0 items-center justify-center text-ink-3 transition-[color,transform] duration-150 hover:text-ink active:scale-[.96] lg:flex"
+          >
+            {sidebarCollapsed ? <PanelLeftOpen className="size-3.5" strokeWidth={1.8} /> : <PanelLeftClose className="size-3.5" strokeWidth={1.8} />}
+          </button>
+          <div className="mx-1 h-5 w-px shrink-0 bg-line" aria-hidden="true" />
+          <Link href="/" className="flex h-7 items-center gap-1.5 rounded-[7px] px-2 text-[12.5px] font-medium text-ink-2 transition-colors hover:bg-hover hover:text-ink">
+            <ArrowLeft className="size-3.5" />
+            Marketplace
+          </Link>
+          <div className="mx-1 h-5 w-px shrink-0 bg-line" aria-hidden="true" />
+          <span className="px-1 text-[12.5px] font-medium text-ink-3">Ethos</span>
+        </div>
         <article className="min-h-0 flex-1 overflow-y-auto">
           <div className="border-b border-dashed border-line px-5 py-8 sm:px-10 sm:py-12">
             <div className="mx-auto max-w-2xl text-left">
@@ -19,13 +75,33 @@ export default function EthosPage() {
                 href="https://openship.org/products/marketplace"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="mb-4 flex items-center gap-1 font-mono text-[10.5px] font-medium uppercase tracking-[.08em] text-ink-3 transition-colors hover:text-ink"
+                className="mb-5 flex items-center gap-1.5 font-mono text-[12px] font-semibold uppercase tracking-[.06em] text-ink-2 transition-colors hover:text-ink sm:text-[12.5px]"
               >
-                An Openship initiative <ArrowUpRight className="ml-1 size-4" />
+                An Openship initiative <ArrowUpRight className="size-3.5" />
               </a>
-              <h1 className="max-w-[14ch] text-[clamp(2.5rem,7vw,5rem)] font-bold leading-[.95] tracking-[-.05em] text-ink">
+              <h1 className="bg-[linear-gradient(135deg,var(--ink)_0%,var(--ink-3)_100%)] bg-clip-text font-[family-name:var(--font-brand)] text-5xl font-semibold uppercase text-transparent sm:text-6xl">
                 A Market Without Masters
               </h1>
+              <div className="mt-5 flex items-center gap-3">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="https://avatars.githubusercontent.com/u/34615258"
+                  alt="Junaid Kabani"
+                  width="48"
+                  height="48"
+                  className="size-12 shrink-0 rounded-[12px] border border-line object-cover shadow-btn"
+                />
+                <div className="min-w-0">
+                  <p className="text-[13px] font-semibold leading-tight text-ink">Junaid Kabani</p>
+                  <p className="mt-0.5 text-[11px] font-medium uppercase tracking-[0.07em] text-ink-3">Founder &amp; CEO</p>
+                  <div className="mt-0.5 flex items-center gap-1.5 text-[11.5px] font-medium text-ink-2">
+                    <a href="https://github.com/junaid33" target="_blank" rel="noopener noreferrer" className="transition-colors hover:text-ink">GitHub</a>
+                    <span className="text-ink-3" aria-hidden="true">·</span>
+                    <a href="https://www.linkedin.com/in/junaid-kabani" target="_blank" rel="noopener noreferrer" className="transition-colors hover:text-ink">LinkedIn</a>
+                  </div>
+                </div>
+              </div>
+              <MarketplaceFederationVisual />
             </div>
           </div>
 
@@ -302,6 +378,7 @@ export default function EthosPage() {
               you need to.
             </p>
           </div>
+
             </div>
           </div>
         </article>

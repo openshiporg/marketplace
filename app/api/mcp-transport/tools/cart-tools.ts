@@ -1,5 +1,5 @@
 import { Tool } from '@modelcontextprotocol/sdk/types.js';
-import { createUIResource } from './utils';
+import { createUIResource, SourceGraphQLError } from './utils';
 import { beautifulUIStyles, iframeAutoResizeScript } from '../ui/beautiful-ui';
 import { getPlatformAdapter } from '../adapters';
 import { parseStoreConfigs } from '../types/store-config';
@@ -25,6 +25,33 @@ function normalizeCartId(value: unknown): string | undefined {
   return cartId && cartId !== 'undefined' && cartId !== 'null' ? cartId : undefined;
 }
 
+function scopedCartProof(
+  storeId: string,
+  cartId: unknown,
+  cartIds: Record<string, string> | undefined,
+  cartProofs: Record<string, string> | undefined,
+): string | undefined {
+  const requestedCartId = normalizeCartId(cartId);
+  const canonicalCartId = normalizeCartId(cartIds?.[storeId]);
+  if (requestedCartId && canonicalCartId && requestedCartId !== canonicalCartId) {
+    return undefined;
+  }
+  return typeof cartProofs?.[storeId] === 'string' ? cartProofs[storeId] : undefined;
+}
+
+function saveCartClientAction(storeId: string, cartId: string, cartProof?: string) {
+  return {
+    type: 'saveCartId',
+    storeId,
+    cartId,
+    ...(cartProof ? { cartProof } : {}),
+  };
+}
+
+function marketplaceClientMeta(clientAction: Record<string, unknown>) {
+  return { marketplace: { clientAction } };
+}
+
 async function resolveActiveCart({
   store,
   adapter,
@@ -32,6 +59,7 @@ async function resolveActiveCart({
   countryCode,
   cookie,
   ctoken,
+  cartProof,
 }: {
   store: ResolvedStore;
   adapter: ResolvedAdapter;
@@ -39,38 +67,55 @@ async function resolveActiveCart({
   countryCode: string;
   cookie: string;
   ctoken?: string;
+  cartProof?: string;
 }) {
   const existingCartId = normalizeCartId(candidateCartId);
+  const canReadExistingCart = !existingCartId || store.platform !== 'openfront' || Boolean(ctoken || cartProof);
 
-  if (existingCartId) {
+  if (existingCartId && canReadExistingCart) {
     try {
       const existingCart = await adapter.getCartRaw({
         store,
         cartId: existingCartId,
         cookie,
         ctoken,
+        cartProof,
       });
       if (existingCart?.id && existingCart.status !== 'completed') {
-        return { cart: existingCart, cartId: existingCart.id, isNewCart: false };
+        return {
+          cart: existingCart,
+          cartId: existingCart.id,
+          cartProof,
+          isNewCart: false,
+        };
       }
-    } catch {
-      // A stale or completed cart is replaced below.
+    } catch (error) {
+      // Only a source-declared GraphQL cart rejection is replaceable. Network,
+      // timeout, configuration, and programming failures must not churn carts.
+      if (!(error instanceof SourceGraphQLError)) throw error;
     }
   }
 
   const createdCart = await adapter.createCart({ store, countryCode, cookie, ctoken });
+  const createdCartProof = createdCart.cartProof;
   const cart = await adapter.getCartRaw({
     store,
     cartId: createdCart.id,
     cookie,
     ctoken,
+    cartProof: createdCartProof,
   });
 
   if (!cart?.id) {
     throw new Error('Created cart could not be loaded');
   }
 
-  return { cart, cartId: cart.id, isNewCart: true };
+  return {
+    cart,
+    cartId: cart.id,
+    cartProof: createdCartProof,
+    isNewCart: true,
+  };
 }
 
 
@@ -563,7 +608,19 @@ Returns interactive login form that handles authentication and session managemen
   }
 ];
 
-export async function handleCartTools(name: string, args: any, cookie: string, dataHasChanged: { value: boolean }, ctoken?: string, cartIds?: Record<string, string>, customMarketplaceConfig?: any[]) {
+export async function handleCartTools(
+  name: string,
+  args: any,
+  cookie: string,
+  dataHasChanged: { value: boolean },
+  ctoken?: string,
+  cartIds?: Record<string, string>,
+  cartProofs?: Record<string, string>,
+  customMarketplaceConfig?: any[],
+) {
+  const cartProofFor = (storeId: string, cartId?: unknown) =>
+    scopedCartProof(storeId, cartId, cartIds, cartProofs);
+
   if (name === 'getAvailablePaymentMethods') {
     const { storeId, regionId } = args;
 
@@ -598,8 +655,10 @@ export async function handleCartTools(name: string, args: any, cookie: string, d
       countryCode,
       cookie,
       ctoken,
+      cartProof: scopedCartProof(storeId, cartIds?.[storeId], cartIds, cartProofs),
     });
 
+    const clientAction = saveCartClientAction(storeId, resolved.cartId, resolved.cartProof);
     return {
       jsonrpc: '2.0',
       result: {
@@ -617,9 +676,10 @@ export async function handleCartTools(name: string, args: any, cookie: string, d
               : 'Cart already exists and is active. Use this cart ID for cart operations.',
             isNewCart: resolved.isNewCart,
             isExistingCart: !resolved.isNewCart,
-            __clientAction: { type: 'saveCartId', storeId, cartId: resolved.cartId }
+            __clientAction: saveCartClientAction(storeId, resolved.cartId),
           }, null, 2),
         }],
+        _meta: marketplaceClientMeta(clientAction),
       }
     };
   }
@@ -629,21 +689,24 @@ export async function handleCartTools(name: string, args: any, cookie: string, d
 
     const { store, adapter } = await resolveAdapter(storeId, customMarketplaceConfig);
     const cart = await adapter.createCart({ store, countryCode, cookie, ctoken });
+    const { cartProof, ...publicCart } = cart;
 
+    const clientAction = saveCartClientAction(storeId, cart.id, cartProof);
     return {
       jsonrpc: '2.0',
       result: {
         content: [{
           type: 'text',
           text: JSON.stringify({
-            cart,
+            cart: publicCart,
             countryCode,
             storeId,
             message: `Cart created successfully for ${countryCode.toUpperCase()}. Cart ID: ${cart.id}`,
             instruction: 'Use this cart ID with other cart operations (addToCart, setShippingAddress, etc.)',
-            __clientAction: { type: 'saveCartId', storeId, cartId: cart.id }
+            __clientAction: saveCartClientAction(storeId, cart.id),
           }, null, 2),
         }],
+        _meta: marketplaceClientMeta(clientAction),
       }
     };
   }
@@ -656,9 +719,10 @@ export async function handleCartTools(name: string, args: any, cookie: string, d
     // Fetch store details using adapter
     const storeInfo = await adapter.getStoreInfo({ store, cookie, ctoken });
 
-    // Fetch cart data and shipping options using adapter
-    const cart = await adapter.getCartRaw({ store, cartId, cookie, ctoken });
-    const shippingOptions = await adapter.getCartShippingOptions({ store, cartId, cookie, ctoken });
+    // Fetch cart data and shipping options using only this store's proof.
+    const cartProof = scopedCartProof(storeId, cartId, cartIds, cartProofs);
+    const cart = await adapter.getCartRaw({ store, cartId, cookie, ctoken, cartProof });
+    const shippingOptions = await adapter.getCartShippingOptions({ store, cartId, cookie, ctoken, cartProof });
 
     if (!cart) {
       throw new Error('Cart not found');
@@ -699,7 +763,8 @@ export async function handleCartTools(name: string, args: any, cookie: string, d
     const { storeId, cartId } = args;
 
     const { store, adapter } = await resolveAdapter(storeId, customMarketplaceConfig);
-    const cart = await adapter.getCartRaw({ store, cartId, cookie, ctoken });
+    const cartProof = scopedCartProof(storeId, cartId, cartIds, cartProofs);
+    const cart = await adapter.getCartRaw({ store, cartId, cookie, ctoken, cartProof });
 
     return {
       jsonrpc: '2.0',
@@ -731,13 +796,15 @@ export async function handleCartTools(name: string, args: any, cookie: string, d
 
     const { store, adapter } = await resolveAdapter(storeId, customMarketplaceConfig);
 
+    const candidateCartId = cartIds?.[storeId] || normalizeCartId(cartId);
     const resolved = await resolveActiveCart({
       store,
       adapter,
-      candidateCartId: normalizeCartId(cartId) || cartIds?.[storeId],
+      candidateCartId,
       countryCode: args.countryCode || 'us',
       cookie,
       ctoken,
+      cartProof: scopedCartProof(storeId, candidateCartId, cartIds, cartProofs),
     });
     const finalCartId = resolved.cartId;
 
@@ -751,15 +818,24 @@ export async function handleCartTools(name: string, args: any, cookie: string, d
       orderType,
       cookie,
       ctoken,
+      cartProof: resolved.cartProof,
     });
-    const cart = await adapter.getCartRaw({ store, cartId: finalCartId, cookie, ctoken });
+    const cart = await adapter.getCartRaw({
+      store,
+      cartId: finalCartId,
+      cookie,
+      ctoken,
+      cartProof: resolved.cartProof,
+    });
 
     dataHasChanged.value = true;
 
+    const clientAction = saveCartClientAction(storeId, finalCartId, resolved.cartProof);
     return {
       jsonrpc: '2.0',
       result: {
-        content: [{ type: 'text', text: JSON.stringify({ cart, message: `Added ${quantity} item(s) to cart`, addedVariantId: variantId, newItemCount: cart?.lineItems?.length || 0, storeId, __clientAction: { type: 'saveCartId', storeId, cartId: finalCartId } }, null, 2) }],
+        content: [{ type: 'text', text: JSON.stringify({ cart, message: `Added ${quantity} item(s) to cart`, addedVariantId: variantId, newItemCount: cart?.lineItems?.length || 0, storeId, __clientAction: saveCartClientAction(storeId, finalCartId) }, null, 2) }],
+        _meta: marketplaceClientMeta(clientAction),
       }
     };
   }
@@ -769,14 +845,34 @@ export async function handleCartTools(name: string, args: any, cookie: string, d
 
     try {
       const { store, adapter } = await resolveAdapter(storeId, customMarketplaceConfig);
-      await adapter.setShippingAddress({
+      const cartProof = cartProofFor(storeId, cartId);
+      const updatedCart = await adapter.setShippingAddress({
         store,
         cartId,
         address: { firstName, lastName, address1, city, postalCode, countryCode, province, company, phone, email },
         cookie,
         ctoken,
+        cartProof,
       });
-      const cart = await adapter.getCartRaw({ store, cartId, cookie, ctoken });
+      const sessionToken = typeof (updatedCart as any)?.__sessionToken === 'string'
+        ? (updatedCart as any).__sessionToken
+        : undefined;
+      const sessionUser = (updatedCart as any)?.__sessionUser;
+      const cart = await adapter.getCartRaw({
+        store,
+        cartId,
+        cookie,
+        ctoken: sessionToken || ctoken,
+        cartProof,
+      });
+      const clientAction = sessionToken ? {
+        type: 'saveSessionToken',
+        storeId,
+        sessionToken,
+        email,
+        userId: sessionUser?.id,
+        activeCartId: cartId,
+      } : undefined;
       dataHasChanged.value = true;
       return {
         jsonrpc: '2.0',
@@ -787,9 +883,10 @@ export async function handleCartTools(name: string, args: any, cookie: string, d
               cart,
               message: 'Shipping address set successfully',
               email,
-              storeId
+              storeId,
             }, null, 2),
           }],
+          ...(clientAction ? { _meta: marketplaceClientMeta(clientAction) } : {}),
         }
       };
 
@@ -869,8 +966,9 @@ export async function handleCartTools(name: string, args: any, cookie: string, d
     }
 
     const { store, adapter } = await resolveAdapter(storeId, customMarketplaceConfig);
-    await adapter.updateCartItemQuantity({ store, cartId, lineItemId, quantity, cookie, ctoken });
-    const cart = await adapter.getCartRaw({ store, cartId, cookie, ctoken });
+    const cartProof = cartProofFor(storeId, cartId);
+    await adapter.updateCartItemQuantity({ store, cartId, lineItemId, quantity, cookie, ctoken, cartProof });
+    const cart = await adapter.getCartRaw({ store, cartId, cookie, ctoken, cartProof });
 
     dataHasChanged.value = true;
 
@@ -886,8 +984,9 @@ export async function handleCartTools(name: string, args: any, cookie: string, d
     const { storeId, cartId, lineItemId } = args;
 
     const { store, adapter } = await resolveAdapter(storeId, customMarketplaceConfig);
-    await adapter.removeCartItem({ store, cartId, lineItemId, cookie, ctoken });
-    const cart = await adapter.getCartRaw({ store, cartId, cookie, ctoken });
+    const cartProof = cartProofFor(storeId, cartId);
+    await adapter.removeCartItem({ store, cartId, lineItemId, cookie, ctoken, cartProof });
+    const cart = await adapter.getCartRaw({ store, cartId, cookie, ctoken, cartProof });
 
     dataHasChanged.value = true;
 
@@ -934,6 +1033,7 @@ export async function handleCartTools(name: string, args: any, cookie: string, d
       deliveryCountryCode,
       cookie,
       ctoken,
+      cartProof: cartProofFor(storeId, cartId),
     });
     dataHasChanged.value = true;
 
@@ -957,8 +1057,9 @@ export async function handleCartTools(name: string, args: any, cookie: string, d
     const { storeId, cartId, shippingMethodId } = args;
 
     const { store, adapter } = await resolveAdapter(storeId, customMarketplaceConfig);
-    await adapter.setShippingMethod({ store, cartId, shippingMethodId, cookie, ctoken });
-    const cart = await adapter.getCartRaw({ store, cartId, cookie, ctoken });
+    const cartProof = cartProofFor(storeId, cartId);
+    await adapter.setShippingMethod({ store, cartId, shippingMethodId, cookie, ctoken, cartProof });
+    const cart = await adapter.getCartRaw({ store, cartId, cookie, ctoken, cartProof });
     const selectedMethod = cart?.shippingMethods?.find((m: any) => m.id === shippingMethodId);
 
     dataHasChanged.value = true;
@@ -975,7 +1076,13 @@ export async function handleCartTools(name: string, args: any, cookie: string, d
     const { storeId, cartId, countryCode } = args;
 
     const { store, adapter } = await resolveAdapter(storeId, customMarketplaceConfig);
-    const cart = await adapter.getCartRaw({ store, cartId, cookie, ctoken });
+    const cart = await adapter.getCartRaw({
+      store,
+      cartId,
+      cookie,
+      ctoken,
+      cartProof: cartProofFor(storeId, cartId),
+    });
 
     if (!cart) {
       throw new Error(`Cart not found: ${cartId}`);
@@ -1031,7 +1138,13 @@ export async function handleCartTools(name: string, args: any, cookie: string, d
     const { storeId, cartId } = args;
 
     const { store, adapter } = await resolveAdapter(storeId, customMarketplaceConfig);
-    const cart = await adapter.getCartRaw({ store, cartId, cookie, ctoken });
+    const cart = await adapter.getCartRaw({
+      store,
+      cartId,
+      cookie,
+      ctoken,
+      cartProof: cartProofFor(storeId, cartId),
+    });
 
     const issues: string[] = [];
     let isReady = true;
@@ -1064,7 +1177,8 @@ export async function handleCartTools(name: string, args: any, cookie: string, d
     const { store, adapter } = await resolveAdapter(storeId, customMarketplaceConfig);
 
     // Fetch cart and validate readiness
-    const cart = await adapter.getCartRaw({ store, cartId, cookie, ctoken });
+    const cartProof = cartProofFor(storeId, cartId);
+    const cart = await adapter.getCartRaw({ store, cartId, cookie, ctoken, cartProof });
     const isRestaurantStore = store.platform === 'openfront-restaurant';
     if (!cart || (!isRestaurantStore && !cart.region?.id)) {
       throw new Error('Cart or region not found');
@@ -1166,7 +1280,14 @@ export async function handleCartTools(name: string, args: any, cookie: string, d
     }
 
     // Initiate new session via adapter (adapter will resolve provider code)
-    const session = await adapter.initiatePaymentSession({ store, cartId, paymentProviderCodeOrName: paymentProvider, cookie, ctoken });
+    const session = await adapter.initiatePaymentSession({
+      store,
+      cartId,
+      paymentProviderCodeOrName: paymentProvider,
+      cookie,
+      ctoken,
+      cartProof,
+    });
     if (!session) throw new Error('Failed to initiate payment session');
 
     const storeInfo = await adapter.getStoreInfo({ store, cookie, ctoken });
@@ -1192,7 +1313,14 @@ export async function handleCartTools(name: string, args: any, cookie: string, d
     const { storeId, cartId, paymentSessionId } = args;
 
     const { store, adapter } = await resolveAdapter(storeId, customMarketplaceConfig);
-    const order = await adapter.completeCart({ store, cartId, paymentSessionId, cookie, ctoken });
+    const order = await adapter.completeCart({
+      store,
+      cartId,
+      paymentSessionId,
+      cookie,
+      ctoken,
+      cartProof: cartProofFor(storeId, cartId),
+    });
 
     if (!order) {
       throw new Error('Failed to complete cart');
@@ -1247,27 +1375,35 @@ export async function handleCartTools(name: string, args: any, cookie: string, d
       let finalCartId = user.activeCartId;
       if (cartId && cartId !== user.activeCartId) {
         try {
-          await adapter.connectCartToUser({ store, cartId, userId: user.id, email: user.email, cookie, ctoken });
+          await adapter.connectCartToUser({
+            store,
+            cartId,
+            userId: user.id,
+            email: user.email,
+            cookie,
+            ctoken,
+            cartProof: cartProofFor(storeId, cartId),
+          });
           finalCartId = cartId;
         } catch (connectError: any) {
           console.error(`[authenticateUser] Failed to connect cart to user:`, connectError);
         }
       }
 
+      const clientAction = {
+        type: 'saveSessionToken',
+        storeId,
+        sessionToken,
+        email: user.email,
+        userId: user.id,
+        activeCartId: finalCartId,
+      };
       const responseData: any = {
         message: `✅ Successfully logged in as ${user.email}! Your session has been saved.`,
         userId: user.id,
         email: user.email,
         activeCartId: finalCartId,
         storeId,
-        __clientAction: {
-          type: 'saveSessionToken',
-          storeId,
-          sessionToken,
-          email: user.email,
-          userId: user.id,
-          activeCartId: finalCartId
-        }
       };
 
       if (addressData && addressData.firstName && addressData.address1) {
@@ -1280,16 +1416,17 @@ export async function handleCartTools(name: string, args: any, cookie: string, d
           content: [{
             type: 'text',
             text: JSON.stringify(responseData, null, 2)
-          }]
+          }],
+          _meta: marketplaceClientMeta(clientAction),
         }
       };
-    } catch (error: any) {
+    } catch {
       return {
         jsonrpc: '2.0',
         result: {
           content: [{
             type: 'text',
-            text: `❌ Login failed: ${error.message}`
+            text: 'Login failed. Check the email and password and try again.'
           }]
         }
       };

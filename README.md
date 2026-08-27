@@ -16,6 +16,8 @@ https://github.com/user-attachments/assets/7ecf5787-3681-4ad7-a223-302d5439d0c1
 ### No Central Database
 This marketplace doesn't store products, inventory, or customer data. Instead, it queries independent Openfront stores in real-time using AI to understand catalogs and match customer requests.
 
+Chat threads are browser-local. The active thread and sanitized UI messages are stored in `localStorage` under `openfront_marketplace_chat_threads`; cart identities and merchant sessions remain in their separate source-scoped stores. Creating or closing a chat never clears a cart, and no thread-history API or marketplace conversation database is required.
+
 ### Conversational Shopping
 The entire shopping experience happens in the AI chat. Interactive product cards, shopping cart, checkout form, and payment interface—all rendered in the conversation via MCP UI. No page redirects. No separate checkout flow. Payment goes directly to each store's Stripe or PayPal account with zero marketplace fees.
 

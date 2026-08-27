@@ -5,10 +5,10 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* Persisted platform branding only. These tokens never imply merchant ownership. */
-:root[data-marketplace-theme="clay"] { --signal: #c55a3d; --signal-ink: #8d321d; }
-:root[data-marketplace-theme="forest"] { --signal: #3f7a5a; --signal-ink: #23553b; }
-:root[data-marketplace-theme="midnight"] { --signal: #5968b2; --signal-ink: #39478e; }
+/* Marketplace themes must not replace semantic link/status colors. */
+:root[data-marketplace-theme="clay"] { --marketplace-brand: #c55a3d; }
+:root[data-marketplace-theme="forest"] { --marketplace-brand: #3f7a5a; }
+:root[data-marketplace-theme="midnight"] { --marketplace-brand: #5968b2; }
 
 /* Exact VibeGhost workspace-avatar palette treatment for suggestion identities. */
 .vibeghost-workspace-gradient {
@@ -103,6 +103,11 @@
   --shadow-overlay: var(--shadow-overlay);
 }
 
+/* Named radius utilities used by the Marketplace component vocabulary. */
+@utility rounded-control { border-radius: var(--radius-control); }
+@utility rounded-card { border-radius: var(--radius-card); }
+@utility rounded-window { border-radius: var(--radius-window); }
+
 :root {
   --radius: var(--radius-card);
   --background: var(--surface);
@@ -156,6 +161,17 @@ body {
   font-size: var(--text-base);
   line-height: 1.5;
   text-rendering: optimizeLegibility;
+}
+
+/* iOS zooms focused form fields whose rendered text is below 16px. Keep every
+   current and future touch input at the platform-safe minimum. */
+@media (pointer: coarse) {
+  input,
+  textarea,
+  select,
+  [contenteditable="true"] {
+    font-size: 16px !important;
+  }
 }
 
 ::selection {

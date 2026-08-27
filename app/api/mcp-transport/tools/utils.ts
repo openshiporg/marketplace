@@ -29,17 +29,52 @@ export function getSimpleTypeName(type: any): string {
   return type.name || type.toString();
 }
 
-// Execute GraphQL query with authentication (supports both cookies and C-tokens)
-export async function executeGraphQL(query: string, graphqlEndpoint: string, cookie: string, variables?: any, ctoken?: string): Promise<any> {
+export class SourceGraphQLError extends Error {
+  readonly sourceMessages: string[];
+  readonly sourceCodes: string[];
+
+  constructor(errors: Array<{ message?: unknown; extensions?: { code?: unknown } }>) {
+    super('Source GraphQL request failed');
+    this.name = 'SourceGraphQLError';
+    this.sourceMessages = errors
+      .map(error => typeof error?.message === 'string' ? error.message : '')
+      .filter(Boolean);
+    this.sourceCodes = errors
+      .map(error => typeof error?.extensions?.code === 'string' ? error.extensions.code : '')
+      .filter(Boolean);
+  }
+}
+
+// Execute GraphQL with source authentication and an optional source-issued
+// guest-cart proof. Proofs are source-scoped and must never be reused across
+// Marketplace stores.
+export async function executeGraphQL(
+  query: string,
+  graphqlEndpoint: string,
+  cookie: string,
+  variables?: any,
+  ctoken?: string,
+  cartProof?: string,
+): Promise<any> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
 
-  // Use C-token for business account auth, fallback to cookie for regular users
+  // Marketplace authentication is forwarded explicitly. Never forward the
+  // Marketplace origin's cookie jar to a remote merchant source; only the
+  // Restaurant adapter's source-scoped public cart cookie is allowed through.
   if (ctoken) {
     headers['Authorization'] = `Bearer ${ctoken}`;
-  } else if (cookie) {
-    headers['Cookie'] = cookie;
+  }
+  const sourceCartCookie = cookie
+    .split(';')
+    .map(part => part.trim())
+    .find(part => part.startsWith('_restaurant_cart_id='));
+  if (sourceCartCookie) {
+    headers.Cookie = sourceCartCookie;
+  }
+  if (cartProof) {
+    headers['X-Openfront-Cart-Proof'] = cartProof;
   }
 
   const response = await fetchTrustedSource(graphqlEndpoint, {
@@ -49,26 +84,36 @@ export async function executeGraphQL(query: string, graphqlEndpoint: string, coo
     signal: AbortSignal.timeout(SOURCE_REQUEST_TIMEOUT_MS),
   });
 
+  if (!response.ok) {
+    throw new Error(`Source GraphQL HTTP ${response.status}`);
+  }
+
   const result = await response.json();
-  if (result.errors) {
-    // Variables may contain credentials, addresses, and payment references.
-    // Preserve diagnostics at the trusted source, never in MCP/model output.
-    throw new Error('Source GraphQL request failed');
+  if (Array.isArray(result.errors) && result.errors.length > 0) {
+    // Keep detailed source diagnostics server-side without returning variables,
+    // credentials, addresses, cart proofs, or payment references to the client.
+    const operation = query.match(/\b(?:query|mutation)\s+([A-Za-z0-9_]+)/)?.[1] || 'anonymous';
+    console.error('[Marketplace source GraphQL]', {
+      origin: new URL(graphqlEndpoint).origin,
+      operation,
+      errorCount: result.errors.length,
+      codes: result.errors
+        .map((error: any) => error?.extensions?.code)
+        .filter((code: unknown) => typeof code === 'string'),
+    });
+    throw new SourceGraphQLError(result.errors);
   }
   return result;
 }
 
 // Get GraphQL schema from introspection (supports both cookies and C-tokens)
-export async function getGraphQLSchema(graphqlEndpoint: string, cookie: string, ctoken?: string): Promise<GraphQLSchema> {
+export async function getGraphQLSchema(graphqlEndpoint: string, _cookie: string, ctoken?: string): Promise<GraphQLSchema> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
 
-  // Use C-token for business account auth, fallback to cookie for regular users
   if (ctoken) {
     headers['Authorization'] = `Bearer ${ctoken}`;
-  } else if (cookie) {
-    headers['Cookie'] = cookie;
   }
 
   const response = await fetchTrustedSource(graphqlEndpoint, {

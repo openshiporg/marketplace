@@ -6,7 +6,6 @@ import {
   ExternalLink,
   Plus,
   RotateCcw,
-  ShoppingBag,
   Store as StoreIcon,
   Trash2,
 } from "lucide-react";
@@ -14,9 +13,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
-import { cn } from "@/lib/utils";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectSeparator,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { OpenfrontLogoIcon } from "@/components/OpenfrontLogoIcon";
+import { ShopifyIcon } from "@/components/ShopifyIcon";
 import { StoreLogo } from "../store-logo";
-import { getStorePlatformLabel } from "@/lib/store-platform";
 import { normalizeSourceBaseUrl, sourceIdFor, type SourcePlatform } from "@/lib/source-identity";
 
 interface Store {
@@ -57,10 +64,41 @@ interface StoreEditorProps {
 type PlatformKey = "openfront" | "openfront-restaurant" | "shopify";
 
 const PLATFORMS: Record<PlatformKey, { label: string; example: string }> = {
-  openfront: { label: "E-commerce", example: "https://your-store.openship.org" },
-  "openfront-restaurant": { label: "Restaurant", example: "https://your-restaurant.openship.org" },
+  openfront: { label: "Openfront E-commerce", example: "https://your-store.openship.org" },
+  "openfront-restaurant": { label: "Openfront Restaurant", example: "https://your-restaurant.openship.org" },
   shopify: { label: "Shopify", example: "https://your-store.myshopify.com" },
 };
+
+const ADDABLE_PLATFORMS = ["openfront", "openfront-restaurant"] as const;
+
+const COMING_SOON_PLATFORMS = [
+  { key: "grocery", label: "Openfront Grocery", color: "#22c55e" },
+  { key: "hotel", label: "Openfront Hotel", color: "#ec4899" },
+  { key: "rental", label: "Openfront Rental", color: "#d946ef" },
+  { key: "real-estate", label: "Openfront Real Estate", color: "#14b8a6" },
+  { key: "coffee-shop", label: "Openfront Coffee Shop", color: "#92400e" },
+  { key: "barbershop", label: "Openfront Barbershop", color: "#2563eb" },
+  { key: "dealership", label: "Openfront Dealership", color: "#ef4444" },
+  { key: "hospital", label: "Openfront Hospital", color: "#06b6d4" },
+  { key: "gym", label: "Openfront Gym", color: "#8b5cf6" },
+  { key: "salon", label: "Openfront Salon", color: "#a855f7" },
+  { key: "construction", label: "Openfront Construction", color: "#f97316" },
+  { key: "convenience", label: "Openfront Convenience", color: "#0f9f9a" },
+  { key: "airline", label: "Openfront Airline", color: "#3b82f6" },
+  { key: "law-firm", label: "Openfront Law Firm", color: "#7c3aed" },
+  { key: "pharmacy", label: "Openfront Pharmacy", color: "#0d9488" },
+] as const;
+
+function PlatformIcon({ platform, className = "size-4" }: { platform: SourcePlatform; className?: string }) {
+  if (platform === "openfront") {
+    return <OpenfrontLogoIcon className={className} color="var(--signal)" suffix="-store-platform-ecommerce" />;
+  }
+  if (platform === "openfront-restaurant") {
+    return <OpenfrontLogoIcon className={className} color="var(--orange)" suffix="-store-platform-restaurant" />;
+  }
+  if (platform === "shopify") return <ShopifyIcon className={`${className} text-green`} />;
+  return <StoreIcon className={`${className} text-ink-3`} />;
+}
 
 function storeName(store: Store) {
   if (store.storeName || store.name) return store.storeName || store.name || "Store";
@@ -139,23 +177,52 @@ function StoreForm({
     <>
       <div className="space-y-4 px-4 py-4">
         <div>
-          <Label className="text-[11.5px] font-medium text-ink-2">Platform</Label>
-          <div className="mt-1.5 grid grid-cols-3 gap-1 rounded-control bg-inset p-1 shadow-hairline">
-            {(Object.keys(PLATFORMS) as PlatformKey[]).map((key) => (
-              <button
-                key={key}
-                type="button"
-                aria-pressed={platform === key}
-                onClick={() => setPlatform(key)}
-                className={cn(
-                  "h-7 rounded-[6px] text-[12px] font-medium transition-[background-color,color,box-shadow] duration-100",
-                  platform === key ? "bg-surface text-ink shadow-hairline" : "text-ink-3 hover:text-ink-2"
-                )}
-              >
-                {PLATFORMS[key].label}
-              </button>
-            ))}
-          </div>
+          <Label htmlFor="store-platform" className="text-[11.5px] font-medium text-ink-2">Platform</Label>
+          <Select value={platform} onValueChange={(value: PlatformKey) => setPlatform(value)}>
+            <SelectTrigger
+              id="store-platform"
+              autoFocus
+              className="mt-1.5 h-9 w-full rounded-control bg-inset shadow-hairline"
+            >
+              <SelectValue>
+                <span className="flex items-center gap-2 text-[12px] font-medium text-ink">
+                  <PlatformIcon platform={platform} />
+                  {PLATFORMS[platform].label}
+                </span>
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {ADDABLE_PLATFORMS.map((key) => (
+                <SelectItem key={key} value={key}>
+                  <span className="flex items-center gap-2">
+                    <PlatformIcon platform={key} />
+                    {PLATFORMS[key].label}
+                  </span>
+                </SelectItem>
+              ))}
+              <SelectSeparator className="bg-line" />
+              {COMING_SOON_PLATFORMS.map((option) => (
+                <SelectItem
+                  key={option.key}
+                  value={`openfront-${option.key}`}
+                  disabled
+                  className="[&>span:last-child]:min-w-0 [&>span:last-child]:flex-1"
+                >
+                  <span className="flex w-full min-w-0 items-center gap-2">
+                    <OpenfrontLogoIcon
+                      className="size-4 shrink-0"
+                      color={option.color}
+                      suffix={`-store-platform-${option.key}`}
+                    />
+                    <span className="truncate">{option.label}</span>
+                    <span className="ml-auto shrink-0 pl-3 font-mono text-[10px] font-medium uppercase tracking-[0.08em] text-ink-3">
+                      SOON
+                    </span>
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         <div>
@@ -168,7 +235,6 @@ function StoreForm({
             onChange={(event) => setBaseUrl(event.target.value)}
             placeholder={PLATFORMS[platform].example}
             className="mt-1.5"
-            autoFocus
           />
           <datalist id="admitted-store-urls">
             {admittedStores.map((store) => (
@@ -205,7 +271,6 @@ export function StoreEditor({
   admittedConfig,
   onSave,
   cartsData,
-  onCartSelect,
   onResetToDefault,
   isDefaultConfig,
   startAdding = false,
@@ -280,7 +345,11 @@ export function StoreEditor({
           ) : null}
           <div className="min-w-0">
             <DialogTitle className="text-[13px] font-semibold text-ink">{adding ? "Add store" : editing ? "Edit store" : "Store directory"}</DialogTitle>
-            <DialogDescription className="text-[11px] leading-normal text-ink-3">{formOpen ? "Select an endpoint admitted by this marketplace." : `${stores.length} connected ${stores.length === 1 ? "store" : "stores"}`}</DialogDescription>
+            {formOpen ? (
+              <DialogDescription className="sr-only">Configure the store connection.</DialogDescription>
+            ) : (
+              <DialogDescription className="text-[11px] leading-normal text-ink-3">{stores.length} connected {stores.length === 1 ? "store" : "stores"}</DialogDescription>
+            )}
           </div>
           {!formOpen && !isDefaultConfig && onResetToDefault ? (
             <button
@@ -325,19 +394,9 @@ export function StoreEditor({
                     <span className="block truncate text-[12.5px] font-medium text-ink">{storeName(store)}</span>
                     <span className="block truncate text-[10.5px] text-ink-3">{store.baseUrl}</span>
                   </button>
-                  <span className="hidden text-[10.5px] text-ink-3 sm:inline">
-                    {getStorePlatformLabel(store.platform)}
+                  <span className="hidden size-6 shrink-0 items-center justify-center sm:flex" title={PLATFORMS[store.platform as PlatformKey]?.label || store.platform}>
+                    <PlatformIcon platform={store.platform} className="size-4" />
                   </span>
-                  {store.cartId && store.storeId && onCartSelect ? (
-                    <button
-                      type="button"
-                      aria-label={`View ${storeName(store)} cart`}
-                      onClick={() => { onCartSelect(storeName(store), store.storeId!); onOpenChange(false); }}
-                      className="flex size-6 items-center justify-center rounded-[6px] text-ink-3 hover:bg-hover hover:text-ink"
-                    >
-                      <ShoppingBag className="size-3.5" />
-                    </button>
-                  ) : null}
                   <a
                     href={store.baseUrl}
                     target="_blank"

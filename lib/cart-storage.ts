@@ -13,6 +13,8 @@ export interface CartInfo {
   cartId: string;
   createdAt: number;
   storeName?: string; // Optional: friendly name for the store
+  /** Source-issued guest-cart proof, scoped to this exact store ID. */
+  cartProof?: string;
 }
 
 export interface MultiStoreCartStorage {
@@ -42,18 +44,50 @@ export function getCartId(storeId: string): string | null {
   return carts[storeId]?.cartId || null;
 }
 
+/** Get the source-issued proof for one store's guest cart. */
+export function getCartProof(storeId: string): string | null {
+  const carts = getAllCarts();
+  return carts[storeId]?.cartProof || null;
+}
+
+/** Return only source/cart identity for transport headers and AI context. */
+export function getAllCartIds(): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(getAllCarts())
+      .filter(([, cart]) => typeof cart?.cartId === 'string' && cart.cartId.length > 0)
+      .map(([storeId, cart]) => [storeId, cart.cartId]),
+  );
+}
+
+/** Return source-scoped proofs separately so they never enter model context. */
+export function getAllCartProofs(): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(getAllCarts())
+      .filter(([, cart]) => typeof cart?.cartProof === 'string' && cart.cartProof.length > 0)
+      .map(([storeId, cart]) => [storeId, cart.cartProof!]),
+  );
+}
+
 /**
- * Set cart ID for a specific store
+ * Set cart identity for a specific store. When a response only confirms the
+ * cart ID, retain the existing proof for that same cart.
  */
-export function setCartId(storeId: string, cartId: string, storeName?: string): void {
+export function setCartId(
+  storeId: string,
+  cartId: string,
+  storeName?: string,
+  cartProof?: string,
+): void {
   if (typeof window === 'undefined') return;
 
   try {
     const carts = getAllCarts();
+    const existing = carts[storeId];
     carts[storeId] = {
       cartId,
-      createdAt: Date.now(),
-      storeName,
+      createdAt: existing?.cartId === cartId ? existing.createdAt : Date.now(),
+      storeName: storeName ?? existing?.storeName,
+      cartProof: cartProof ?? (existing?.cartId === cartId ? existing.cartProof : undefined),
     };
     localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(carts));
 

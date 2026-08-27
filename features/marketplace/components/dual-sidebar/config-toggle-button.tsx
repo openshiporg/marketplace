@@ -52,11 +52,11 @@ export function ConfigToggleButton({
           disabled={disabled}
           aria-label={`AI configuration: ${isGlobal ? "global" : "local"}`}
           className={cn(
-            "beautiful-icon-button size-7 rounded-[5px] bg-surface shadow-btn disabled:pointer-events-none disabled:opacity-40",
-            showWarning ? "text-red" : isGlobal ? "text-signal-ink" : "text-green"
+            "beautiful-icon-button size-7 rounded-control bg-surface shadow-btn disabled:pointer-events-none disabled:opacity-40",
+            isGlobal ? "text-signal-ink" : "text-green"
           )}
         >
-          {showWarning ? <AlertCircle className="size-3" /> : <Globe className="size-3" />}
+          <Globe className="size-3" />
         </button>
       </PopoverTrigger>
 

@@ -41,7 +41,11 @@ export function isPublicIpAddress(address: string): boolean {
 }
 
 export type EndpointPolicy = {
+  /** When present, restrict destinations to these origins. Omit to allow any validated origin. */
   allowedOrigins?: readonly string[];
+  /** Allow loopback and .local origins only while running a development build. */
+  allowDevelopmentPrivateEndpoints?: boolean;
+  /** Backward-compatible explicit development allowlist used by marketplace sources. */
   developmentPrivateOrigins?: readonly string[];
   resolve?: typeof lookup;
 };
@@ -49,18 +53,19 @@ export type EndpointPolicy = {
 /** Validate a destination before the server sends it credentials or a request. */
 export async function assertTrustedHttpsEndpoint(value: string | URL, policy: EndpointPolicy = {}): Promise<URL> {
   const url = new URL(value.toString());
-  if (url.protocol !== 'https:' || url.username || url.password) {
-    throw new Error('Only credential-free HTTPS endpoints are permitted');
+  const hostname = url.hostname.toLowerCase();
+  const isLoopback = hostname === '127.0.0.1' || hostname === '::1' || BLOCKED_HOSTNAMES.has(hostname);
+  const isDevelopmentPrivateOrigin = process.env.NODE_ENV !== 'production' &&
+    (policy.allowDevelopmentPrivateEndpoints === true || policy.developmentPrivateOrigins?.includes(url.origin) === true) &&
+    (isLoopback || hostname.endsWith('.local') || hostname.endsWith('.localhost'));
+
+  if (url.username || url.password || (url.protocol !== 'https:' && !(isDevelopmentPrivateOrigin && url.protocol === 'http:'))) {
+    throw new Error('Only credential-free HTTPS endpoints are permitted outside local development');
   }
 
   if (policy.allowedOrigins && !policy.allowedOrigins.includes(url.origin)) {
     throw new Error('Endpoint is not admitted for this deployment');
   }
-
-  const hostname = url.hostname.toLowerCase();
-  const isDevelopmentPrivateOrigin = process.env.NODE_ENV !== 'production' &&
-    (hostname.endsWith('.local') || hostname.endsWith('.localhost')) &&
-    policy.developmentPrivateOrigins?.includes(url.origin) === true;
 
   if (!isDevelopmentPrivateOrigin && (BLOCKED_HOSTNAMES.has(hostname) || hostname.endsWith('.localhost'))) {
     throw new Error('Private endpoints are not permitted');
@@ -106,4 +111,19 @@ export function customAiAllowedOrigins(): string[] {
     .split(',')
     .map(value => value.trim())
     .filter(Boolean);
+}
+
+/** Local/BYOK AI is enabled unless a deployer explicitly disables it. */
+export function localAiConfigurationEnabled(): boolean {
+  return !['1', 'true', 'yes', 'on'].includes(
+    (process.env.MARKETPLACE_DISABLE_LOCAL_AI || '').trim().toLowerCase()
+  );
+}
+
+export function customAiEndpointPolicy(): EndpointPolicy {
+  const allowedOrigins = customAiAllowedOrigins();
+  return {
+    ...(allowedOrigins.length ? { allowedOrigins } : {}),
+    allowDevelopmentPrivateEndpoints: true,
+  };
 }

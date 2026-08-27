@@ -43,9 +43,14 @@ type DiscoveredModel = {
 interface AIModelSelectorProps {
   disabled?: boolean;
   globalModel?: string;
+  showLabelOnMobile?: boolean;
 }
 
-export function AIModelSelector({ disabled = false, globalModel }: AIModelSelectorProps) {
+export function AIModelSelector({
+  disabled = false,
+  globalModel,
+  showLabelOnMobile = false,
+}: AIModelSelectorProps) {
   const { config, setConfig } = useAiConfig();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [inputValue, setInputValue] = useState("");
@@ -156,11 +161,11 @@ export function AIModelSelector({ disabled = false, globalModel }: AIModelSelect
           type="button"
           disabled={disabled}
           title={displayText}
-          className="inline-flex h-7 w-7 shrink-0 items-center justify-center gap-1.5 rounded-[5px] bg-surface px-2 text-[11.5px] font-medium text-ink-2 shadow-btn outline-none transition-[background-color,color,transform] duration-150 hover:bg-hover hover:text-ink active:scale-[.98] disabled:pointer-events-none disabled:opacity-40 sm:w-auto"
+          className={`inline-flex h-7 shrink-0 items-center justify-center gap-1.5 rounded-control bg-surface px-2 text-[11.5px] font-medium text-ink-2 shadow-btn outline-none transition-[background-color,color,transform] duration-150 hover:bg-hover hover:text-ink active:scale-[.98] disabled:pointer-events-none disabled:opacity-40 ${showLabelOnMobile ? "w-auto max-w-36" : "w-7 sm:w-auto"}`}
         >
-          <span className="hidden max-w-28 truncate sm:inline">{displayText}</span>
-          <Sparkles className="size-3 text-ink-3 sm:hidden" />
-          <ChevronDown className="hidden size-3 text-ink-3 sm:block" />
+          <span className={`${showLabelOnMobile ? "inline max-w-28" : "hidden max-w-28 sm:inline"} truncate`}>{displayText}</span>
+          <Sparkles className={`size-3 text-ink-3 ${showLabelOnMobile ? "hidden" : "sm:hidden"}`} />
+          <ChevronDown className={`size-3 text-ink-3 ${showLabelOnMobile ? "block" : "hidden sm:block"}`} />
         </button>
       </PopoverTrigger>
       <PopoverContent
@@ -176,7 +181,7 @@ export function AIModelSelector({ disabled = false, globalModel }: AIModelSelect
             value={inputValue}
             onChange={(event) => handleInputChange(event.target.value)}
             onKeyDown={handleInputKeyDown}
-            className="h-9 text-sm"
+            className="h-9 text-base sm:text-sm"
           />
         </div>
         <div className={`${isCustomProvider ? "h-[280px]" : "max-h-[280px]"} overflow-y-auto py-2`}>
@@ -191,10 +196,18 @@ export function AIModelSelector({ disabled = false, globalModel }: AIModelSelect
                   onClick={() => void loadCustomModels()}
                   disabled={modelsLoading || !customEndpoint.trim()}
                   aria-label="Refresh endpoint models"
-                  className="beautiful-icon-button size-6 rounded-[5px] text-ink-3 disabled:opacity-40"
+                  className="beautiful-icon-button size-6 rounded-control text-ink-3 disabled:opacity-40"
                 >
                   <RefreshCw className={`size-3 ${modelsLoading ? "animate-spin" : ""}`} />
                 </button>
+              </div>
+
+              <div className="mx-2 mb-2 flex items-center gap-2 rounded-control bg-inset px-2.5 py-2 shadow-hairline">
+                <span className="min-w-0 flex-1">
+                  <span className="block font-mono text-[9px] font-medium uppercase tracking-[.08em] text-ink-3">Selected model</span>
+                  <span className="mt-0.5 block truncate font-mono text-[11.5px] font-medium text-ink">{currentModel}</span>
+                </span>
+                <Check className="size-3.5 shrink-0 text-signal" />
               </div>
 
               {modelsLoading ? (
@@ -205,6 +218,11 @@ export function AIModelSelector({ disabled = false, globalModel }: AIModelSelect
               ) : modelsError ? (
                 <div className="px-3 py-3">
                   <p className="text-[11.5px] leading-[1.45] text-red">{modelsError}</p>
+                  {modelsError.includes("not admitted") ? (
+                    <p className="mt-1.5 text-[10.5px] leading-[1.45] text-ink-3">
+                      The selected model is still saved. This deployment must allow the proxy origin before its model list can be loaded.
+                    </p>
+                  ) : null}
                   <button
                     type="button"
                     onClick={() => void loadCustomModels()}

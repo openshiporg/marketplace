@@ -172,55 +172,36 @@ const openfrontAdapter: PlatformAdapter = {
       throw new Error(`No region found for country code: ${countryCode}`);
     }
 
-    // Create cart with region connected
+    // Guest carts must be created through the public active-cart boundary. The
+    // returned proof is required for every subsequent anonymous cart request.
     const createCartMutation = `
-      mutation CreateCart($data: CartCreateInput!) {
-        createCart(data: $data) {
-          id
-          email
-          type
-          lineItems {
-            id
-            quantity
-            productVariant {
-              id
-              title
-              product { thumbnail title }
-              prices {
-                amount
-                currency { code }
-                calculatedPrice {
-                  calculatedAmount
-                  originalAmount
-                  currencyCode
-                }
-              }
-            }
-          }
-        }
+      mutation CreateActiveCart($regionId: ID!) {
+        createActiveCart(regionId: $regionId)
       }
     `;
-    const cartResult = await executeGraphQL(createCartMutation, store.endpoint, cookie || '', {
-      data: { region: { connect: { id: region.id } } }
-    }, ctoken);
-    const newCart = cartResult.data?.createCart;
+    const cartResult = await executeGraphQL(
+      createCartMutation,
+      store.endpoint,
+      cookie || '',
+      { regionId: region.id },
+      ctoken,
+    );
+    const newCart = cartResult.data?.createActiveCart;
+    if (!newCart?.id || !newCart?.proof) {
+      throw new Error('Source did not return an active cart proof');
+    }
 
     return {
-      id: newCart?.id,
-      lineItems: (newCart?.lineItems || []).map((item: any) => ({
-        id: item.id,
-        quantity: item.quantity,
-        variantId: item.productVariant?.id,
-        productTitle: item.productVariant?.product?.title || item.productVariant?.title || '',
-        price: item.productVariant?.prices?.[0]?.amount ?? 0,
-      })),
+      id: newCart.id,
+      lineItems: [],
       subtotal: 0,
       total: 0,
       currency: region.currency.code,
+      cartProof: newCart.proof,
     };
   },
 
-  async addToCart({ store, cartId, variantId, quantity, cookie, ctoken }) {
+  async addToCart({ store, cartId, variantId, quantity, cookie, ctoken, cartProof }) {
     const mutation = `
       mutation AddToCart($cartId: ID!, $data: CartUpdateInput!) {
         updateActiveCart(cartId: $cartId, data: $data) { id }
@@ -231,14 +212,15 @@ const openfrontAdapter: PlatformAdapter = {
       store.endpoint,
       cookie || '',
       { cartId, data: { lineItems: { create: [{ productVariant: { connect: { id: variantId } }, quantity }] } } },
-      ctoken
+      ctoken,
+      cartProof,
     );
-    return this.getCart({ store, cartId, cookie, ctoken });
+    return this.getCart({ store, cartId, cookie, ctoken, cartProof });
   },
 
-  async getCart({ store, cartId, cookie, ctoken }) {
+  async getCart({ store, cartId, cookie, ctoken, cartProof }) {
     const query = `query GetCart($cartId: ID!) { activeCart(cartId: $cartId) }`;
-    const result = await executeGraphQL(query, store.endpoint, cookie || '', { cartId }, ctoken);
+    const result = await executeGraphQL(query, store.endpoint, cookie || '', { cartId }, ctoken, cartProof);
     const cart = result.data?.activeCart;
     return {
       id: cart?.id,
@@ -286,7 +268,7 @@ const openfrontAdapter: PlatformAdapter = {
     };
   },
 
-	  async connectCartToUser({ store, cartId, userId, email, cookie, ctoken }) {
+  async connectCartToUser({ store, cartId, userId, email, cookie, ctoken, cartProof }) {
 	    const mutation = `
 	      mutation UpdateActiveCart($cartId: ID!, $data: CartUpdateInput!) {
 	        updateActiveCart(cartId: $cartId, data: $data) { id }
@@ -296,13 +278,14 @@ const openfrontAdapter: PlatformAdapter = {
 	      mutation,
 	      store.endpoint,
 	      cookie || '',
-	      { cartId, data: { email, user: { connect: { id: userId } } } },
-	      ctoken
-	    );
-	  },
+        { cartId, data: { email, user: { connect: { id: userId } } } },
+        ctoken,
+        cartProof,
+      );
+  },
 
 
-  async setShippingAddress({ store, cartId, address, cookie, ctoken }) {
+  async setShippingAddress({ store, cartId, address, cookie, ctoken, cartProof }) {
     const { email, firstName, lastName, address1, city, postalCode, countryCode, province, company, phone } = address;
 
     // Step 1: Try to detect authenticated user
@@ -387,7 +370,8 @@ const openfrontAdapter: PlatformAdapter = {
       store.endpoint,
       cookie || '',
       { data: addressData },
-      sessionToken || ctoken
+      sessionToken || ctoken,
+      cartProof,
     ).then(r => {
       return r.data?.createAddress;
     }).catch(err => {
@@ -410,15 +394,30 @@ const openfrontAdapter: PlatformAdapter = {
           user: { connect: { id: currentUser.id } },
         },
       },
-      sessionToken || ctoken
+      sessionToken || ctoken,
+      cartProof,
     ).then(r => {
       return r;
     }).catch(err => {
       throw err;
     });
 
-    // Step 5: Return normalized cart
-    return this.getCart({ store, cartId, cookie, ctoken });
+    // Step 5: Keep using the newly-created guest session after the cart becomes
+    // user-owned. A cart proof only authorizes an anonymous, unowned cart.
+    const cart = await this.getCart({
+      store,
+      cartId,
+      cookie,
+      ctoken: sessionToken || ctoken,
+      cartProof,
+    });
+    return {
+      ...cart,
+      ...(sessionToken ? {
+        __sessionToken: sessionToken,
+        __sessionUser: currentUser,
+      } : {}),
+    } as Cart;
   },
 
   async getAvailableCountries({ store, cookie, ctoken }) {
@@ -444,13 +443,13 @@ const openfrontAdapter: PlatformAdapter = {
     return countries;
   },
 
-  async getCartRaw({ store, cartId, cookie, ctoken }) {
+  async getCartRaw({ store, cartId, cookie, ctoken, cartProof }) {
     const q = `query GetCart($cartId: ID!) { activeCart(cartId: $cartId) }`;
-    const res = await executeGraphQL(q, store.endpoint, cookie || '', { cartId }, ctoken);
+    const res = await executeGraphQL(q, store.endpoint, cookie || '', { cartId }, ctoken, cartProof);
     return res.data?.activeCart;
   },
 
-  async getCartShippingOptions({ store, cartId, cookie, ctoken }) {
+  async getCartShippingOptions({ store, cartId, cookie, ctoken, cartProof }) {
     const q = `
       query GetCart($cartId: ID!) {
         activeCart(cartId: $cartId)
@@ -465,11 +464,11 @@ const openfrontAdapter: PlatformAdapter = {
         }
       }
     `;
-    const res = await executeGraphQL(q, store.endpoint, cookie || '', { cartId }, ctoken);
+    const res = await executeGraphQL(q, store.endpoint, cookie || '', { cartId }, ctoken, cartProof);
     return res.data?.activeCartShippingOptions || [];
   },
 
-  async setShippingMethod({ store, cartId, shippingMethodId, cookie, ctoken }) {
+  async setShippingMethod({ store, cartId, shippingMethodId, cookie, ctoken, cartProof }) {
     const mutation = `
       mutation AddShippingMethod($cartId: ID!, $shippingMethodId: ID!) {
         addActiveCartShippingMethod(cartId: $cartId, shippingMethodId: $shippingMethodId) {
@@ -478,11 +477,11 @@ const openfrontAdapter: PlatformAdapter = {
         }
       }
     `;
-    const res = await executeGraphQL(mutation, store.endpoint, cookie || '', { cartId, shippingMethodId }, ctoken);
+    const res = await executeGraphQL(mutation, store.endpoint, cookie || '', { cartId, shippingMethodId }, ctoken, cartProof);
     return res.data?.addActiveCartShippingMethod;
   },
 
-  async updateCartItemQuantity({ store, cartId, lineItemId, quantity, cookie, ctoken }) {
+  async updateCartItemQuantity({ store, cartId, lineItemId, quantity, cookie, ctoken, cartProof }) {
     const mutation = `
       mutation UpdateLineItem($cartId: ID!, $lineId: ID!, $quantity: Int!) {
         updateActiveCartLineItem(cartId: $cartId, lineId: $lineId, quantity: $quantity) {
@@ -491,11 +490,11 @@ const openfrontAdapter: PlatformAdapter = {
         }
       }
     `;
-    const res = await executeGraphQL(mutation, store.endpoint, cookie || '', { cartId, lineId: lineItemId, quantity }, ctoken);
+    const res = await executeGraphQL(mutation, store.endpoint, cookie || '', { cartId, lineId: lineItemId, quantity }, ctoken, cartProof);
     return res.data?.updateActiveCartLineItem;
   },
 
-  async removeCartItem({ store, cartId, lineItemId, cookie, ctoken }) {
+  async removeCartItem({ store, cartId, lineItemId, cookie, ctoken, cartProof }) {
     const mutation = `
       mutation RemoveCartItem($cartId: ID!, $data: CartUpdateInput!) {
         updateActiveCart(cartId: $cartId, data: $data) { id lineItems { id quantity productVariant { id title prices { amount currency { code } } } } }
@@ -506,7 +505,8 @@ const openfrontAdapter: PlatformAdapter = {
       store.endpoint,
       cookie || '',
       { cartId, data: { lineItems: { disconnect: [{ id: lineItemId }] } } },
-      ctoken
+      ctoken,
+      cartProof,
     );
     return res.data?.updateActiveCart;
   },
@@ -521,9 +521,9 @@ const openfrontAdapter: PlatformAdapter = {
     return res.data?.activeCartPaymentProviders || [];
   },
 
-  async initiatePaymentSession({ store, cartId, paymentProviderCodeOrName, cookie, ctoken }) {
+  async initiatePaymentSession({ store, cartId, paymentProviderCodeOrName, cookie, ctoken, cartProof }) {
     // Get cart for region and existing sessions
-    const cart = await this.getCartRaw({ store, cartId, cookie, ctoken });
+    const cart = await this.getCartRaw({ store, cartId, cookie, ctoken, cartProof });
     const regionId = cart?.region?.id;
     if (!regionId) throw new Error('Cart or region not found');
 
@@ -537,17 +537,17 @@ const openfrontAdapter: PlatformAdapter = {
         initiatePaymentSession(cartId: $cartId, paymentProviderId: $paymentProviderId) { id data amount }
       }
     `;
-    const res = await executeGraphQL(mutation, store.endpoint, cookie || '', { cartId, paymentProviderId: matched.code }, ctoken);
+    const res = await executeGraphQL(mutation, store.endpoint, cookie || '', { cartId, paymentProviderId: matched.code }, ctoken, cartProof);
     return res.data?.initiatePaymentSession;
   },
 
-  async completeCart({ store, cartId, paymentSessionId, cookie, ctoken }) {
+  async completeCart({ store, cartId, paymentSessionId, cookie, ctoken, cartProof }) {
     const mutation = `
       mutation CompleteActiveCart($cartId: ID!, $paymentSessionId: ID) {
         completeActiveCart(cartId: $cartId, paymentSessionId: $paymentSessionId)
       }
     `;
-    const res = await executeGraphQL(mutation, store.endpoint, cookie || '', { cartId, paymentSessionId }, ctoken);
+    const res = await executeGraphQL(mutation, store.endpoint, cookie || '', { cartId, paymentSessionId }, ctoken, cartProof);
     return res.data?.completeActiveCart;
   },
 

@@ -65,7 +65,7 @@ interface AIActivationDialogProps {
 }
 
 export function AIActivationDialog({ open, onOpenChange, onComplete, sharedKeysStatus }: AIActivationDialogProps) {
-  const { setConfig } = useAiConfig();
+  const { setConfig, localAiEnabled } = useAiConfig();
   const [configType, setConfigType] = useState<"global" | "local">("global");
   const [confirmationText, setConfirmationText] = useState("");
   const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
@@ -193,7 +193,9 @@ export function AIActivationDialog({ open, onOpenChange, onComplete, sharedKeysS
                     Info
                   </h4>
                   <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                    Choose between global environment keys or your own local API configuration.
+                    {localAiEnabled
+                      ? "Choose between global environment keys or your own local API configuration."
+                      : "This deployment uses its global AI configuration."}
                   </p>
                   <h4 className="mt-8 text-sm font-bold text-red-600 dark:text-red-400">
                     Danger
@@ -232,15 +234,21 @@ export function AIActivationDialog({ open, onOpenChange, onComplete, sharedKeysS
                   >
                     Configuration Type
                   </Label>
-                  <Select value={configType} onValueChange={(value: "global" | "local") => setConfigType(value)}>
-                    <SelectTrigger id="config-type" className="w-full shadow-sm mt-3">
-                      <SelectValue placeholder="Select configuration type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="global">Global Configuration</SelectItem>
-                      <SelectItem value="local">Local Configuration</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  {localAiEnabled ? (
+                    <Select value={configType} onValueChange={(value: "global" | "local") => setConfigType(value)}>
+                      <SelectTrigger id="config-type" className="w-full shadow-sm mt-3">
+                        <SelectValue placeholder="Select configuration type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="global">Global Configuration</SelectItem>
+                        <SelectItem value="local">Local Configuration</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <div className="mt-3 rounded-control bg-inset px-3 py-2 text-sm font-medium text-ink shadow-hairline">
+                      Global Configuration
+                    </div>
+                  )}
                   
                   {/* Global Configuration - Show Available Keys */}
                   {configType === "global" && (

@@ -164,16 +164,15 @@ export function generateOpenFrontCartUI(params: {
         button { transition: all 0.2s; }
         button:hover:not(:disabled) { transform: translateY(-1px); }
         .tab-button { position: relative; }
-        body > div > .cart-shell,
-        .cart-shell .rounded,
-        .cart-shell .rounded-md,
-        .cart-shell .rounded-lg {
-          border-radius: 0 !important;
-        }
         body > div > .cart-shell {
+          overflow: hidden;
+          border-radius: 12px !important;
           border-color: var(--line) !important;
-          box-shadow: none !important;
+          box-shadow: var(--shadow-card) !important;
         }
+        .cart-shell .rounded { border-radius: 8px !important; }
+        .cart-shell .rounded-md { border-radius: 8px !important; }
+        .cart-shell .rounded-lg { border-radius: 10px !important; }
         .cart-shell .cart-header,
         .cart-shell .cart-tabs,
         .cart-shell .border,
@@ -183,9 +182,9 @@ export function generateOpenFrontCartUI(params: {
           border-color: var(--line) !important;
         }
         .cart-shell .payment-method-btn {
-          border-radius: 0 !important;
+          border-radius: 8px !important;
           border-color: var(--line-strong) !important;
-          box-shadow: none !important;
+          box-shadow: var(--shadow-hairline) !important;
         }
         .cart-shell .cart-store-logo {
           overflow: hidden;
@@ -220,10 +219,10 @@ export function generateOpenFrontCartUI(params: {
           background: var(--signal) !important;
           z-index: 1;
         }
-        .payment-lock-stage { position: relative; min-height: 390px; overflow: hidden; border: 1px solid var(--line); background: var(--inset); }
+        .payment-lock-stage { position: relative; min-height: 390px; overflow: hidden; border: 1px solid var(--line); border-radius: 10px; background: var(--inset); }
         .payment-lock-preview { min-height: 390px; padding: 204px 12px 12px; opacity: .42; filter: saturate(.35); pointer-events: none; user-select: none; }
-        .payment-lock-card { position: absolute; z-index: 2; top: 12px; left: 50%; width: min(420px, calc(100% - 24px)); transform: translateX(-50%); border: 1px solid var(--line-strong); background: var(--surface); box-shadow: var(--shadow-raised); padding: 16px; }
-        .payment-lock-icon { display: grid; place-items: center; width: 30px; height: 30px; flex: 0 0 auto; border: 1px solid var(--line); background: var(--inset); color: var(--ink-2); }
+        .payment-lock-card { position: absolute; z-index: 2; top: 12px; left: 50%; width: min(420px, calc(100% - 24px)); transform: translateX(-50%); border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surface); box-shadow: var(--shadow-raised); padding: 16px; }
+        .payment-lock-icon { display: grid; place-items: center; width: 30px; height: 30px; flex: 0 0 auto; border: 1px solid var(--line); border-radius: 8px; background: var(--inset); color: var(--ink-2); }
         .payment-lock-icon svg { width: 15px; height: 15px; }
         .payment-lock-card h4 { margin: 0; font-size: 14px; line-height: 1.3; }
         .payment-lock-card p { margin: 3px 0 0; color: var(--ink-2); font-size: 12px; }

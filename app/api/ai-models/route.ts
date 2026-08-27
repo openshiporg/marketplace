@@ -1,5 +1,10 @@
 import { normalizeOpenAICompatibleBaseURL } from "@/lib/ai-provider";
-import { assertTrustedHttpsEndpoint, createTrustedFetch, customAiAllowedOrigins } from "@/lib/remote-endpoint";
+import {
+  assertTrustedHttpsEndpoint,
+  createTrustedFetch,
+  customAiEndpointPolicy,
+  localAiConfigurationEnabled,
+} from "@/lib/remote-endpoint";
 
 type OpenAIModel = {
   id?: unknown;
@@ -22,17 +27,18 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => ({}));
     const endpoint = typeof body?.endpoint === "string" ? body.endpoint : "";
     const apiKey = typeof body?.apiKey === "string" ? body.apiKey.trim() : "";
-    const baseURL = normalizeOpenAICompatibleBaseURL(endpoint);
-    const allowedOrigins = customAiAllowedOrigins();
-    if (!allowedOrigins.length) {
-      return Response.json({ error: "Custom AI endpoints are not admitted for this deployment" }, { status: 403 });
+    if (!localAiConfigurationEnabled()) {
+      return Response.json({ error: "Local AI configuration is disabled for this deployment" }, { status: 403 });
     }
-    await assertTrustedHttpsEndpoint(baseURL, { allowedOrigins });
+
+    const baseURL = normalizeOpenAICompatibleBaseURL(endpoint);
+    const endpointPolicy = customAiEndpointPolicy();
+    await assertTrustedHttpsEndpoint(baseURL, endpointPolicy);
 
     const headers = new Headers({ Accept: "application/json" });
     if (apiKey) headers.set("Authorization", `Bearer ${apiKey}`);
 
-    const response = await createTrustedFetch({ allowedOrigins })(`${baseURL}/models`, {
+    const response = await createTrustedFetch(endpointPolicy)(`${baseURL}/models`, {
       headers,
       cache: "no-store",
       signal: AbortSignal.timeout(10_000),
@@ -72,7 +78,10 @@ export async function POST(request: Request) {
     }
 
     return Response.json({ models, baseURL });
-  } catch {
-    return Response.json({ error: "Unable to load models" }, { status: 400 });
+  } catch (error) {
+    return Response.json(
+      { error: error instanceof Error ? error.message : "Unable to load models" },
+      { status: 400 }
+    );
   }
 }

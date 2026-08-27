@@ -35,6 +35,8 @@ export interface Cart {
   subtotal: number;
   total: number;
   currency: string;
+  /** Signed source-issued proof used to authorize guest cart access. */
+  cartProof?: string;
 }
 
 export interface StoreInfo {
@@ -91,6 +93,7 @@ export interface PlatformAdapter {
     orderType?: string;
     cookie?: string;
     ctoken?: string;
+    cartProof?: string;
   }): Promise<Cart>;
 
   getCart(params: {
@@ -98,6 +101,7 @@ export interface PlatformAdapter {
     cartId: string;
     cookie?: string;
     ctoken?: string;
+    cartProof?: string;
   }): Promise<Cart>;
 
   // Raw/full cart for UI needs
@@ -106,6 +110,7 @@ export interface PlatformAdapter {
     cartId: string;
     cookie?: string;
     ctoken?: string;
+    cartProof?: string;
   }): Promise<any>;
 
   // Shipping options and methods
@@ -114,6 +119,7 @@ export interface PlatformAdapter {
     cartId: string;
     cookie?: string;
     ctoken?: string;
+    cartProof?: string;
   }): Promise<any[]>;
 
   setShippingMethod(params: {
@@ -122,6 +128,7 @@ export interface PlatformAdapter {
     shippingMethodId: string;
     cookie?: string;
     ctoken?: string;
+    cartProof?: string;
   }): Promise<any>; // returns cart raw
 
   updateCartItemQuantity(params: {
@@ -131,6 +138,7 @@ export interface PlatformAdapter {
     quantity: number;
     cookie?: string;
     ctoken?: string;
+    cartProof?: string;
   }): Promise<any>; // returns cart raw
 
   removeCartItem(params: {
@@ -139,6 +147,7 @@ export interface PlatformAdapter {
     lineItemId: string;
     cookie?: string;
     ctoken?: string;
+    cartProof?: string;
   }): Promise<any>; // returns cart raw
 
   // Authentication
@@ -151,15 +160,16 @@ export interface PlatformAdapter {
     user: { id: string; email: string; activeCartId?: string };
   }>;
 
-	  // Cart association (optional helper)
-	  connectCartToUser(params: {
-	    store: ParsedStore;
-	    cartId: string;
-	    userId: string;
-	    email: string;
-	    cookie?: string;
-	    ctoken?: string;
-	  }): Promise<void>;
+  // Cart association (optional helper)
+  connectCartToUser(params: {
+    store: ParsedStore;
+    cartId: string;
+    userId: string;
+    email: string;
+    cookie?: string;
+    ctoken?: string;
+    cartProof?: string;
+  }): Promise<void>;
 
 
   // Checkout operations
@@ -180,6 +190,7 @@ export interface PlatformAdapter {
     };
     cookie?: string;
     ctoken?: string;
+    cartProof?: string;
   }): Promise<Cart>;
 
   updateCartFulfillment?(params: {
@@ -197,6 +208,7 @@ export interface PlatformAdapter {
     deliveryCountryCode?: string;
     cookie?: string;
     ctoken?: string;
+    cartProof?: string;
   }): Promise<any>;
 
   buildCheckoutLink(params: {
@@ -219,6 +231,7 @@ export interface PlatformAdapter {
     paymentProviderCodeOrName: string;
     cookie?: string;
     ctoken?: string;
+    cartProof?: string;
   }): Promise<{ id: string; data: any; amount: number }>;
 
   completeCart(params: {
@@ -227,6 +240,7 @@ export interface PlatformAdapter {
     paymentSessionId?: string;
     cookie?: string;
     ctoken?: string;
+    cartProof?: string;
   }): Promise<any>; // returns order raw
 
   // Store info

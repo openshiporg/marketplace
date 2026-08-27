@@ -1,13 +1,15 @@
 import {
   getCartId,
+  getCartProof,
   removeCartId,
   setCartId,
 } from '@/lib/cart-storage';
+import { setSession } from '@/lib/session-storage';
 
 type JsonObject = Record<string, unknown>;
 
 export type CartLifecycleChange =
-  | { type: 'saved'; storeId: string; cartId: string; changed: boolean }
+  | { type: 'saved'; storeId: string; cartId: string; cartProof?: string; changed: boolean }
   | { type: 'cleared'; storeId: string; changed: boolean };
 
 const cartMutationQueues = new Map<string, Promise<unknown>>();
@@ -36,6 +38,17 @@ function parseJsonObject(value: unknown): JsonObject | null {
   } catch {
     return null;
   }
+}
+
+function getClientAction(value: unknown, data?: JsonObject | null): JsonObject | null {
+  let envelope = parseJsonObject(value);
+  if (envelope && isJsonObject(envelope.result)) envelope = envelope.result;
+  const meta = envelope && isJsonObject(envelope._meta) ? envelope._meta : null;
+  const marketplaceMeta = meta && isJsonObject(meta.marketplace) ? meta.marketplace : null;
+  if (marketplaceMeta && isJsonObject(marketplaceMeta.clientAction)) {
+    return marketplaceMeta.clientAction;
+  }
+  return data && isJsonObject(data.__clientAction) ? data.__clientAction : null;
 }
 
 /**
@@ -67,11 +80,11 @@ export function getMcpToolResultData(value: unknown): JsonObject | null {
  */
 export function getCartIdentityFromToolResult(
   value: unknown
-): { storeId: string; cartId: string } | null {
+): { storeId: string; cartId: string; cartProof?: string } | null {
   const data = getMcpToolResultData(value);
   if (!data) return null;
 
-  const clientAction = isJsonObject(data.__clientAction) ? data.__clientAction : null;
+  const clientAction = getClientAction(value, data);
   const cart = isJsonObject(data.cart) ? data.cart : null;
   const storeId = typeof data.storeId === 'string'
     ? data.storeId
@@ -83,8 +96,11 @@ export function getCartIdentityFromToolResult(
     : clientAction?.type === 'saveCartId' && typeof clientAction.cartId === 'string'
       ? clientAction.cartId
       : null;
+  const cartProof = clientAction?.type === 'saveCartId' && typeof clientAction.cartProof === 'string'
+    ? clientAction.cartProof
+    : undefined;
 
-  return storeId && cartId ? { storeId, cartId } : null;
+  return storeId && cartId ? { storeId, cartId, cartProof } : null;
 }
 
 export function applyCartLifecycleFromToolResult(value: unknown): CartLifecycleChange | null {
@@ -98,30 +114,51 @@ export function applyCartLifecycleFromToolResult(value: unknown): CartLifecycleC
     return { type: 'cleared', storeId, changed };
   }
 
-  const clientAction = isJsonObject(data.__clientAction) ? data.__clientAction : null;
+  const clientAction = getClientAction(value, data);
   if (!clientAction) return null;
 
   const actionStoreId = typeof clientAction.storeId === 'string'
     ? clientAction.storeId
     : storeId;
+  if (
+    clientAction.type === 'saveSessionToken' &&
+    actionStoreId &&
+    typeof clientAction.sessionToken === 'string'
+  ) {
+    setSession(actionStoreId, {
+      token: clientAction.sessionToken,
+      email: typeof clientAction.email === 'string' ? clientAction.email : undefined,
+      userId: typeof clientAction.userId === 'string' ? clientAction.userId : undefined,
+      activeCartId: typeof clientAction.activeCartId === 'string' ? clientAction.activeCartId : undefined,
+    });
+  }
+
   const actionCartId = clientAction.type === 'saveCartId' && typeof clientAction.cartId === 'string'
     ? clientAction.cartId
     : clientAction.type === 'saveSessionToken' && typeof clientAction.activeCartId === 'string'
       ? clientAction.activeCartId
       : null;
+  const actionCartProof = clientAction.type === 'saveCartId' && typeof clientAction.cartProof === 'string'
+    ? clientAction.cartProof
+    : undefined;
 
   if (!actionStoreId || !actionCartId) return null;
 
-  const changed = getCartId(actionStoreId) !== actionCartId;
-  if (changed) {
-    const storeName = typeof data.storeName === 'string' ? data.storeName : undefined;
-    setCartId(actionStoreId, actionCartId, storeName);
+  const changed = getCartId(actionStoreId) !== actionCartId || (
+    typeof actionCartProof === 'string' && getCartProof(actionStoreId) !== actionCartProof
+  );
+  const storeName = typeof data.storeName === 'string' ? data.storeName : undefined;
+  // Always write when a proof is returned so an old cartId-only entry is
+  // upgraded even if the source kept the same cart ID.
+  if (changed || actionCartProof) {
+    setCartId(actionStoreId, actionCartId, storeName, actionCartProof);
   }
 
   return {
     type: 'saved',
     storeId: actionStoreId,
     cartId: actionCartId,
+    cartProof: actionCartProof,
     changed,
   };
 }

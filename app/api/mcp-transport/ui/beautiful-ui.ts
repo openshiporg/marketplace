@@ -136,6 +136,12 @@ export const beautifulUIStyles = String.raw`
   }
   input::placeholder, textarea::placeholder { color: var(--ink-3); }
 
+  /* Embedded MCP forms run in their own iframe, so repeat the iOS-safe input
+     minimum here instead of relying on the Marketplace document stylesheet. */
+  @media (pointer: coarse) {
+    input, select, textarea, [contenteditable="true"] { font-size: 16px !important; }
+  }
+
   .text-gray-900, .text-gray-800, .text-gray-700 { color: var(--ink) !important; }
   .text-gray-600, .text-gray-500, .text-gray-400 { color: var(--ink-3) !important; }
   .bg-white { background: var(--surface) !important; }

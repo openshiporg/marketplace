@@ -836,7 +836,10 @@ export async function handleProductTools(name: string, args: any, cookie: string
         <style>
           ${beautifulUIStyles}
           .discover-shell {
+            overflow: hidden;
+            border-radius: 12px;
             background: var(--surface);
+            box-shadow: var(--shadow-card);
           }
           .discover-shell > .discover-title {
             margin: 0 !important;
@@ -860,13 +863,45 @@ export async function handleProductTools(name: string, args: any, cookie: string
             border-top: 1px solid var(--line) !important;
           }
           .discover-shell .product-card {
-            border-radius: 0 !important;
-            box-shadow: var(--shadow-hairline) !important;
+            border-radius: 10px !important;
+            box-shadow: var(--shadow-card) !important;
           }
           .discover-shell .product-card img,
           .discover-shell .product-card .bg-gray-100,
           .discover-shell .product-card .bg-gray-200 {
-            border-radius: 0 !important;
+            border-radius: 8px !important;
+          }
+          .discover-shell .restaurant-card h3 {
+            margin-bottom: 5px !important;
+            color: var(--ink) !important;
+            font-size: 16px !important;
+            font-weight: 680 !important;
+            line-height: 1.2 !important;
+            letter-spacing: -.02em;
+          }
+          .discover-shell .restaurant-card img { object-fit: cover !important; }
+          .restaurant-category {
+            margin: 0 0 5px;
+            color: var(--ink-3);
+            font-size: 9.5px;
+            font-weight: 650;
+            letter-spacing: .08em;
+            line-height: 1.2;
+            text-transform: uppercase;
+          }
+          .discover-shell .restaurant-price {
+            align-self: flex-start;
+            margin: 2px 0 11px !important;
+            border-radius: 6px;
+            background: var(--inset);
+            padding: 4px 7px;
+            color: var(--ink-2) !important;
+            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+            font-size: 12px !important;
+            font-weight: 600 !important;
+            font-variant-numeric: tabular-nums;
+            line-height: 1;
+            box-shadow: var(--shadow-hairline);
           }
           .discover-shell .store-logo {
             overflow: hidden;
@@ -891,7 +926,7 @@ export async function handleProductTools(name: string, args: any, cookie: string
           }
           .horizontal-scroll::-webkit-scrollbar-thumb {
             background: var(--line-strong);
-            border-radius: 0;
+            border-radius: 999px;
           }
           .horizontal-scroll::-webkit-scrollbar-thumb:hover {
             background: var(--ink-3);
@@ -961,7 +996,7 @@ export async function handleProductTools(name: string, args: any, cookie: string
               }
 
               return `
-                <div class="product-card flex-shrink-0 w-48 sm:w-72 p-2 sm:p-3.5 bg-white self-start"
+                <div class="product-card${isRestaurant ? ' restaurant-card' : ''} flex-shrink-0 w-48 sm:w-72 p-2 sm:p-3.5 bg-white self-start"
                      data-product-index="${storeIndex}-${productIndex}"
                      data-store-index="${storeIndex}">
                   ${hasImages ? `
@@ -1014,9 +1049,12 @@ export async function handleProductTools(name: string, args: any, cookie: string
                   `}
 
                   <div class="flex flex-col">
-                    <h3 class="font-semibold text-sm sm:text-lg text-gray-900 mb-1 sm:mb-2 line-clamp-2">${product.title}</h3>
+                    ${isRestaurant && product.metadata?.restaurant?.category?.name
+                      ? `<p class="restaurant-category">${escapeHtml(product.metadata.restaurant.category.name)}</p>`
+                      : ''}
+                    <h3 class="font-semibold text-sm sm:text-lg text-gray-900 mb-1 sm:mb-2 line-clamp-2">${escapeHtml(product.title)}</h3>
                     ${optionsHTML}
-                    <p class="price-display text-base sm:text-xl font-bold text-gray-900 mb-2 sm:mb-3" data-product-index="${storeIndex}-${productIndex}">
+                    <p class="price-display${isRestaurant ? ' restaurant-price' : ''} text-base sm:text-xl font-bold text-gray-900 mb-2 sm:mb-3" data-product-index="${storeIndex}-${productIndex}">
                       ${formattedPrice}
                     </p>
                     <button

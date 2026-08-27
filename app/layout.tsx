@@ -5,6 +5,7 @@ import { AiConfigProvider } from "../features/marketplace/hooks/use-ai-config";
 import { AppShell } from "@/components/beautiful-ui/app-shell";
 import { ThemeProvider } from "@/components/beautiful-ui/theme-provider";
 import { MarketplaceProfileHydrator } from "@/features/marketplace/components/marketplace-profile-hydrator";
+import { localAiConfigurationEnabled } from "@/lib/remote-endpoint";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -78,6 +79,7 @@ function getSharedKeysData() {
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const envVarsAvailable = checkEnvVarsAvailable();
   const sharedKeysData = getSharedKeysData();
+  const localAiEnabled = localAiConfigurationEnabled();
 
   return (
     <html lang="en" suppressHydrationWarning>
@@ -88,8 +90,9 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         <ThemeProvider>
           <MarketplaceProfileHydrator />
           <AiConfigProvider
-            defaultConfig={{ enabled: true, onboarded: true, keyMode: envVarsAvailable ? "env" : "local" }}
+            defaultConfig={{ enabled: true, onboarded: true, keyMode: envVarsAvailable || !localAiEnabled ? "env" : "local" }}
             sharedKeys={sharedKeysData}
+            localAiEnabled={localAiEnabled}
           >
             <AppShell>{children}</AppShell>
           </AiConfigProvider>

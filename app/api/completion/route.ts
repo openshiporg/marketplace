@@ -4,7 +4,12 @@ import { createOpenRouter } from '@openrouter/ai-sdk-provider';
 import { createOpenAI } from '@ai-sdk/openai';
 import { getBaseUrl } from '@/features/marketplace/lib/getBaseUrl';
 import { normalizeOpenAICompatibleBaseURL } from '@/lib/ai-provider';
-import { assertTrustedHttpsEndpoint, createTrustedFetch, customAiAllowedOrigins } from '@/lib/remote-endpoint';
+import {
+  assertTrustedHttpsEndpoint,
+  createTrustedFetch,
+  customAiEndpointPolicy,
+  localAiConfigurationEnabled,
+} from '@/lib/remote-endpoint';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { discoveryToolForUserText } from '@/lib/marketplace-discovery';
 import { forcedFollowUpToolForSteps } from '@/lib/completion-tool-routing';
@@ -36,6 +41,7 @@ function latestStepReturnedUiResource({ steps }: { steps: Array<any> }): boolean
 type ScopedMcpRequest = {
   cookies: string;
   cartIds?: Record<string, string>;
+  cartProofs?: Record<string, string>;
   sessionTokens?: Record<string, string>;
   marketplaceConfig?: unknown[];
 };
@@ -45,16 +51,48 @@ type ScopedMcpRequest = {
  * not replace global.fetch: the completion process may concurrently talk to an
  * AI provider, another MCP request, or another customer.
  */
-function createScopedMcpFetch({ cookies, cartIds, sessionTokens, marketplaceConfig }: ScopedMcpRequest) {
+function createScopedMcpFetch({ cookies, cartIds, cartProofs, sessionTokens, marketplaceConfig }: ScopedMcpRequest) {
   let receivedCookies = cookies ? [cookies] : [];
-  const cartIdsHeader = cartIds && Object.keys(cartIds).length ? JSON.stringify(cartIds) : undefined;
+  const currentCartIds: Record<string, string> = { ...(cartIds || {}) };
+  const currentCartProofs: Record<string, string> = { ...(cartProofs || {}) };
+  const currentSessionTokens: Record<string, string> = { ...(sessionTokens || {}) };
   const marketplaceConfigHeader = Array.isArray(marketplaceConfig) ? JSON.stringify(marketplaceConfig) : undefined;
+
+  const applyCartAction = async (response: Response) => {
+    try {
+      const rpc = await response.clone().json();
+      const content = rpc?.result?.content;
+      if (!Array.isArray(content)) return;
+      const metaAction = rpc?.result?._meta?.marketplace?.clientAction;
+      for (const item of content) {
+        if (item?.type !== 'text' || typeof item.text !== 'string') continue;
+        const data = JSON.parse(item.text);
+        const action = metaAction || data?.__clientAction;
+        const storeId = typeof action?.storeId === 'string' ? action.storeId : data?.storeId;
+        if (action?.type === 'saveCartId' && storeId && typeof action.cartId === 'string') {
+          currentCartIds[storeId] = action.cartId;
+          if (typeof action.cartProof === 'string') currentCartProofs[storeId] = action.cartProof;
+        }
+        if (action?.type === 'saveSessionToken' && storeId && typeof action.sessionToken === 'string') {
+          currentSessionTokens[storeId] = action.sessionToken;
+          if (typeof action.activeCartId === 'string') currentCartIds[storeId] = action.activeCartId;
+        }
+        if (data?.clearCartId === true && typeof storeId === 'string') {
+          delete currentCartIds[storeId];
+          delete currentCartProofs[storeId];
+        }
+      }
+    } catch {
+      // MCP lifecycle and UI-resource responses do not all contain JSON text.
+    }
+  };
 
   return async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const request = new Request(input, init);
     const headers = new Headers(request.headers);
     if (receivedCookies.length) headers.set('Cookie', receivedCookies.join('; '));
-    if (cartIdsHeader) headers.set('X-Cart-Ids', cartIdsHeader);
+    if (Object.keys(currentCartIds).length) headers.set('X-Cart-Ids', JSON.stringify(currentCartIds));
+    if (Object.keys(currentCartProofs).length) headers.set('X-Cart-Proofs', JSON.stringify(currentCartProofs));
     if (marketplaceConfigHeader) headers.set('X-Marketplace-Config', marketplaceConfigHeader);
 
     let storeId: string | undefined;
@@ -64,8 +102,8 @@ function createScopedMcpFetch({ cookies, cartIds, sessionTokens, marketplaceConf
     } catch {
       // MCP lifecycle requests do not all have JSON bodies.
     }
-    if (storeId && sessionTokens?.[storeId]) {
-      headers.set('Authorization', `Bearer ${sessionTokens[storeId]}`);
+    if (storeId && currentSessionTokens[storeId]) {
+      headers.set('Authorization', `Bearer ${currentSessionTokens[storeId]}`);
     }
 
     const response = await fetch(request, { headers });
@@ -75,6 +113,7 @@ function createScopedMcpFetch({ cookies, cartIds, sessionTokens, marketplaceConf
       const setCookie = response.headers.get('set-cookie');
       if (setCookie) receivedCookies = [...receivedCookies, setCookie];
     }
+    await applyCartAction(response);
     return response;
   };
 }
@@ -93,6 +132,10 @@ export async function POST(req: Request) {
     const useLocalKeys = body?.useLocalKeys === true;
     if (useGlobalKeys === useLocalKeys) {
       return Response.json({ error: 'Choose exactly one AI configuration mode' }, { status: 400 });
+    }
+
+    if (useLocalKeys && !localAiConfigurationEnabled()) {
+      return Response.json({ error: 'Local AI configuration is disabled for this deployment' }, { status: 403 });
     }
 
     const provider = useGlobalKeys ? 'openrouter' : body?.provider;
@@ -116,18 +159,14 @@ export async function POST(req: Request) {
 
     let customProvider: ReturnType<typeof createOpenAI> | null = null;
     if (provider === 'custom') {
-      const allowedOrigins = customAiAllowedOrigins();
-      if (!allowedOrigins.length) {
-        return Response.json({ error: 'Custom AI endpoints are not admitted for this deployment' }, { status: 403 });
-      }
-
+      const endpointPolicy = customAiEndpointPolicy();
       const baseURL = normalizeOpenAICompatibleBaseURL(body?.customEndpoint || '');
-      await assertTrustedHttpsEndpoint(baseURL, { allowedOrigins });
+      await assertTrustedHttpsEndpoint(baseURL, endpointPolicy);
       customProvider = createOpenAI({
         apiKey,
         baseURL,
         name: 'custom-openai-compatible',
-        fetch: createTrustedFetch({ allowedOrigins }),
+        fetch: createTrustedFetch(endpointPolicy),
       });
     }
 
@@ -138,6 +177,7 @@ export async function POST(req: Request) {
         fetch: createScopedMcpFetch({
           cookies: req.headers.get('cookie') || '',
           cartIds: body?.cartIds,
+          cartProofs: body?.cartProofs,
           sessionTokens: body?.sessionTokens,
           marketplaceConfig: body?.marketplaceConfig,
         }),
@@ -210,7 +250,10 @@ AVAILABLE TOOLS: getAvailableStores, getAvailableCountries, discoverProducts, di
       originalMessages: messages,
       onError: () => 'The completion request failed',
     });
-  } catch {
+  } catch (error) {
+    console.error('[Marketplace completion]', error instanceof Error
+      ? { name: error.name, message: error.message, stack: error.stack }
+      : { name: 'UnknownError' });
     if (mcpClient) await mcpClient.close();
     return Response.json({ error: 'Internal Server Error' }, { status: 500 });
   }

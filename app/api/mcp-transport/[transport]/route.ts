@@ -25,7 +25,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ tra
       ctoken = authHeader.replace(/^Bearer\s+/i, '');
     }
 
-    // Extract cart IDs from custom header
+    // Extract source-scoped cart IDs and guest-cart proofs. These maps remain
+    // separate so a proof can only be selected by the requested stable storeId.
     const cartIdsHeader = request.headers.get('x-cart-ids') || '';
     let cartIds: Record<string, string> = {};
     if (cartIdsHeader) {
@@ -33,6 +34,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ tra
         cartIds = JSON.parse(cartIdsHeader);
       } catch (error) {
         console.error('Failed to parse cart IDs header:', error);
+      }
+    }
+
+    const cartProofsHeader = request.headers.get('x-cart-proofs') || '';
+    let cartProofs: Record<string, string> = {};
+    if (cartProofsHeader) {
+      try {
+        cartProofs = JSON.parse(cartProofsHeader);
+      } catch (error) {
+        console.error('Failed to parse cart proofs header:', error);
       }
     }
 
@@ -111,7 +122,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ tra
         } else if (productTools.some(tool => tool.name === name)) {
           result = await handleProductTools(name, args, cookie, ctoken, customMarketplaceConfig);
         } else if (cartTools.some(tool => tool.name === name)) {
-          result = await handleCartTools(name, args, cookie, dataHasChanged, ctoken, cartIds, customMarketplaceConfig);
+          result = await handleCartTools(
+            name,
+            args,
+            cookie,
+            dataHasChanged,
+            ctoken,
+            cartIds,
+            cartProofs,
+            customMarketplaceConfig,
+          );
         } else if (regionTools.some(tool => tool.name === name)) {
           result = await handleRegionTools(name, args, cookie, ctoken, customMarketplaceConfig);
         } else {
@@ -138,8 +158,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ tra
           headers,
         });
 
-      } catch {
-        // Tool arguments can include credentials, address data, and cart IDs.
+      } catch (error) {
+        // Log only bounded operation identity; tool arguments can contain
+        // credentials, addresses, cart proofs, payment references, and cart IDs.
+        console.error('[Marketplace MCP tool failed]', {
+          tool: name,
+          storeId: typeof args?.storeId === 'string' ? args.storeId : undefined,
+          errorName: error instanceof Error ? error.name : 'UnknownError',
+        });
         // Never return a source exception or argument echo through MCP/model output.
         return new Response(JSON.stringify({
           jsonrpc: '2.0',

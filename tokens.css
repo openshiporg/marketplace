@@ -24,6 +24,9 @@
   --color-green-tint: oklch(0.9582 0.0173 159.12);
   --color-orange: oklch(0.6888 0.1794 49.90);
   --color-orange-tint: oklch(0.9643 0.0206 67.58);
+  /* Robinhood Gold's verified deep-to-light metallic palette. */
+  --color-gold-light: #cfb97d;
+  --color-gold-deep: #94814c;
   --color-red: oklch(0.6211 0.1924 23.04);
   --color-red-tint: oklch(0.9557 0.0174 17.46);
   --color-focus: oklch(0.6258 0.2050 254.95);
@@ -64,7 +67,7 @@
   --radius-chip: 6px;
   --radius-control: 8px;
   --radius-card: 10px;
-  --radius-window: 14px;
+  --radius-window: 12px;
   --rule-thin: 1px;
 
   --shadow-hairline: 0 0 0 1px var(--color-line);
@@ -78,9 +81,11 @@
 
   --z-base: 1;
   --z-raised: 10;
-  --z-dropdown: 100;
   --z-sticky: 200;
   --z-modal: 400;
+  /* Radix menus/selects are portalled to <body>. They must sit above an
+     active modal rather than inheriting the dialog's stacking context. */
+  --z-dropdown: 450;
   --z-toast: 500;
   --z-tooltip: 600;
 
@@ -103,6 +108,8 @@
   --green-tint: var(--color-green-tint);
   --orange: var(--color-orange);
   --orange-tint: var(--color-orange-tint);
+  --gold-light: var(--color-gold-light);
+  --gold-deep: var(--color-gold-deep);
   --red: var(--color-red);
   --red-tint: var(--color-red-tint);
 }

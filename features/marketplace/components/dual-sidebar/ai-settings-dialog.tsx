@@ -64,7 +64,7 @@ interface AISettingsDialogProps {
 
 function AISettingsDialogInner({ onSave, onOpenChange, sharedKeysStatus }: { onSave: () => void; onOpenChange: (open: boolean) => void; sharedKeysStatus: AISettingsDialogProps['sharedKeysStatus'] }) {
   // Initialize state from current storage values
-  const { config, setConfig } = useAiConfig();
+  const { config, setConfig, localAiEnabled } = useAiConfig();
   const [configType, setConfigType] = useState<"global" | "local">(config.keyMode === "env" ? "global" : "local");
   const [localKeys, setLocalKeys] = useState({
     provider: config.localKeys?.provider || "openrouter",
@@ -130,15 +130,21 @@ function AISettingsDialogInner({ onSave, onOpenChange, sharedKeysStatus }: { onS
               >
                 Configuration Type
               </Label>
-              <Select value={configType} onValueChange={(value: "global" | "local") => setConfigType(value)}>
-                <SelectTrigger id="config-type" className="w-full shadow-sm mt-3">
-                  <SelectValue placeholder="Select configuration type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="global">Global Configuration</SelectItem>
-                  <SelectItem value="local">Local Configuration</SelectItem>
-                </SelectContent>
-              </Select>
+              {localAiEnabled ? (
+                <Select value={configType} onValueChange={(value: "global" | "local") => setConfigType(value)}>
+                  <SelectTrigger id="config-type" className="w-full shadow-sm mt-3">
+                    <SelectValue placeholder="Select configuration type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="global">Global Configuration</SelectItem>
+                    <SelectItem value="local">Local Configuration</SelectItem>
+                  </SelectContent>
+                </Select>
+              ) : (
+                <div className="mt-3 rounded-control bg-inset px-3 py-2 text-sm font-medium text-ink shadow-hairline">
+                  Global Configuration
+                </div>
+              )}
               
               {/* Global Configuration - Show Available Keys */}
               {configType === "global" && (

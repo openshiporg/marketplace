@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { ArrowUpRight } from "lucide-react";
 import { OpenfrontLogoIcon } from "@/components/OpenfrontLogoIcon";
 import { VibeGhostWorkspaceGradient } from "@/components/VibeGhostWorkspaceGradient";
@@ -9,6 +9,7 @@ import type { MarketplaceDiscoveryRequest } from "@/lib/marketplace-discovery";
 
 interface PromptSuggestionsProps {
   onSuggestionClick: (request: MarketplaceDiscoveryRequest) => void;
+  footerAction?: ReactNode;
 }
 
 type MarketplaceOption = {
@@ -23,6 +24,26 @@ type MarketplaceOption = {
   overview: string;
   href: string;
   available?: boolean;
+};
+
+const MANAGEMENT_AUDIENCES: Record<string, string> = {
+  ecommerce: "online retailers",
+  restaurant: "restaurants",
+  grocery: "grocery stores",
+  hotel: "hotels and hospitality teams",
+  rental: "professional rental operators",
+  "real-estate": "real-estate brokerages",
+  "coffee-shop": "coffee shops and cafés",
+  barbershop: "barbershops",
+  dealership: "vehicle dealerships",
+  hospital: "healthcare organizations",
+  gym: "gyms and fitness studios",
+  salon: "salons",
+  construction: "construction companies",
+  convenience: "convenience stores",
+  airline: "airlines",
+  "law-firm": "law firms",
+  pharmacy: "pharmacies",
 };
 
 const OPTIONS: MarketplaceOption[] = [
@@ -225,8 +246,10 @@ const OPTIONS: MarketplaceOption[] = [
   },
 ];
 
-export function PromptSuggestions({ onSuggestionClick }: PromptSuggestionsProps) {
+export function PromptSuggestions({ onSuggestionClick, footerAction }: PromptSuggestionsProps) {
   const [selected, setSelected] = useState<MarketplaceOption | null>(null);
+  const [offset, setOffset] = useState(0);
+  const shown = [0, 1, 2, 3, 4, 5].map((index) => OPTIONS[(offset + index) % OPTIONS.length]);
 
   const choose = (option: MarketplaceOption) => {
     if (option.available && option.discovery) {
@@ -238,43 +261,46 @@ export function PromptSuggestions({ onSuggestionClick }: PromptSuggestionsProps)
 
   return (
     <>
-      <div className="relative w-full max-w-110 overflow-hidden rounded-card bg-surface shadow-card" data-testid="suggested-actions">
-        <div
-          className="scroll-fade-y max-h-[240px] overflow-y-auto overscroll-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-          aria-label="Marketplace categories"
-        >
-          {OPTIONS.map((option, index) => (
+      <div className="flex w-full flex-col" data-testid="suggested-actions" aria-label="Marketplace categories">
+        <div className="grid sm:grid-flow-col sm:grid-cols-2 sm:grid-rows-3 sm:gap-x-5">
+          {shown.map((option, index) => (
             <button
-              key={option.id}
+              key={`${offset}-${option.id}`}
               type="button"
               onClick={() => choose(option)}
-              className="flex h-12 w-full items-center gap-2.5 border-b border-line px-2.5 text-left transition-[background-color,transform] duration-100 last:border-0 hover:bg-inset focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-signal active:scale-[0.995]"
-              style={{ animation: `fade-up 350ms cubic-bezier(0.23,1,0.32,1) ${Math.min(index, 6) * 45}ms both` }}
+              className={`${index >= 3 ? "hidden sm:flex" : "flex"} -mx-2 items-center gap-2.5 rounded-control px-2 py-2.5 text-left text-[13px] text-ink transition-colors duration-150 hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal`}
+              style={{ animation: `fade-up 350ms cubic-bezier(0.23,1,0.32,1) ${index * 45}ms both` }}
             >
-              <span className="flex size-6 shrink-0 items-center justify-center">
-                <span className="relative flex size-5.5 items-center justify-center rounded-full shadow-[var(--shadow-gradient-icon)]">
-                  <VibeGhostWorkspaceGradient
-                    seed={option.id === "ecommerce" ? "openfront" : `openfront-${option.id}`}
-                    accentColor={option.color}
-                    className="absolute inset-0 size-full"
-                  />
-                  <ArrowUpRight
-                    className="relative z-10 size-3 text-[var(--color-gradient-icon-ink)] drop-shadow-[var(--shadow-gradient-arrow)]"
-                    strokeWidth={2.5}
-                  />
-                </span>
+              <span className="relative flex size-5 shrink-0 items-center justify-center rounded-full shadow-[var(--shadow-gradient-icon)]">
+                <VibeGhostWorkspaceGradient
+                  seed={option.id === "ecommerce" ? "openfront" : `openfront-${option.id}`}
+                  accentColor={option.color}
+                  className="absolute inset-0 size-full"
+                />
+                <ArrowUpRight
+                  className="relative z-10 size-[11px] text-[var(--color-gradient-icon-ink)] drop-shadow-[var(--shadow-gradient-arrow)]"
+                  strokeWidth={2.5}
+                />
               </span>
-              <span className="flex min-w-0 flex-1 flex-col gap-px">
-                <span className="block truncate text-[13px] font-medium leading-[1.15] text-ink">{option.name}</span>
-                <span className="block truncate text-[11.5px] leading-[1.15] text-ink-3">{option.category}</span>
-              </span>
-              {option.available ? (
-                <ArrowUpRight className="size-3.5 shrink-0 text-ink-3" strokeWidth={1.8} />
-              ) : (
+              <span className="min-w-0 flex-1 truncate">{option.name}</span>
+              {!option.available ? (
                 <span className="shrink-0 font-mono text-[10px] font-medium uppercase tracking-[0.08em] text-ink-3">SOON</span>
-              )}
+              ) : null}
             </button>
           ))}
+        </div>
+        <div className="mt-1 flex flex-col items-start gap-1 pl-0.5 text-[13px] text-ink-3">
+          {footerAction}
+          <button
+            type="button"
+            onClick={() => setOffset((current) => (current + 6) % OPTIONS.length)}
+            className="flex items-center gap-2 py-1 transition-colors duration-150 hover:text-ink"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M21 12a9 9 0 1 1-2.64-6.36M21 3v6h-6" />
+            </svg>
+            Shuffle suggestions
+          </button>
         </div>
       </div>
 
@@ -283,13 +309,13 @@ export function PromptSuggestions({ onSuggestionClick }: PromptSuggestionsProps)
           {selected ? (
             <>
               <div className="border-b border-line bg-inset px-5 py-5 pr-12">
-                <div className="flex items-center gap-3">
-                  <OpenfrontLogoIcon className="size-10 shrink-0" color={selected.color} suffix={`-${selected.id}-dialog`} />
+                <div className="flex items-center gap-2.5">
+                  <OpenfrontLogoIcon className="size-7 shrink-0" color={selected.color} suffix={`-${selected.id}-dialog`} />
                   <div className="min-w-0 [font-family:var(--font-brand)]">
-                    <div className="text-[15px] font-semibold leading-none tracking-[-0.025em] text-ink">
+                    <div className="text-[17px] font-semibold leading-none tracking-[-0.03em] text-ink">
                       open<span className="font-normal">front</span>
                     </div>
-                    <DialogTitle className="mt-1 text-[11px] font-semibold uppercase tracking-[0.09em] text-ink-3">
+                    <DialogTitle className="mt-0.5 text-[9.5px] font-semibold uppercase tracking-[0.08em] text-ink-3">
                       <span className="sr-only">Openfront </span>{selected.productLabel}
                     </DialogTitle>
                   </div>
@@ -298,10 +324,13 @@ export function PromptSuggestions({ onSuggestionClick }: PromptSuggestionsProps)
 
               <div className="px-5 py-5">
                 <DialogDescription className="text-[14px] font-medium leading-[1.5] text-ink">
-                  {selected.shortDescription}
+                  Openfront {selected.productLabel} is a management platform for {MANAGEMENT_AUDIENCES[selected.id] || "independent businesses"}.
                 </DialogDescription>
-                <p className="mt-3 text-[12.5px] leading-[1.6] text-ink-3">
+                <p className="mt-3 text-[12.5px] leading-[1.6] text-ink-2">
                   {selected.overview}
+                </p>
+                <p className="mt-3 text-[12.5px] leading-[1.6] text-ink-2">
+                  The marketplace connects directly to businesses running Openfront {selected.productLabel}, so shoppers can discover and interact with the business through agentic commerce without the marketplace taking over its customer relationship.
                 </p>
               </div>
 

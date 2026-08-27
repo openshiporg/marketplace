@@ -77,7 +77,7 @@ export function SimpleSettingsPopover({ disabled = false }: SimpleSettingsPopove
     <button
       type="button"
       disabled={disabled}
-      className={`beautiful-icon-button size-7 rounded-[5px] bg-surface shadow-btn disabled:pointer-events-none disabled:opacity-40 ${showWarning ? "text-red" : "text-ink-3"}`}
+      className={`beautiful-icon-button size-7 rounded-control bg-surface shadow-btn disabled:pointer-events-none disabled:opacity-40 ${showWarning ? "text-red" : "text-ink-3"}`}
     >
       <Settings2 className="size-3" />
     </button>
@@ -144,7 +144,7 @@ export function SimpleSettingsPopover({ disabled = false }: SimpleSettingsPopove
                   placeholder="8317"
                   value={customEndpoint}
                   onChange={(e) => setCustomEndpoint(e.target.value)}
-                  className="mt-1.5 h-9 text-sm"
+                  className="mt-1.5 h-9 text-base sm:text-sm"
                 />
                 <p className="mt-1.5 text-[11px] leading-[1.35] text-ink-3">
                   Enter a local port such as 8317, a server URL, /v1, or /v1/models. Models are loaded automatically.
@@ -168,7 +168,7 @@ export function SimpleSettingsPopover({ disabled = false }: SimpleSettingsPopove
               }
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
-              className="h-9 text-sm font-mono mt-1.5"
+              className="mt-1.5 h-9 font-mono text-base sm:text-sm"
             />
             <p className="mt-3 text-[11.5px] text-ink-3">
               {provider === "custom"

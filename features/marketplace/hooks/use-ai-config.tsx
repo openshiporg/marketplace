@@ -32,6 +32,7 @@ interface AiConfigProviderProps {
   defaultConfig?: Partial<AiConfig>
   storageKey?: string
   sharedKeys?: SharedKeys | null
+  localAiEnabled?: boolean
 }
 
 interface AiConfigProviderState {
@@ -39,6 +40,7 @@ interface AiConfigProviderState {
   setConfig: (config: Partial<AiConfig> | ((prev: AiConfig) => Partial<AiConfig>)) => void
   isHydrated: boolean
   sharedKeys?: SharedKeys | null
+  localAiEnabled: boolean
 }
 
 const isServer = typeof window === "undefined"
@@ -53,6 +55,9 @@ const defaultAiConfig: AiConfig = {
   chatMode: "chatbox",
   localKeys: undefined,
 }
+
+const enforceLocalAiPolicy = (config: AiConfig, localAiEnabled: boolean): AiConfig =>
+  localAiEnabled ? config : { ...config, keyMode: "env", localKeys: undefined }
 
 const saveToLS = (storageKey: string, config: AiConfig) => {
   try {
@@ -71,6 +76,12 @@ const saveToLS = (storageKey: string, config: AiConfig) => {
       } else {
         localStorage.removeItem("aiCustomEndpoint")
       }
+    } else {
+      localStorage.removeItem("aiProvider")
+      localStorage.removeItem("openRouterApiKey")
+      localStorage.removeItem("openRouterModel")
+      localStorage.removeItem("openRouterMaxTokens")
+      localStorage.removeItem("aiCustomEndpoint")
     }
 
     localStorage.setItem(storageKey, JSON.stringify(config))
@@ -78,7 +89,7 @@ const saveToLS = (storageKey: string, config: AiConfig) => {
   }
 }
 
-const loadFromLS = (storageKey: string, defaultConfig: AiConfig): AiConfig => {
+const loadFromLS = (storageKey: string, defaultConfig: AiConfig, localAiEnabled = true): AiConfig => {
   if (isServer) return defaultConfig
 
   try {
@@ -88,13 +99,13 @@ const loadFromLS = (storageKey: string, defaultConfig: AiConfig): AiConfig => {
       const savedKeyMode = parsed.keyMode === "env" || parsed.keyMode === "local"
         ? parsed.keyMode
         : defaultConfig.keyMode
-      return {
+      return enforceLocalAiPolicy({
         ...defaultConfig,
         ...parsed,
         enabled: defaultConfig.enabled || parsed.enabled,
         onboarded: defaultConfig.onboarded || parsed.onboarded,
         keyMode: savedKeyMode,
-      }
+      }, localAiEnabled)
     }
 
     const enabled = defaultConfig.enabled || localStorage.getItem("aiChatEnabled") === "true"
@@ -120,7 +131,7 @@ const loadFromLS = (storageKey: string, defaultConfig: AiConfig): AiConfig => {
 
     saveToLS(storageKey, config)
 
-    return config
+    return enforceLocalAiPolicy(config, localAiEnabled)
   } catch {
     return defaultConfig
   }
@@ -139,14 +150,15 @@ const AiConfigRoot = ({
   defaultConfig: providedDefaults,
   children,
   sharedKeys,
+  localAiEnabled = true,
 }: AiConfigProviderProps) => {
-  const defaultConfig = React.useMemo(() => ({
+  const defaultConfig = React.useMemo(() => enforceLocalAiPolicy({
     ...defaultAiConfig,
     ...providedDefaults,
-  }), [providedDefaults])
+  }, localAiEnabled), [providedDefaults, localAiEnabled])
 
   const [config, setConfigState] = React.useState<AiConfig>(() =>
-    loadFromLS(storageKey, defaultConfig)
+    loadFromLS(storageKey, defaultConfig, localAiEnabled)
   )
 
   const setConfig = React.useCallback(
@@ -154,19 +166,19 @@ const AiConfigRoot = ({
       if (typeof value === "function") {
         setConfigState((prevConfig) => {
           const updates = value(prevConfig)
-          const newConfig = { ...prevConfig, ...updates }
+          const newConfig = enforceLocalAiPolicy({ ...prevConfig, ...updates }, localAiEnabled)
           saveToLS(storageKey, newConfig)
           return newConfig
         })
       } else {
         setConfigState((prevConfig) => {
-          const newConfig = { ...prevConfig, ...value }
+          const newConfig = enforceLocalAiPolicy({ ...prevConfig, ...value }, localAiEnabled)
           saveToLS(storageKey, newConfig)
           return newConfig
         })
       }
     },
-    [storageKey]
+    [storageKey, localAiEnabled]
   )
 
   React.useEffect(() => {
@@ -174,18 +186,27 @@ const AiConfigRoot = ({
       if (e.key !== storageKey && !e.key?.startsWith("ai") && !e.key?.startsWith("openRouter")) {
         return
       }
-      const newConfig = loadFromLS(storageKey, defaultConfig)
+      const newConfig = loadFromLS(storageKey, defaultConfig, localAiEnabled)
       setConfigState(newConfig)
     }
 
     window.addEventListener("storage", handleStorage)
     return () => window.removeEventListener("storage", handleStorage)
-  }, [storageKey, defaultConfig])
+  }, [storageKey, defaultConfig, localAiEnabled])
 
   const [isHydrated, setIsHydrated] = React.useState(false)
   React.useEffect(() => {
     setIsHydrated(true)
   }, [])
+
+  React.useEffect(() => {
+    if (localAiEnabled) return
+    setConfigState((currentConfig) => {
+      const enforcedConfig = enforceLocalAiPolicy(currentConfig, false)
+      saveToLS(storageKey, enforcedConfig)
+      return enforcedConfig
+    })
+  }, [localAiEnabled, storageKey])
 
   const providerValue = React.useMemo(
     () => ({
@@ -193,8 +214,9 @@ const AiConfigRoot = ({
       setConfig,
       isHydrated,
       sharedKeys,
+      localAiEnabled,
     }),
-    [config, setConfig, isHydrated, defaultConfig, sharedKeys]
+    [config, setConfig, isHydrated, defaultConfig, sharedKeys, localAiEnabled]
   )
 
   return (
