@@ -90,8 +90,8 @@ export function MarketplaceSidebar({
                 <OpenSupportIcon className="size-[7px] overflow-visible" suffix="-sidebar-right" />
               </span>
             </span>
-            <span className={cn("ml-2 truncate font-[family-name:var(--font-brand)] text-[15px] font-medium text-ink", collapsed && "sr-only")}>
-              the / <strong className="font-semibold">marketplace</strong>
+            <span className={cn("ml-2 truncate font-[family-name:var(--font-brand)] text-[15px] font-normal text-ink", collapsed && "sr-only")}>
+              the / marketplace
             </span>
           </Link>
         </div>

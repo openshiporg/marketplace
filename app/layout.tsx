@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist_Mono, Inter, Syne } from "next/font/google";
+import { Geist_Mono, Instrument_Serif, Inter, Syne } from "next/font/google";
 import "./globals.css";
 import { AiConfigProvider } from "../features/marketplace/hooks/use-ai-config";
 import { AppShell } from "@/components/beautiful-ui/app-shell";
@@ -19,8 +19,15 @@ const geistMono = Geist_Mono({
   display: "swap",
 });
 
-const syne = Syne({
+const instrumentSerif = Instrument_Serif({
   variable: "--font-brand",
+  subsets: ["latin"],
+  weight: "400",
+  display: "swap",
+});
+
+const syne = Syne({
+  variable: "--font-openfront-brand",
   subsets: ["latin"],
   display: "swap",
 });
@@ -86,7 +93,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
       <head>
         <link href="/favicon.svg" rel="icon" />
       </head>
-      <body className={`${inter.variable} ${geistMono.variable} ${syne.variable} antialiased`}>
+      <body className={`${inter.variable} ${geistMono.variable} ${instrumentSerif.variable} ${syne.variable} antialiased`}>
         <ThemeProvider>
           <MarketplaceProfileHydrator />
           <AiConfigProvider

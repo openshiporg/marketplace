@@ -311,7 +311,7 @@ export function PromptSuggestions({ onSuggestionClick, footerAction }: PromptSug
               <div className="border-b border-line bg-inset px-5 py-5 pr-12">
                 <div className="flex items-center gap-2.5">
                   <OpenfrontLogoIcon className="size-7 shrink-0" color={selected.color} suffix={`-${selected.id}-dialog`} />
-                  <div className="min-w-0 [font-family:var(--font-brand)]">
+                  <div className="min-w-0 [font-family:var(--font-openfront-brand)]">
                     <div className="text-[17px] font-semibold leading-none tracking-[-0.03em] text-ink">
                       open<span className="font-normal">front</span>
                     </div>
