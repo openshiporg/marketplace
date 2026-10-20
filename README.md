@@ -45,7 +45,7 @@ Uses Model Context Protocol (MCP) to enable any AI (Claude, ChatGPT, local model
 
 ```bash
 # Clone the repository
-git clone https://github.com/openship-org/openfront-marketplace.git
+git clone https://github.com/openshiporg/openfront-marketplace.git
 cd openfront-marketplace
 
 # Install dependencies
@@ -256,6 +256,6 @@ MIT License - see [LICENSE](LICENSE) for details.
 ## Support
 
 - **Documentation**: [docs.openship.org/marketplace](https://docs.openship.org/marketplace)
-- **Issues**: Report bugs on [GitHub Issues](https://github.com/openship-org/openfront-marketplace/issues)
+- **Issues**: Report bugs on [GitHub Issues](https://github.com/openshiporg/openfront-marketplace/issues)
 - **Community**: Join our community discussions
 - **Ethos**: Read about our vision at [/ethos](/ethos)
