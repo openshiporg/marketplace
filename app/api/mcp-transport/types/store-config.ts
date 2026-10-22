@@ -1,8 +1,8 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import {
-  hasMatchingSourceIdentity,
   normalizeSourceBaseUrl,
+  selectAdmittedSourceDirectory,
   sourceIdFor,
   type SourcePlatform,
 } from '@/lib/source-identity';
@@ -49,6 +49,7 @@ export function parseStoreConfigs(customerDirectory?: StoreConfig[]): ParsedStor
     console.warn('[marketplace] marketplace.config.json not found or invalid. No stores configured.');
   }
 
+  const seenEndpoints = new Set<string>();
   const admittedStores = admittedConfigs.flatMap((config) => {
     try {
       const baseUrl = normalizeSourceBaseUrl(config.baseUrl);
@@ -61,7 +62,14 @@ export function parseStoreConfigs(customerDirectory?: StoreConfig[]): ParsedStor
 
       const pathname = getApiPath(platform).replace(/^\//, '');
       const endpoint = new URL(pathname, `${baseUrl}/`).toString();
-      return [{ ...config, baseUrl, id, endpoint }];
+      if (seenEndpoints.has(endpoint)) {
+        console.warn('[marketplace] ignored a duplicate source endpoint to preserve adapter/auth scope.');
+        return [];
+      }
+      seenEndpoints.add(endpoint);
+      return [{ platform, baseUrl, id, endpoint, ...(config.name ? { name: config.name } : {}),
+        ...(config.storeName ? { storeName: config.storeName } : {}),
+      }];
     } catch {
       console.warn('[marketplace] ignored an invalid or non-HTTPS configured source.');
       return [];
@@ -70,24 +78,9 @@ export function parseStoreConfigs(customerDirectory?: StoreConfig[]): ParsedStor
 
   // No header means an external/default client receives the bundled directory.
   // An explicitly supplied array—including []—is the customer's authoritative
-  // selection and must be reflected in counts, discovery, carts, and chat.
-  if (customerDirectory === undefined) return admittedStores;
-  if (!Array.isArray(customerDirectory)) return [];
-
-  const selectedIds = new Set<string>();
-  return customerDirectory.flatMap(candidate => {
-    const admitted = admittedStores.find(store =>
-      hasMatchingSourceIdentity(store, candidate)
-    );
-    if (!admitted || selectedIds.has(admitted.id)) return [];
-    selectedIds.add(admitted.id);
-
-    const name = candidate.name || candidate.storeName;
-    return [{
-      ...admitted,
-      ...(name ? { name, storeName: name } : {}),
-    }];
-  });
+  // selection. Invalid/stale identities and duplicate selections fail closed
+  // instead of silently becoming a partial directory or a successful zero count.
+  return selectAdmittedSourceDirectory(admittedStores, customerDirectory);
 }
 
 export function findStoreByEndpoint(endpoint: string): ParsedStore | undefined {

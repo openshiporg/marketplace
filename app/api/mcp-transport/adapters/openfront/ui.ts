@@ -1,6 +1,7 @@
 /* Hallmark · pre-emit critique: P5 H5 E5 S5 R5 V4 */
 import { beautifulUIStyles, iframeAutoResizeScript } from '../../ui/beautiful-ui';
 import { getStoreLogoHue } from '@/lib/store-logo';
+import { escapeHtml, safeHttpUrl, scriptJson } from '@/lib/safe-content';
 
 /**
  * OpenFront UI Generators
@@ -23,21 +24,13 @@ export function generateOpenFrontCartUI(params: {
   const { storeId, cartId, cart, storeInfo, shippingOptions } = params;
   const storeLogoHue = getStoreLogoHue(storeInfo?.logoColor);
 
-  const storeDisplayName = (() => {
-    const n = (storeInfo?.name || 'store').trim();
-    return /^the\b/i.test(n) ? n : `the ${n}`;
-  })();
-
   // Format currency helper - handles both formatted strings and numbers
   const formatPrice = (amount: string | number | undefined, currencyCode: string = 'USD') => {
-    if (!amount) return '$0.00';
-    // If it's already a formatted string, return it
+    if (amount === undefined || amount === null || amount === '') return 'Price unavailable';
+    // Preserve source-formatted totals and the existing Openfront minor-unit contract.
     if (typeof amount === 'string') return amount;
-    // Otherwise format the number (assuming cents)
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: currencyCode,
-    }).format(amount / 100);
+    if (!Number.isFinite(amount) || amount < 0 || !/^[A-Z]{3}$/.test(currencyCode)) return 'Price unavailable';
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: currencyCode }).format(amount / 100);
   };
 
   const currencyCode = cart.region?.currencyCode || cart.region?.currency?.code || 'USD';
@@ -46,19 +39,18 @@ export function generateOpenFrontCartUI(params: {
   const cartItemsHTML = cart.lineItems?.map((item: any) => {
     const thumbnail = item.thumbnail || item.productVariant?.product?.thumbnail;
     // Prepend store URL if thumbnail is a relative path (starts with /)
-    const thumbnailUrl = thumbnail && thumbnail.startsWith('/')
-      ? `${storeInfo.url}${thumbnail}`
-      : thumbnail;
+    const thumbnailUrl = safeHttpUrl(thumbnail, typeof storeInfo?.url === 'string' ? storeInfo.url : undefined);
     const productTitle = item.title || item.productVariant?.product?.title;
     const variantTitle = item.productVariant?.title;
-    const unitPrice = formatPrice(item.unitPrice || 0, currencyCode);
-    const total = formatPrice(item.total || 0, currencyCode);
+    const quantity = Number.isSafeInteger(item.quantity) ? Math.max(1, Math.min(99, item.quantity)) : 1;
+    const unitPrice = formatPrice(item.unitPrice, currencyCode);
+    const total = formatPrice(item.total, currencyCode);
 
     return `
       <div class="cart-item p-2 sm:p-4">
         <div class="flex gap-2 sm:gap-3 mb-1.5 sm:mb-3">
           ${thumbnailUrl ? `
-            <img src="${thumbnailUrl}" alt="${productTitle}"
+            <img src="${escapeHtml(thumbnailUrl)}" alt="${escapeHtml(productTitle)}"
                  class="w-12 h-12 sm:w-16 sm:h-16 object-cover rounded border flex-shrink-0">
           ` : `
             <div class="w-12 h-12 sm:w-16 sm:h-16 bg-gray-200 rounded border flex items-center justify-center flex-shrink-0">
@@ -67,34 +59,34 @@ export function generateOpenFrontCartUI(params: {
           `}
 
           <div class="flex-1 min-w-0">
-            <h4 class="font-semibold text-xs sm:text-sm">${productTitle}</h4>
-            ${variantTitle ? `<p class="text-xs text-gray-600 mt-0.5">${variantTitle}</p>` : ''}
-            <p class="text-xs sm:text-sm text-gray-600 mt-0.5 sm:mt-1">${unitPrice} each</p>
+            <h4 class="font-semibold text-xs sm:text-sm">${escapeHtml(productTitle)}</h4>
+            ${variantTitle ? `<p class="text-xs text-gray-600 mt-0.5">${escapeHtml(variantTitle)}</p>` : ''}
+            <p class="text-xs sm:text-sm text-gray-600 mt-0.5 sm:mt-1">${escapeHtml(unitPrice)} each</p>
           </div>
 
           <div class="text-right flex-shrink-0">
-            <p class="font-semibold text-sm sm:text-base">${total}</p>
+            <p class="font-semibold text-sm sm:text-base">${escapeHtml(total)}</p>
           </div>
         </div>
 
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-1 sm:gap-2 border rounded">
             <button
-              onclick="updateQuantity('${item.id}', ${item.quantity - 1})"
-              class="px-2 sm:px-3 py-1 sm:py-1.5 hover:bg-gray-100 text-sm ${item.quantity <= 1 ? 'opacity-50 cursor-not-allowed' : ''}"
-              ${item.quantity <= 1 ? 'disabled' : ''}>
+              onclick="updateQuantity(${escapeHtml(scriptJson(item.id))}, ${quantity - 1})"
+              class="px-2 sm:px-3 py-1 sm:py-1.5 hover:bg-gray-100 text-sm ${quantity <= 1 ? 'opacity-50 cursor-not-allowed' : ''}"
+              ${quantity <= 1 ? 'disabled' : ''}>
               −
             </button>
-            <span class="px-1 sm:px-2 font-medium min-w-[1.5rem] sm:min-w-[2rem] text-center text-sm">${item.quantity}</span>
+            <span class="px-1 sm:px-2 font-medium min-w-[1.5rem] sm:min-w-[2rem] text-center text-sm">${quantity}</span>
             <button
-              onclick="updateQuantity('${item.id}', ${item.quantity + 1})"
+              onclick="updateQuantity(${escapeHtml(scriptJson(item.id))}, ${quantity + 1})"
               class="px-2 sm:px-3 py-1 sm:py-1.5 hover:bg-gray-100 text-sm">
               +
             </button>
           </div>
 
           <button
-            onclick="removeItem('${item.id}')"
+            onclick="removeItem(${escapeHtml(scriptJson(item.id))})"
             class="text-xs sm:text-sm text-red-600 hover:text-red-800 font-medium">
             Remove
           </button>
@@ -104,18 +96,18 @@ export function generateOpenFrontCartUI(params: {
   }).join('') || `<div class="p-6 sm:p-8 text-center">
     <p class="text-gray-500 mb-4">Your cart is empty</p>
     <button
-      onclick="window.parent.postMessage({ type: 'tool', payload: { toolName: 'discoverProducts', params: {} } }, '*')"
+      onclick='window.parent.postMessage({ type: "tool", payload: { toolName: "discoverProducts", params: { storeIds: [${escapeHtml(scriptJson(storeId))}] } } }, "*")'
       class="bg-gray-900 text-white text-sm px-4 py-2 rounded-md hover:bg-gray-800 transition-colors">
       Show Products
     </button>
   </div>`;
 
   // Cart summary - use cart.tax and cart.shipping (not taxTotal/shippingTotal)
-  const subtotal = formatPrice(cart.subtotal || 0, currencyCode);
+  const subtotal = formatPrice(cart.subtotal, currencyCode);
   const shippingTotal = cart.shipping || null;
   const taxTotal = cart.tax || null;
   const discountTotal = cart.discount || null;
-  const total = formatPrice(cart.total || 0, currencyCode);
+  const total = formatPrice(cart.total, currencyCode);
   const checkoutIssues = [
     ...(!cart.lineItems?.length ? ['Add at least one item to the cart'] : []),
     ...(!cart.shippingAddress ? ['Add a shipping address'] : []),
@@ -127,18 +119,18 @@ export function generateOpenFrontCartUI(params: {
     : !cart.shippingAddress
       ? { tab: 'address', label: 'Add shipping address' }
       : { tab: 'shipping', label: 'Choose shipping method' };
-  const paymentIssueList = checkoutIssues.map((issue) => `<li>${issue}</li>`).join('');
+  const paymentIssueList = checkoutIssues.map((issue) => `<li>${escapeHtml(issue)}</li>`).join('');
   const paymentProviderRows = (storeInfo?.paymentProviders || []).map((provider: any) => `
     <button
-      onclick="selectPaymentProvider('${provider.provider}')"
+      onclick='selectPaymentProvider(${escapeHtml(scriptJson(provider.provider))})'
       class="payment-method-btn w-full border rounded-md p-4 text-left transition-colors bg-white"
-      data-provider="${provider.provider}"
+      data-provider="${escapeHtml(provider.provider)}"
       aria-pressed="false"
       ${paymentReady ? '' : 'disabled tabindex="-1"'}>
       <div class="flex justify-between items-center">
         <div class="flex items-center gap-4">
           <div class="choice-radio w-4 h-4 border-2 rounded-full flex items-center justify-center"><div class="payment-radio w-0 h-0 rounded-full transition-all"></div></div>
-          <span class="font-medium capitalize">${provider.provider}</span>
+          <span class="font-medium capitalize">${escapeHtml(provider.provider)}</span>
         </div>
         <div class="flex items-center justify-center">
           ${provider.provider === 'stripe' ? '<svg class="h-5 w-5" viewBox="0 0 24 24"><path fill="#635BFF" d="M13.976 9.15c-2.172-.806-3.356-1.426-3.356-2.409 0-.831.683-1.305 1.901-1.305 2.227 0 4.515.858 6.09 1.631l.89-5.494C18.252.975 15.697 0 12.165 0 9.667 0 7.589.654 6.104 1.872 4.56 3.147 3.757 4.992 3.757 7.218c0 4.039 2.467 5.76 6.476 7.219 2.585.92 3.445 1.574 3.445 2.583 0 .98-.84 1.545-2.354 1.545-1.875 0-4.965-.921-6.99-2.109l-.9 5.555C5.175 22.99 8.385 24 11.714 24c2.641 0 4.843-.624 6.328-1.813 1.664-1.305 2.525-3.236 2.525-5.732 0-4.128-2.524-5.851-6.594-7.305h.003z"/></svg>' : ''}
@@ -148,7 +140,7 @@ export function generateOpenFrontCartUI(params: {
     </button>`).join('');
   const checkoutPaymentRow = `
     <button onclick="selectPaymentProvider('checkout')" class="payment-method-btn w-full border rounded-md p-4 text-left transition-colors bg-white" data-provider="checkout" aria-pressed="false" ${paymentReady ? '' : 'disabled tabindex="-1"'}>
-      <div class="flex justify-between items-center"><div class="flex items-center gap-4"><div class="choice-radio w-4 h-4 border-2 rounded-full flex items-center justify-center"><div class="payment-radio w-0 h-0 rounded-full transition-all"></div></div><span class="font-medium">Checkout on ${storeInfo?.name || 'Store'}</span></div><div class="cart-store-logo flex w-5 h-5 items-center justify-center" style="filter: hue-rotate(${storeLogoHue}deg);">${storeInfo?.logoIcon || ''}</div></div>
+      <div class="flex justify-between items-center"><div class="flex items-center gap-4"><div class="choice-radio w-4 h-4 border-2 rounded-full flex items-center justify-center"><div class="payment-radio w-0 h-0 rounded-full transition-all"></div></div><span class="font-medium">Checkout on ${escapeHtml(storeInfo?.name || 'Store')}</span></div><div class="cart-store-logo flex w-5 h-5 items-center justify-center" style="filter: hue-rotate(${storeLogoHue}deg);" aria-hidden="true"><span class="text-xs font-semibold">S</span></div></div>
     </button>`;
 
   const htmlContent = `
@@ -240,12 +232,8 @@ export function generateOpenFrontCartUI(params: {
           <div class="cart-header border-b p-3 sm:p-6">
             <p class="text-xs sm:text-sm text-gray-500 mb-1 sm:mb-2">Your cart from</p>
             <div class="flex items-center gap-2 sm:gap-3">
-              ${storeInfo?.logoIcon ? `
-                <div class="cart-store-logo flex w-6 h-6 sm:w-7 sm:h-7 items-center justify-center" style="filter: hue-rotate(${storeLogoHue}deg);">
-                  ${storeInfo.logoIcon}
-                </div>
-              ` : ''}
-              <h2 class="text-xl sm:text-2xl font-bold">${storeInfo?.name || 'Checkout'}</h2>
+              <div class="cart-store-logo flex w-6 h-6 sm:w-7 sm:h-7 items-center justify-center" style="filter: hue-rotate(${storeLogoHue}deg);" aria-hidden="true"><span class="text-sm font-semibold">S</span></div>
+              <h2 class="text-xl sm:text-2xl font-bold">${escapeHtml(storeInfo?.name || 'Checkout')}</h2>
             </div>
           </div>
 
@@ -282,19 +270,19 @@ export function generateOpenFrontCartUI(params: {
                 <div class="pt-4 space-y-2">
                   <div class="flex justify-between text-sm">
                     <span class="text-gray-600">Subtotal</span>
-                    <span class="font-medium">${subtotal}</span>
+                    <span class="font-medium">${escapeHtml(subtotal)}</span>
                   </div>
                   <div class="flex justify-between text-sm">
                     <span class="text-gray-600">Shipping</span>
-                    <span class="font-medium">${shippingTotal || '$0.00'}</span>
+                    <span class="font-medium">${escapeHtml(shippingTotal || '$0.00')}</span>
                   </div>
                   <div class="flex justify-between text-sm">
                     <span class="text-gray-600">Taxes</span>
-                    <span class="font-medium">${taxTotal || '$0.00'}</span>
+                    <span class="font-medium">${escapeHtml(taxTotal || '$0.00')}</span>
                   </div>
                   <div class="border-t pt-2 flex justify-between">
                     <span class="font-semibold text-lg">Total</span>
-                    <span class="font-bold text-lg">${total}</span>
+                    <span class="font-bold text-lg">${escapeHtml(total)}</span>
                   </div>
                 </div>
               ` : ''}
@@ -303,25 +291,20 @@ export function generateOpenFrontCartUI(params: {
             <!-- Address Tab -->
             <div id="content-address" class="tab-content hidden">
               <h3 class="font-semibold text-base sm:text-lg mb-2">Shipping Address</h3>
-              ${cart.shippingAddress || cart.email ? `
-                <div class="bg-gray-50 p-4 rounded-md mb-4">
-                  ${cart.email ? `<p class="text-sm font-medium text-gray-900 mb-2">📧 ${cart.email}</p>` : ''}
-                  ${cart.shippingAddress ? `
-                    <p class="font-medium">${cart.shippingAddress.firstName || ''} ${cart.shippingAddress.lastName || ''}</p>
-                    <p class="text-sm text-gray-600">${cart.shippingAddress.address1 || ''}</p>
-                    <p class="text-sm text-gray-600">${cart.shippingAddress.city || ''}, ${cart.shippingAddress.province || ''} ${cart.shippingAddress.postalCode || ''}</p>
-                    <p class="text-sm text-gray-600">${cart.shippingAddress.country?.displayName || ''}</p>
-                  ` : ''}
-                </div>
-              ` : `
-                <p class="text-sm text-gray-500 mb-3">Paste your shipping address, email, and phone number below in any format. The AI will figure out the country and structure.</p>
-              `}
-              <textarea
-                id="address-input"
-                placeholder="Example:&#10;John Doe&#10;john@email.com&#10;123 Main St&#10;New York, NY 10001&#10;USA&#10;+1 (555) 123-4567"
-                class="w-full border border-gray-300 rounded-md p-3 text-base mb-3 resize-none focus:outline-none focus:ring-2 focus:ring-gray-900"
-                rows="6"></textarea>
-              <button onclick="requestAddressFromAI()" class="w-full bg-gray-900 text-white py-2 px-4 rounded-md hover:bg-gray-800">
+              <p class="text-sm text-gray-500 mb-3">Enter your details directly. They are sent only to this source cart, not to the assistant model.</p>
+              <div class="grid gap-3 sm:grid-cols-2">
+                <label class="text-xs text-gray-600">Email<input id="address-email" type="email" maxlength="320" required value="${escapeHtml(cart.email || '')}" class="mt-1 w-full border rounded-md p-2 text-sm" autocomplete="email"></label>
+                <label class="text-xs text-gray-600">First name<input id="address-first-name" maxlength="80" required value="${escapeHtml(cart.shippingAddress?.firstName || '')}" class="mt-1 w-full border rounded-md p-2 text-sm" autocomplete="given-name"></label>
+                <label class="text-xs text-gray-600">Last name<input id="address-last-name" maxlength="80" required value="${escapeHtml(cart.shippingAddress?.lastName || '')}" class="mt-1 w-full border rounded-md p-2 text-sm" autocomplete="family-name"></label>
+                <label class="text-xs text-gray-600 sm:col-span-2">Address<input id="address-line1" maxlength="240" required value="${escapeHtml(cart.shippingAddress?.address1 || '')}" class="mt-1 w-full border rounded-md p-2 text-sm" autocomplete="address-line1"></label>
+                <label class="text-xs text-gray-600">City<input id="address-city" maxlength="120" required value="${escapeHtml(cart.shippingAddress?.city || '')}" class="mt-1 w-full border rounded-md p-2 text-sm" autocomplete="address-level2"></label>
+                <label class="text-xs text-gray-600">State or province<input id="address-province" maxlength="120" value="${escapeHtml(cart.shippingAddress?.province || '')}" class="mt-1 w-full border rounded-md p-2 text-sm" autocomplete="address-level1"></label>
+                <label class="text-xs text-gray-600">Postal code<input id="address-postal-code" maxlength="32" required value="${escapeHtml(cart.shippingAddress?.postalCode || '')}" class="mt-1 w-full border rounded-md p-2 text-sm" autocomplete="postal-code"></label>
+                <label class="text-xs text-gray-600">Country code<input id="address-country-code" maxlength="2" pattern="[A-Za-z]{2}" required value="${escapeHtml(cart.shippingAddress?.country?.iso2 || 'us')}" class="mt-1 w-full border rounded-md p-2 text-sm" autocomplete="country"></label>
+                <label class="text-xs text-gray-600">Phone<input id="address-phone" type="tel" maxlength="64" required value="${escapeHtml(cart.shippingAddress?.phone || '')}" class="mt-1 w-full border rounded-md p-2 text-sm" autocomplete="tel"></label>
+                <label class="text-xs text-gray-600">Company (optional)<input id="address-company" maxlength="160" value="${escapeHtml(cart.shippingAddress?.company || '')}" class="mt-1 w-full border rounded-md p-2 text-sm" autocomplete="organization"></label>
+              </div>
+              <button onclick="saveAddressDetails()" class="w-full mt-3 bg-gray-900 text-white py-2 px-4 rounded-md hover:bg-gray-800">
                 ${cart.shippingAddress ? 'Change Address and Email' : 'Add Address and Email'}
               </button>
             </div>
@@ -336,16 +319,16 @@ export function generateOpenFrontCartUI(params: {
                     const isSelected = cart.shippingMethods?.some((m: any) => m.shippingOption?.id === option.id);
                     return `
                     <button
-                      onclick="selectShippingMethod('${option.id}', '${option.name}')"
+                      onclick='selectShippingMethod(${escapeHtml(scriptJson(option.id))}, ${escapeHtml(scriptJson(option.name))})'
                       class="shipping-method-btn ${isSelected ? 'is-selected' : ''} w-full border rounded-md p-4 text-left transition-colors bg-white">
                       <div class="flex justify-between items-center">
                         <div class="flex items-center gap-4">
                           <div class="choice-radio ${isSelected ? 'is-selected' : ''} w-4 h-4 border-2 rounded-full flex items-center justify-center">
                             ${isSelected ? '<div class="choice-radio-dot rounded-full"></div>' : ''}
                           </div>
-                          <span class="font-medium">${option.name}</span>
+                          <span class="font-medium">${escapeHtml(option.name)}</span>
                         </div>
-                        <span class="font-semibold">${option.calculatedAmount || formatPrice(option.amount || 0, currencyCode)}</span>
+                        <span class="font-semibold">${escapeHtml(option.calculatedAmount || formatPrice(option.amount || 0, currencyCode))}</span>
                       </div>
                     </button>
                   `;
@@ -353,7 +336,7 @@ export function generateOpenFrontCartUI(params: {
                 </div>
               ` : `
                 <p class="text-sm text-gray-500 mb-4">No shipping methods available. Please set a shipping address first.</p>
-                <button onclick="requestAddressFromAI()" class="w-full bg-gray-900 text-white py-2 px-4 rounded-md hover:bg-gray-800">
+                <button onclick="switchTab('address')" class="w-full bg-gray-900 text-white py-2 px-4 rounded-md hover:bg-gray-800">
                   Add Address
                 </button>
               `}
@@ -370,7 +353,7 @@ export function generateOpenFrontCartUI(params: {
               <div id="payment-action" class="hidden mt-6">
                 <div id="stripe-action" class="hidden"><p class="text-sm text-gray-600 mb-4">Complete your payment with Stripe</p><button onclick="processStripePayment()" class="w-full bg-gray-900 text-white py-3 rounded-md hover:bg-gray-800 font-medium">Pay with Stripe</button></div>
                 <div id="paypal-action" class="hidden"><p class="text-sm text-gray-600 mb-4">Complete your payment with PayPal</p><button onclick="processPayPalPayment()" class="w-full bg-blue-600 text-white py-3 rounded-md hover:bg-blue-700 font-medium">Pay with PayPal</button></div>
-                <div id="checkout-action" class="hidden"><p class="text-sm text-gray-600 mb-4">Complete your purchase on ${storeInfo?.name || 'the store'}</p><button onclick="goToStoreCheckout()" class="w-full bg-gray-900 text-white py-3 rounded-md hover:bg-gray-800 font-medium">Go to ${storeInfo?.name || 'Store'}</button></div>
+                <div id="checkout-action" class="hidden"><p class="text-sm text-gray-600 mb-4">Complete your purchase on ${escapeHtml(storeInfo?.name || 'the store')}</p><button onclick="goToStoreCheckout()" class="w-full bg-gray-900 text-white py-3 rounded-md hover:bg-gray-800 font-medium">Go to ${escapeHtml(storeInfo?.name || 'Store')}</button></div>
               </div>` : `<div class="payment-lock-stage" data-lock-target="${paymentLockTarget.tab}">
                 <div class="payment-lock-preview" aria-hidden="true"><p class="text-sm text-gray-600 mb-3">Available payment methods</p><div class="space-y-2">${paymentProviderRows || '<div class="payment-method-btn border p-4 bg-white"><span class="font-medium">Secure payment</span></div>'}${checkoutPaymentRow}</div></div>
                 <div class="payment-lock-card" role="status" aria-labelledby="payment-lock-title">
@@ -385,8 +368,8 @@ export function generateOpenFrontCartUI(params: {
       </div>
 
       <script>
-        const cartId = '${cartId}';
-        const storeId = '${storeId}';
+        const cartId = ${scriptJson(cartId)};
+        const storeId = ${scriptJson(storeId)};
 
         ${iframeAutoResizeScript}
 
@@ -566,22 +549,43 @@ export function generateOpenFrontCartUI(params: {
 
         }
 
-        function requestAddressFromAI() {
-          const addressInput = document.getElementById('address-input');
-          const addressText = addressInput ? addressInput.value.trim() : '';
-
-          if (!addressText) {
-            // If no address is provided, ask the user to paste their address
-            alert('Please paste your shipping address and email in the text area above.');
+        function saveAddressDetails() {
+          const ids = ['address-email', 'address-first-name', 'address-last-name', 'address-line1', 'address-city', 'address-postal-code', 'address-country-code', 'address-phone'];
+          const fields = ids.map(id => document.getElementById(id));
+          const invalidField = fields.find(field => !field || !field.value.trim() || !field.checkValidity());
+          if (invalidField) {
+            invalidField?.reportValidity();
             return;
           }
-
-          // Send the address with storeId and cartId to the AI
-          window.parent.postMessage({
-            type: 'prompt',
-            payload: {
-              prompt: \`Please set this address for ${storeDisplayName} (storeId: \${storeId}, cartId: \${cartId}): \${addressText}\`
+          const params = {
+            storeId,
+            cartId,
+            email: document.getElementById('address-email').value.trim(),
+            firstName: document.getElementById('address-first-name').value.trim(),
+            lastName: document.getElementById('address-last-name').value.trim(),
+            address1: document.getElementById('address-line1').value.trim(),
+            city: document.getElementById('address-city').value.trim(),
+            postalCode: document.getElementById('address-postal-code').value.trim(),
+            countryCode: document.getElementById('address-country-code').value.trim().toLowerCase(),
+            province: document.getElementById('address-province').value.trim(),
+            company: document.getElementById('address-company').value.trim(),
+            phone: document.getElementById('address-phone').value.trim(),
+          };
+          const messageId = 'address-' + Date.now();
+          const handleResponse = event => {
+            if (event.data?.messageId !== messageId || event.data?.type !== 'ui-message-response') return;
+            window.removeEventListener('message', handleResponse);
+            const content = event.data.payload?.response?.content?.[0];
+            if (content?.resource?.uri?.startsWith('ui://marketplace/email-conflict')) return;
+            if (content?.text) {
+              try { if (!JSON.parse(content.text).error) refreshCart(); } catch {}
             }
+          };
+          window.addEventListener('message', handleResponse);
+          window.parent.postMessage({
+            type: 'tool',
+            messageId,
+            payload: { toolName: 'setShippingAddress', params },
           }, '*');
         }
 
@@ -698,7 +702,7 @@ export function generateOpenFrontCartUI(params: {
               params: {
                 storeId,
                 cartId,
-                countryCode: '${cart.region?.countries?.[0]?.iso2 || "us"}'
+                countryCode: ${scriptJson(cart.region?.countries?.[0]?.iso2 || 'us')}
               }
             }
           }, '*');
@@ -737,7 +741,7 @@ export function generateOpenFrontLoginUI(params: {
       <div class="max-w-3xl mx-auto">
         <div class="mcp-card bg-white border border-gray-200 rounded-lg p-4 sm:p-5">
           <h2 class="text-base font-bold text-gray-900 mb-1">Login to Continue</h2>
-          <p class="text-sm text-gray-700 mb-3 sm:mb-4 leading-tight">${message || 'An account with this email already exists. Please login.'}</p>
+          <p class="text-sm text-gray-700 mb-3 sm:mb-4 leading-tight">${escapeHtml(message || 'An account with this email already exists. Please login.')}</p>
 
           <div class="space-y-3 sm:space-y-4">
             <div>
@@ -746,7 +750,7 @@ export function generateOpenFrontLoginUI(params: {
                 type="email"
                 id="email"
                 name="email"
-                value="${email || ''}"
+                value="${escapeHtml(email || '')}"
                 class="w-full px-3 sm:px-4 py-2 text-base border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-900"
               />
             </div>
@@ -775,9 +779,9 @@ export function generateOpenFrontLoginUI(params: {
       </div>
 
       <script>
-        const storeId = '${storeId}';
-        const cartId = '${cartId || ''}';
-        const addressData = ${addressData ? JSON.stringify(addressData) : 'null'};
+        const storeId = ${scriptJson(storeId)};
+        const cartId = ${scriptJson(cartId || '')};
+        const addressData = ${addressData ? scriptJson(addressData) : 'null'};
 
         let currentLoginMessageId = null;
         let loginResponseHandler = null;
@@ -924,7 +928,7 @@ export function generateOpenFrontEmailConflictUI(params: {
   storeName: string;
   checkoutUrl: string;
 }): string {
-  const { storeId, email, cartId, firstName, lastName, address1, city, postalCode, countryCode, province, company, phone, storeName, checkoutUrl } = params;
+  const { storeId, email, cartId, firstName, lastName, address1, city, postalCode, countryCode, province, company, phone, storeName } = params;
 
   const htmlContent = `
     <!DOCTYPE html>
@@ -939,7 +943,7 @@ export function generateOpenFrontEmailConflictUI(params: {
       <div class="max-w-3xl mx-auto">
         <div class="mcp-card bg-white border border-gray-200 rounded-lg p-4 sm:p-5">
           <h2 class="text-base font-bold text-gray-900 mb-1">Email Already in Use</h2>
-          <p class="text-sm text-gray-700 mb-3 sm:mb-4 leading-tight">The email address <strong>${email}</strong> already has an account with ${storeName}.</p>
+          <p class="text-sm text-gray-700 mb-3 sm:mb-4 leading-tight">The email address <strong>${escapeHtml(email)}</strong> already has an account with ${escapeHtml(storeName)}.</p>
 
           <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
             <button
@@ -963,15 +967,20 @@ export function generateOpenFrontEmailConflictUI(params: {
             </button>
 
             <button
+              type="button"
               onclick="selectOption('checkout-store')"
               class="option-btn bg-gray-100 border border-gray-300 rounded-lg p-3 sm:p-4 text-left hover:bg-gray-200 transition-colors flex flex-col justify-center gap-1 sm:min-h-[120px]"
               data-option="checkout-store">
               <div>
-                <span class="font-medium block text-sm mb-0.5 leading-tight">Continue checkout on ${storeName}</span>
+                <span class="font-medium block text-sm mb-0.5 leading-tight">Continue checkout on ${escapeHtml(storeName)}</span>
                 <span class="text-xs text-gray-600 leading-tight">Complete your purchase on the store website</span>
               </div>
             </button>
           </div>
+          <div id="email-change-fields" class="hidden mt-3">
+            <label class="text-xs text-gray-600">Different email<input id="different-email" type="email" maxlength="320" class="mt-1 w-full border rounded-md p-2 text-sm" autocomplete="email"></label>
+          </div>
+          <p id="conflict-status" class="mt-2 text-sm text-gray-600" aria-live="polite"></p>
 
           <button
             id="continue-btn"
@@ -984,24 +993,14 @@ export function generateOpenFrontEmailConflictUI(params: {
       </div>
 
       <script>
-        const email = '${email}';
-        const storeId = '${storeId}';
-        const cartId = '${cartId}';
-        const storeName = '${storeName}';
-        const checkoutUrl = '${checkoutUrl}';
+        const email = ${scriptJson(email)};
+        const checkoutUrl = ${scriptJson(safeHttpUrl(params.checkoutUrl))};
+        const storeId = ${scriptJson(storeId)};
+        const cartId = ${scriptJson(cartId)};
 
-        // Store address data to re-apply after login
-        const addressData = {
-          firstName: '${firstName}',
-          lastName: '${lastName}',
-          address1: '${address1}',
-          city: '${city}',
-          postalCode: '${postalCode}',
-          countryCode: '${countryCode}',
-          province: '${province || ''}',
-          company: '${company || ''}',
-          phone: '${phone || ''}'
-        };
+        // Customer-provided data stays inside this sandboxed UI and is sent only
+        // through the source-scoped login action after an explicit user choice.
+        const addressData = ${scriptJson({ firstName, lastName, address1, city, postalCode, countryCode, province, company, phone })};
 
         let selectedOption = null;
 
@@ -1024,6 +1023,7 @@ export function generateOpenFrontEmailConflictUI(params: {
 
           // Enable continue button
           document.getElementById('continue-btn').disabled = false;
+          document.getElementById('email-change-fields').classList.toggle('hidden', option !== 'different-email');
         }
 
         function handleContinue() {
@@ -1039,40 +1039,40 @@ export function generateOpenFrontEmailConflictUI(params: {
               payload: {
                 toolName: 'loginUser',
                 params: {
-                  storeId: '${storeId}',
-                  email: '${email}',
+                  storeId,
+                  email,
                   message: 'Sign in to continue with your order',
-                  cartId: '${cartId}',
-                  addressData: {
-                    firstName: '${firstName}',
-                    lastName: '${lastName}',
-                    address1: '${address1}',
-                    city: '${city}',
-                    postalCode: '${postalCode}',
-                    countryCode: '${countryCode}',
-                    province: '${province}',
-                    company: '${company}',
-                    phone: '${phone}'
-                  }
+                  cartId,
+                  addressData
                 }
               }
             }, '*');
           } else if (selectedOption === 'different-email') {
-            // Send message to AI to ask for different email
+            const input = document.getElementById('different-email');
+            if (!input || !input.value.trim() || !input.checkValidity()) {
+              input?.reportValidity();
+              return;
+            }
+            const messageId = 'address-update-' + Date.now();
+            const status = document.getElementById('conflict-status');
+            status.textContent = 'Updating this source cart…';
+            const handleResponse = event => {
+              if (event.data?.messageId !== messageId || event.data?.type !== 'ui-message-response') return;
+              window.removeEventListener('message', handleResponse);
+              status.textContent = 'The source could not confirm the email change. Please try again or sign in.';
+            };
+            window.addEventListener('message', handleResponse);
             window.parent.postMessage({
-              type: 'prompt',
+              type: 'tool',
+              messageId,
               payload: {
-                prompt: 'I want to use a different email for this order'
-              }
+                toolName: 'setShippingAddress',
+                params: { storeId, cartId, email: input.value.trim(), ...addressData },
+              },
             }, '*');
           } else if (selectedOption === 'checkout-store') {
-            // User wants to complete checkout on the store site
-            const s = storeName || 'store';
-            const promptText = 'I want to check out on ' + (/^the\b/i.test(s) ? '' : 'the ') + s + ' website.';
-            window.parent.postMessage({
-              type: 'prompt',
-              payload: { prompt: promptText }
-            }, '*');
+            if (checkoutUrl) window.open(checkoutUrl, '_blank', 'noopener,noreferrer');
+            else document.getElementById('conflict-status').textContent = 'The source did not supply a valid checkout link.';
           }
         }
       </script>

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { UIMessage } from 'ai';
 import {
   CHAT_THREADS_STORAGE_KEY,
+  CHAT_THREADS_STORAGE_VERSION,
   CHAT_THREADS_UPDATED_EVENT,
   closeMarketplaceChatThread,
   createMarketplaceChatThreadInStorage,
@@ -15,7 +16,7 @@ import {
 } from '@/lib/chat-thread-storage';
 
 const EMPTY_STATE: MarketplaceChatThreadState = {
-  version: 1,
+  version: CHAT_THREADS_STORAGE_VERSION,
   activeThreadId: '',
   threads: [],
 };

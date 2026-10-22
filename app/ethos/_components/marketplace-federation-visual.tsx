@@ -55,7 +55,7 @@ const DisplayCard = forwardRef<
   <div
     ref={ref}
     className={cn(
-      "group relative flex-shrink-0 cursor-pointer overflow-visible rounded-xl border border-line bg-inset p-1 shadow-inner transition-all duration-300 hover:-translate-y-0.5 hover:shadow-card",
+      "group relative z-10 flex-shrink-0 cursor-pointer overflow-visible rounded-xl border border-line bg-inset p-1 shadow-inner transition-all duration-300 hover:-translate-y-0.5 hover:shadow-card",
       iconOnlyMode || compactMode ? "w-[10rem]" : "w-[12rem]",
     )}
   >
@@ -149,12 +149,15 @@ export function MarketplaceFederationVisual() {
   const supplier1Ref = useRef<HTMLDivElement>(null);
   const supplier2Ref = useRef<HTMLDivElement>(null);
   const supplier3Ref = useRef<HTMLDivElement>(null);
+  const mobileBuyerRef = useRef<HTMLDivElement>(null);
+  const mobileCenterRef = useRef<HTMLDivElement>(null);
+  const mobileSupplier3Ref = useRef<HTMLDivElement>(null);
 
   return (
     <div className="mt-8">
       <Card className="overflow-hidden p-0">
         <div className="flex justify-center px-3 pt-3">
-          <div className="inline-grid grid-cols-2 gap-1 rounded-control bg-inset p-1 shadow-hairline" role="tablist" aria-label="Marketplace model">
+          <div className="inline-grid w-full min-w-0 grid-cols-2 gap-1 rounded-control md:w-auto bg-inset p-1 shadow-hairline" role="tablist" aria-label="Marketplace model">
             {([
               ["current", "The way it is"],
               ["future", "The way it should be"],
@@ -166,7 +169,7 @@ export function MarketplaceFederationVisual() {
                 aria-selected={mode === value}
                 onClick={() => setMode(value)}
                 className={cn(
-                  "h-7 min-w-30 rounded-[6px] px-3 text-[11.5px] font-medium transition-[background-color,color,box-shadow] duration-150",
+                  "h-7 min-w-0 whitespace-nowrap rounded-[6px] px-1 text-[10px] leading-none font-medium sm:px-3 sm:text-[11.5px] md:min-w-30 transition-[background-color,color,box-shadow] duration-150",
                   mode === value ? "bg-surface text-ink shadow-hairline" : "text-ink-3 hover:text-ink-2",
                 )}
               >
@@ -177,7 +180,7 @@ export function MarketplaceFederationVisual() {
         </div>
 
         <div className="p-5 sm:p-10 sm:pt-5">
-          <div ref={containerRef} className="relative flex h-[500px] w-full items-center justify-center overflow-hidden">
+          <div ref={containerRef} className="relative isolate flex h-[500px] w-full items-center justify-center overflow-hidden">
             <div className="hidden size-full max-w-3xl flex-row items-center justify-between gap-10 md:flex">
               <div className="flex flex-col justify-center">
                 <DisplayCard ref={leftCardRef} name="Jared Dunn" orderNumber="ORD-2349832" lineItems={[bike, tires, bottle]} />
@@ -195,20 +198,27 @@ export function MarketplaceFederationVisual() {
             </div>
 
             <div className="flex size-full flex-col items-center justify-center gap-7 md:hidden">
-              <DisplayCard name="Jared Dunn" orderNumber="ORD-2349832" lineItems={[bike, tires, bottle]} iconOnlyMode />
-              <MarketplaceAvatar current={current} />
+              <DisplayCard ref={mobileBuyerRef} name="Jared Dunn" orderNumber="ORD-2349832" lineItems={[bike, tires, bottle]} iconOnlyMode />
+              <div ref={mobileCenterRef} className="relative z-10 flex items-center justify-center">
+                <MarketplaceAvatar current={current} />
+              </div>
               <div className="flex flex-col items-center gap-2">
                 <DisplayCard name="John's Bikes" orderNumber="SELLER-1842" lineItems={[bike]} compactMode />
                 <DisplayCard name="Rolling Ridge" orderNumber="SELLER-2915" lineItems={[tires]} compactMode />
-                <DisplayCard name="Velo Supply Co." orderNumber="SELLER-6831" lineItems={[bottle]} compactMode />
+                <DisplayCard ref={mobileSupplier3Ref} name="Velo Supply Co." orderNumber="SELLER-6831" lineItems={[bottle]} compactMode />
               </div>
             </div>
 
             <div className="hidden md:block">
-              <AnimatedBeam key={`${mode}-buyer`} containerRef={containerRef} fromRef={leftCardRef} toRef={centerRef} duration={5} startXOffset={112} endXOffset={-28} />
-              <AnimatedBeam key={`${mode}-seller-1`} containerRef={containerRef} fromRef={centerRef} toRef={supplier1Ref} duration={5} delay={0.25} endXOffset={-112} curvature={120} />
-              <AnimatedBeam key={`${mode}-seller-2`} containerRef={containerRef} fromRef={centerRef} toRef={supplier2Ref} duration={5} delay={0.75} endXOffset={-112} />
-              <AnimatedBeam key={`${mode}-seller-3`} containerRef={containerRef} fromRef={centerRef} toRef={supplier3Ref} duration={5} delay={1.25} endXOffset={-112} curvature={-120} />
+              <AnimatedBeam className="z-0" key={`${mode}-buyer`} containerRef={containerRef} fromRef={leftCardRef} toRef={centerRef} duration={5} startXOffset={112} endXOffset={-28} />
+              <AnimatedBeam className="z-0" key={`${mode}-seller-1`} containerRef={containerRef} fromRef={centerRef} toRef={supplier1Ref} duration={5} delay={0.25} endXOffset={-112} curvature={120} />
+              <AnimatedBeam className="z-0" key={`${mode}-seller-2`} containerRef={containerRef} fromRef={centerRef} toRef={supplier2Ref} duration={5} delay={0.75} endXOffset={-112} />
+              <AnimatedBeam className="z-0" key={`${mode}-seller-3`} containerRef={containerRef} fromRef={centerRef} toRef={supplier3Ref} duration={5} delay={1.25} endXOffset={-112} curvature={-120} />
+            </div>
+
+            <div className="md:hidden">
+              <AnimatedBeam className="z-0" key={`${mode}-mobile-buyer`} containerRef={containerRef} fromRef={mobileBuyerRef} toRef={mobileCenterRef} orientation="vertical" duration={5} startYOffset={38} endYOffset={-36} />
+              <AnimatedBeam className="z-0" key={`${mode}-mobile-sellers`} containerRef={containerRef} fromRef={mobileCenterRef} toRef={mobileSupplier3Ref} orientation="vertical" duration={5} delay={0.25} startYOffset={36} endYOffset={-25} />
             </div>
           </div>
         </div>
@@ -260,7 +270,17 @@ export function MarketplaceFederationVisual() {
           74%, 100% { opacity: 0; transform: translateY(-40px) scale(.82) rotate(6deg); }
         }
         @media (prefers-reduced-motion: reduce) {
-          .fee-particle, .fee-loss-particle, .future-orb { animation: none; }
+          .fee-particle {
+            animation: none;
+            opacity: 1;
+            transform: translate(-50%, -52px) scale(1);
+          }
+          .fee-loss-particle {
+            animation: none;
+            opacity: 1;
+            transform: translateY(-22px) scale(1);
+          }
+          .future-orb { animation: none; }
         }
       `}</style>
     </div>

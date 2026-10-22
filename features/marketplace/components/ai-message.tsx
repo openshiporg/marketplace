@@ -4,9 +4,7 @@ import type { UIMessage as TMessage } from "ai";
 import type { UseChatHelpers } from "@ai-sdk/react";
 import { memo, useCallback, useId } from "react";
 import equal from "fast-deep-equal";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import remarkBreaks from "remark-breaks";
+import { Streamdown, type Components } from "streamdown";
 import { cn } from "@/lib/utils";
 import { ToolInvocation } from "./tool-invocation";
 import { UIResourceRenderer, isUIResource } from '@mcp-ui/client';
@@ -22,7 +20,7 @@ import {
   isCartMutationTool,
   serializeCartMutation,
 } from '@/lib/cart-client-actions';
-import { isPermittedMcpUiAction } from '@/lib/mcp-action-policy';
+import { isPermittedMcpUiAction, isPermittedMcpUiPrompt } from '@/lib/mcp-action-policy';
 
 function AssistantSparkleIcon({ className = "size-3.5" }: { className?: string }) {
   const gradientId = `assistant-sparkle-${useId().replaceAll(":", "")}`;
@@ -43,12 +41,90 @@ function AssistantSparkleIcon({ className = "size-3.5" }: { className?: string }
 const TOOLS_THAT_APPEND_CHAT_UI = new Set([
   'addToCart',
   'authenticateUser',
+  'discoverMarketplace',
   'discoverProducts',
   'discoverRestaurantMenus',
   'getProduct',
   'initiatePaymentSession',
   'loginUser',
 ]);
+
+const markdownRemend = { linkMode: "text-only" as const };
+
+const markdownComponents = {
+  p: ({ children }) => <p className="min-w-0 break-words">{children}</p>,
+  a: ({ href, children }) => !href || href === "streamdown:incomplete-link" ? (
+    <span className="break-words">{children}</span>
+  ) : (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="break-words font-medium text-signal-ink underline decoration-signal/30 underline-offset-2 transition-colors duration-150 hover:decoration-signal"
+    >
+      {children}
+    </a>
+  ),
+  ul: ({ children }) => <ul className="min-w-0 list-outside list-disc space-y-1.5 pl-5">{children}</ul>,
+  ol: ({ children }) => <ol className="min-w-0 list-outside list-decimal space-y-1.5 pl-5">{children}</ol>,
+  li: ({ children }) => <li className="min-w-0 pl-0 [overflow-wrap:anywhere] [&>p]:inline">{children}</li>,
+  strong: ({ children }) => <strong className="font-semibold text-ink">{children}</strong>,
+  h1: ({ children }) => <h1 className="font-semibold leading-normal text-ink">{children}</h1>,
+  h2: ({ children }) => <h2 className="font-semibold leading-normal text-ink">{children}</h2>,
+  h3: ({ children }) => <h3 className="font-semibold leading-normal text-ink">{children}</h3>,
+  inlineCode: ({ children }) => (
+    <code className="rounded-[4px] bg-inset px-1 py-0.5 font-mono text-[1em] [overflow-wrap:anywhere]">
+      {children}
+    </code>
+  ),
+  code: ({ children, className, ...props }) => {
+    if (!("data-block" in props)) {
+      return (
+        <code className="rounded-[4px] bg-inset px-1 py-0.5 font-mono text-[1em] [overflow-wrap:anywhere]">
+          {children}
+        </code>
+      );
+    }
+
+    return (
+      <pre
+        className="my-1 max-w-full min-w-0 overflow-x-auto overscroll-x-contain rounded-control bg-inset p-3 shadow-hairline"
+        tabIndex={0}
+      >
+        <code className={cn("block min-w-max whitespace-pre font-mono text-[13px] leading-5 text-ink", className)}>
+          {children}
+        </code>
+      </pre>
+    );
+  },
+} satisfies Components;
+
+export function AssistantMarkdown({
+  children,
+  isStreaming = false,
+}: {
+  children: string;
+  isStreaming?: boolean;
+}) {
+  return (
+    <div
+      className="min-w-0 text-[13px] leading-[1.55] text-ink"
+      data-assistant-markdown=""
+    >
+      <Streamdown
+        className="min-w-0 space-y-3"
+        components={markdownComponents}
+        controls={false}
+        isAnimating={isStreaming}
+        lineNumbers={false}
+        remend={markdownRemend}
+        skipHtml
+      >
+        {children}
+      </Streamdown>
+    </div>
+  );
+}
 
 interface AIMessageProps {
   message: TMessage;
@@ -125,8 +201,12 @@ const PureAIMessage = ({
   const handleUiAction = useCallback(async (actionResult: any, resourceUri?: string) => {
     const { messageId, type, payload } = actionResult;
     if (type === 'tool' && !isPermittedMcpUiAction(resourceUri, payload?.toolName, payload?.params)) {
-      console.warn('[MCP UI] Rejected an action outside the resource capability.', resourceUri);
+      console.warn('[MCP UI] Rejected an action outside the resource capability.');
       return undefined;
+    }
+    if (type === 'prompt' && !isPermittedMcpUiPrompt(resourceUri, payload?.prompt)) {
+      console.warn('[MCP UI] Rejected an unscoped or sensitive prompt action.');
+      return { status: 'rejected' };
     }
     const shouldFollowLatest = type === 'prompt' || (
       type === 'tool' && TOOLS_THAT_APPEND_CHAT_UI.has(payload?.toolName)
@@ -302,8 +382,11 @@ const PureAIMessage = ({
         }
 
         const responseData = getMcpToolResultData(result);
+        const hasUiResource = Array.isArray(result?.result?.content)
+          && result.result.content.some((content: unknown) => isUIResource(content as any));
         if (
-          ['discoverProducts', 'discoverRestaurantMenus', 'loginUser', 'getProduct'].includes(payload.toolName) ||
+          ['discoverMarketplace', 'discoverProducts', 'discoverRestaurantMenus', 'loginUser', 'getProduct'].includes(payload.toolName) ||
+          (payload.toolName === 'setShippingAddress' && hasUiResource) ||
           (payload.toolName === 'initiatePaymentSession' && !responseData?.error)
         ) {
           stop();
@@ -362,21 +445,9 @@ const PureAIMessage = ({
                           Assistant
                         </span>
                       </div>
-                      <div className="text-[13px] leading-normal text-ink">
-                        <ReactMarkdown
-                          remarkPlugins={[remarkGfm, remarkBreaks]}
-                          components={{
-                            p: ({ children }) => <div className="mb-1.5 last:mb-0 break-words">{children}</div>,
-                            a: ({ href, children }) => <a href={href} target="_blank" rel="noopener noreferrer" className="font-medium text-signal-ink underline decoration-signal/30 underline-offset-2 hover:decoration-signal break-all">{children}</a>,
-                            ul: ({ children }) => <ul className="mb-1.5 list-disc space-y-1 pl-4 last:mb-0">{children}</ul>,
-                            ol: ({ children }) => <ol className="mb-1.5 list-decimal space-y-1 pl-4 last:mb-0">{children}</ol>,
-                            li: ({ children }) => <li>{children}</li>,
-                            strong: ({ children }) => <strong className="font-semibold text-ink">{children}</strong>,
-                            code: ({ children, ...props }) => (props as any).inline ? <code className="rounded-[4px] bg-inset px-1 py-0.5 font-mono text-[11.5px] break-all">{children}</code> : <pre className="overflow-x-auto rounded-control bg-inset p-3 shadow-hairline"><code className="font-mono text-[11.5px] break-all">{children}</code></pre>,
-                            pre: ({ children }) => <div className="mb-1 last:mb-0">{children}</div>,
-                          }}
-                        >{part.text}</ReactMarkdown>
-                      </div>
+                      <AssistantMarkdown isStreaming={status === "streaming" && isLatestMessage}>
+                        {part.text}
+                      </AssistantMarkdown>
                     </div>
                   ) : null;
 

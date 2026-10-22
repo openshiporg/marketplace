@@ -26,7 +26,7 @@ export default function EthosPage() {
   if (!isHydrated) return null;
 
   return (
-    <div className="flex h-dvh gap-0 overflow-hidden bg-canvas p-2.5 text-ink lg:pl-0">
+    <div className="flex h-dvh gap-0 overflow-hidden bg-canvas p-0 text-ink sm:p-2.5 lg:pl-0">
       <MarketplaceSidebar
         threads={threads}
         activeThreadId={activeThreadId}
@@ -36,7 +36,7 @@ export default function EthosPage() {
         onNew={openNewChat}
         onSelect={openThread}
       />
-      <section className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-[14px] border border-line bg-page shadow-card">
+      <section className="flex min-w-0 flex-1 flex-col overflow-hidden border-0 border-line bg-page shadow-none sm:rounded-[14px] sm:border sm:shadow-card">
         <div className="flex h-11 shrink-0 items-center gap-1 border-b border-line px-2">
           <button
             type="button"
@@ -79,7 +79,7 @@ export default function EthosPage() {
               >
                 An Openship initiative <ArrowUpRight className="size-3.5" />
               </a>
-              <h1 className="bg-[linear-gradient(135deg,var(--ink)_0%,var(--ink-3)_100%)] bg-clip-text font-[family-name:var(--font-brand)] text-5xl font-semibold uppercase text-transparent sm:text-6xl">
+              <h1 className="ethos-title-gradient font-[family-name:var(--font-brand)] text-5xl font-semibold uppercase sm:text-6xl">
                 A Market Without Masters
               </h1>
               <div className="mt-5 flex items-center gap-3">

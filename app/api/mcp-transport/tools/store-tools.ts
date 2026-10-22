@@ -14,7 +14,7 @@ export const storeTools: Tool[] = [
   }
 ];
 
-export async function handleStoreTools(name: string, args: any, cookie: string, ctoken?: string, customConfig?: any[]) {
+export async function handleStoreTools(name: string, args: any, _cookie: string, _ctoken?: string, customConfig?: any[]) {
   if (name === 'getAvailableStores') {
     const parsed = parseStoreConfigs(customConfig);
 
@@ -26,8 +26,8 @@ export async function handleStoreTools(name: string, args: any, cookie: string, 
       try {
         const adapter = await getPlatformAdapter(s);
         const [infoResult, countriesResult] = await Promise.allSettled([
-          adapter.getStoreInfo({ store: s, cookie, ctoken }),
-          adapter.getAvailableCountries({ store: s, cookie, ctoken }),
+          adapter.getStoreInfo({ store: s }),
+          adapter.getAvailableCountries({ store: s }),
         ]);
         const info = infoResult.status === 'fulfilled' ? infoResult.value : null;
         const countries = countriesResult.status === 'fulfilled' ? countriesResult.value : [];
@@ -49,7 +49,7 @@ export async function handleStoreTools(name: string, args: any, cookie: string, 
         } as const;
       } catch (e) {
         // Fallback if adapter or store query fails
-        console.error('[getAvailableStores] Error fetching store info for', s.id, ':', e);
+        console.error('[getAvailableStores] Source metadata unavailable', { sourceId: s.id, errorName: e instanceof Error ? e.name : 'UnknownError' });
         return {
           id: s.id,
           storeId: s.id,

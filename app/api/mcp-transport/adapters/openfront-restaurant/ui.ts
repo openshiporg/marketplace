@@ -1,21 +1,16 @@
 import type { Product } from '../types';
 import { beautifulUIStyles, iframeAutoResizeScript } from '../../ui/beautiful-ui';
+import { escapeHtml, safeHttpUrl, scriptJson } from '@/lib/safe-content';
 
-function escapeHtml(value: unknown): string {
-  return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
-function scriptJson(value: unknown): string {
-  return JSON.stringify(value).replace(/</g, '\\u003c');
-}
-
-function formatMoney(amount: number, currency: string): string {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format((amount || 0) / 100);
+function formatMoney(amount: number | undefined, currency: string): string {
+  if (typeof amount !== 'number' || !Number.isFinite(amount) || amount < 0 || !/^[A-Z]{3}$/.test(currency)) {
+    return 'Price unavailable';
+  }
+  try {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(amount / 100);
+  } catch {
+    return 'Price unavailable';
+  }
 }
 
 export function generateRestaurantProductUI(params: {
@@ -29,8 +24,8 @@ export function generateRestaurantProductUI(params: {
   const cartAvailable = restaurant.cartAvailable !== false;
   const modifiers = Array.isArray(restaurant.modifiers) ? restaurant.modifiers : [];
   const currency = product.variants[0]?.currency || 'USD';
-  const basePrice = product.variants[0]?.price || 0;
-  const thumbnail = product.thumbnail?.startsWith('/') ? `${storeUrl}${product.thumbnail}` : product.thumbnail;
+  const basePrice = product.variants[0]?.price;
+  const thumbnail = safeHttpUrl(product.thumbnail, storeUrl);
   const groups = Array.from(new Set(modifiers.map((modifier: any) => modifier.modifierGroup || 'other'))).map((groupId) => {
     const choices = modifiers.filter((modifier: any) => (modifier.modifierGroup || 'other') === groupId);
     const first = choices[0] || {};
@@ -153,14 +148,21 @@ export function generateRestaurantProductUI(params: {
   <script>
     ${iframeAutoResizeScript}
     const groups = ${scriptJson(groups)};
-    const basePrice = ${basePrice};
+    const basePrice = ${scriptJson(basePrice)};
     const currency = ${scriptJson(currency)};
     const cartAvailable = ${scriptJson(cartAvailable)};
     const selected = new Set(${scriptJson(modifiers.filter((modifier: any) => modifier.defaultSelected).map((modifier: any) => modifier.id))});
     let quantity = 1;
 
     function money(amount) {
-      return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(amount / 100);
+      if (typeof amount !== 'number' || !Number.isFinite(amount) || amount < 0 || !/^[A-Z]{3}$/.test(currency)) {
+        return 'Price unavailable';
+      }
+      try {
+        return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(amount / 100);
+      } catch {
+        return 'Price unavailable';
+      }
     }
 
     function selectedInGroup(group) {
@@ -178,9 +180,11 @@ export function generateRestaurantProductUI(params: {
 
     function updateUi() {
       const modifierTotal = groups.flatMap(group => selectedInGroup(group)).reduce((sum, choice) => sum + (choice.priceAdjustment || 0), 0);
-      const total = (basePrice + modifierTotal) * quantity;
+      // scriptJson(undefined) is null: never coerce an unavailable source price to zero.
+      const unitPrice = typeof basePrice === 'number' ? basePrice + modifierTotal : undefined;
+      const total = typeof unitPrice === 'number' ? unitPrice * quantity : undefined;
       document.getElementById('quantity').textContent = String(quantity);
-      document.getElementById('item-price').textContent = money(basePrice + modifierTotal);
+      document.getElementById('item-price').textContent = money(unitPrice);
       document.getElementById('add-button').textContent = cartAvailable ? 'Add to cart · ' + money(total) : 'Cart unavailable';
       const issue = cartAvailable ? selectionIssue() : 'Marketplace ordering is not available for this restaurant yet.';
       document.getElementById('validation-message').textContent = issue;

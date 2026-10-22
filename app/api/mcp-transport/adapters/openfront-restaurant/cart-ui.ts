@@ -1,23 +1,11 @@
 /* Hallmark · pre-emit critique: P5 H5 E5 S5 R5 V4 */
 import { beautifulUIStyles, iframeAutoResizeScript } from '../../ui/beautiful-ui';
 import { getStoreLogoHue } from '@/lib/store-logo';
+import { escapeHtml, safeHttpUrl, scriptJson } from '@/lib/safe-content';
 import {
   getRestaurantCheckoutIssues,
   restaurantCheckoutIssueMessage,
 } from '@/lib/restaurant-checkout';
-
-function escapeHtml(value: unknown): string {
-  return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
-function scriptJson(value: unknown): string {
-  return JSON.stringify(value).replace(/</g, '\\u003c');
-}
 
 function formatMoney(amount: number, currency: string): string {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format((amount || 0) / 100);
@@ -68,7 +56,7 @@ export function generateRestaurantCartUI(params: {
 
   const itemRows = items.map((item: any) => {
     const thumbnail = item.thumbnail || item.menuItem?.thumbnail;
-    const thumbnailUrl = thumbnail?.startsWith('/') ? `${storeUrl}${thumbnail}` : thumbnail;
+    const thumbnailUrl = safeHttpUrl(thumbnail, storeUrl);
     const modifierTotal = (item.modifiers || []).reduce(
       (sum: number, modifier: any) => sum + (modifier.priceAdjustment || 0),
       0
@@ -121,7 +109,7 @@ export function generateRestaurantCartUI(params: {
           <div class="choice-radio w-4 h-4 border-2 rounded-full flex items-center justify-center"><div class="payment-radio w-0 h-0 rounded-full transition-all"></div></div>
           <span class="font-medium">${hasCash ? 'Cash or restaurant checkout' : `Checkout on ${escapeHtml(storeInfo?.name || 'restaurant')}`}</span>
         </div>
-        ${storeInfo?.logoIcon ? `<span class="checkout-logo" style="filter:hue-rotate(${logoHue}deg)">${storeInfo.logoIcon}</span>` : ''}
+        <span class="checkout-logo" style="filter:hue-rotate(${logoHue}deg)" aria-hidden="true">R</span>
       </div>
     </button>`;
 
@@ -189,7 +177,7 @@ export function generateRestaurantCartUI(params: {
       <div class="cart-header border-b p-3 sm:p-6">
         <p class="text-xs sm:text-sm text-gray-500 mb-1 sm:mb-2">Your cart from</p>
         <div class="flex items-center gap-2 sm:gap-3">
-          ${storeInfo?.logoIcon ? `<div class="cart-store-logo flex w-6 h-6 sm:w-7 sm:h-7 items-center justify-center" style="filter: hue-rotate(${logoHue}deg)">${storeInfo.logoIcon}</div>` : ''}
+          <div class="cart-store-logo flex w-6 h-6 sm:w-7 sm:h-7 items-center justify-center" style="filter: hue-rotate(${logoHue}deg)" aria-hidden="true"><span class="text-sm font-semibold">R</span></div>
           <h2 class="text-xl sm:text-2xl font-bold">${escapeHtml(storeInfo?.name || 'Restaurant checkout')}</h2>
         </div>
       </div>
@@ -244,24 +232,21 @@ export function generateRestaurantCartUI(params: {
 
         <div id="content-details" class="tab-content hidden">
           <h3 class="font-semibold text-base sm:text-lg mb-2">${orderType === 'delivery' ? 'Delivery Details' : 'Pickup Details'}</h3>
-          ${hasOrderDetails ? `<div class="bg-gray-50 p-4 rounded-md mb-4">
-            ${cart.customerName ? `<p class="font-medium">${escapeHtml(cart.customerName)}</p>` : ''}
-            ${cart.email ? `<p class="text-sm text-gray-600">${escapeHtml(cart.email)}</p>` : ''}
-            ${cart.customerPhone ? `<p class="text-sm text-gray-600">${escapeHtml(cart.customerPhone)}</p>` : ''}
-            ${orderType === 'delivery' && hasDeliveryDetails ? `<div class="mt-3 pt-3 border-t">
-              ${cart.deliveryAddress ? `<p class="text-sm text-gray-600">${escapeHtml(cart.deliveryAddress)}${cart.deliveryAddress2 ? `, ${escapeHtml(cart.deliveryAddress2)}` : ''}</p>` : ''}
-              <p class="text-sm text-gray-600">${escapeHtml([cart.deliveryCity, cart.deliveryState, cart.deliveryZip].filter(Boolean).join(', '))}</p>
-              ${cart.deliveryCountryCode ? `<p class="text-sm text-gray-600">${escapeHtml(cart.deliveryCountryCode)}</p>` : ''}
-            </div>` : ''}
-          </div>` : `<p class="text-sm text-gray-500 mb-3">Paste your ${orderType === 'delivery' ? 'delivery address, ' : ''}name, email, and phone number below in any format. The AI will figure out the country and structure.</p>`}
-          <textarea
-            id="restaurant-details-input"
-            placeholder="${orderType === 'delivery'
-              ? 'Example:&#10;John Doe&#10;john@email.com&#10;123 Main St&#10;Brooklyn, NY 11201&#10;USA&#10;+1 (555) 123-4567'
-              : 'Example:&#10;John Doe&#10;john@email.com&#10;+1 (555) 123-4567'}"
-            class="w-full border border-gray-300 rounded-md p-3 text-base mb-3 resize-none focus:outline-none focus:ring-2 focus:ring-gray-900"
-            rows="6"></textarea>
-          <button type="button" onclick="requestRestaurantDetailsFromAI()" class="w-full bg-gray-900 text-white py-2 px-4 rounded-md hover:bg-gray-800">
+          <p class="text-sm text-gray-500 mb-3">Enter your details directly. They are sent only to this source cart; they are not sent to the assistant model.</p>
+          <div class="grid gap-3 sm:grid-cols-2">
+            <label class="text-xs text-gray-600">Name<input id="customer-name" maxlength="160" required value="${escapeHtml(cart.customerName || '')}" class="mt-1 w-full border rounded-md p-2 text-sm" autocomplete="name"></label>
+            <label class="text-xs text-gray-600">Email<input id="customer-email" type="email" maxlength="320" required value="${escapeHtml(cart.email || '')}" class="mt-1 w-full border rounded-md p-2 text-sm" autocomplete="email"></label>
+            <label class="text-xs text-gray-600">Phone<input id="customer-phone" type="tel" maxlength="64" required value="${escapeHtml(cart.customerPhone || '')}" class="mt-1 w-full border rounded-md p-2 text-sm" autocomplete="tel"></label>
+            ${orderType === 'delivery' ? `
+              <label class="text-xs text-gray-600 sm:col-span-2">Address<input id="delivery-address" maxlength="240" required value="${escapeHtml(cart.deliveryAddress || '')}" class="mt-1 w-full border rounded-md p-2 text-sm" autocomplete="address-line1"></label>
+              <label class="text-xs text-gray-600 sm:col-span-2">Apartment, suite, etc. (optional)<input id="delivery-address2" maxlength="120" value="${escapeHtml(cart.deliveryAddress2 || '')}" class="mt-1 w-full border rounded-md p-2 text-sm" autocomplete="address-line2"></label>
+              <label class="text-xs text-gray-600">City<input id="delivery-city" maxlength="120" required value="${escapeHtml(cart.deliveryCity || '')}" class="mt-1 w-full border rounded-md p-2 text-sm" autocomplete="address-level2"></label>
+              <label class="text-xs text-gray-600">State or province (optional)<input id="delivery-state" maxlength="120" value="${escapeHtml(cart.deliveryState || '')}" class="mt-1 w-full border rounded-md p-2 text-sm" autocomplete="address-level1"></label>
+              <label class="text-xs text-gray-600">Postal code<input id="delivery-zip" maxlength="32" required value="${escapeHtml(cart.deliveryZip || '')}" class="mt-1 w-full border rounded-md p-2 text-sm" autocomplete="postal-code"></label>
+              <label class="text-xs text-gray-600">Country code<input id="delivery-country-code" maxlength="2" pattern="[A-Za-z]{2}" required value="${escapeHtml(cart.deliveryCountryCode || '')}" class="mt-1 w-full border rounded-md p-2 text-sm" autocomplete="country"></label>
+            ` : ''}
+          </div>
+          <button type="button" onclick="saveRestaurantDetails()" class="w-full mt-3 bg-gray-900 text-white py-2 px-4 rounded-md hover:bg-gray-800">
             ${hasOrderDetails ? `Change ${orderType === 'delivery' ? 'Delivery' : 'Pickup'} Details` : `Add ${orderType === 'delivery' ? 'Delivery' : 'Pickup'} Details`}
           </button>
           ${orderType === 'pickup' && storeInfo?.address ? `<div class="status-note mt-4"><strong>Pickup location</strong><br>${escapeHtml(storeInfo.address)}${storeInfo?.estimatedPickup ? `<br>Ready in ${escapeHtml(storeInfo.estimatedPickup)}` : ''}</div>` : ''}
@@ -271,7 +256,7 @@ export function generateRestaurantCartUI(params: {
           <h3 class="font-semibold text-lg mb-4">Payment Method</h3>
           ${directPaymentReady ? `<div id="payment-selection"><p class="text-sm text-gray-600 mb-4">Select your payment method</p><div class="space-y-2">${paymentRows}${checkoutPaymentRow}</div></div>
           <div id="payment-action" class="payment-action hidden mt-6">
-            ${directPaymentProviders.map((provider: any) => `<div id="${escapeHtml(provider.provider)}-action" class="payment-provider-action hidden"><p class="text-sm text-gray-600 mb-4">Complete your payment with ${escapeHtml(provider.provider)}.</p><button type="button" onclick="beginPayment(${scriptJson(provider.provider)})" class="w-full bg-gray-900 text-white py-3 rounded-md hover:bg-gray-800 font-medium">Pay with ${escapeHtml(provider.provider)}</button></div>`).join('')}
+            ${directPaymentProviders.map((provider: any) => `<div id="${escapeHtml(provider.provider)}-action" class="payment-provider-action hidden"><p class="text-sm text-gray-600 mb-4">Complete your payment with ${escapeHtml(provider.provider)}.</p><button type="button" onclick="beginPayment(${escapeHtml(scriptJson(provider.provider))})" class="w-full bg-gray-900 text-white py-3 rounded-md hover:bg-gray-800 font-medium">Pay with ${escapeHtml(provider.provider)}</button></div>`).join('')}
             <div id="checkout-action" class="payment-provider-action hidden"><p class="text-sm text-gray-600 mb-4">Continue on the source checkout for cash, manual payment, or restaurant-managed checkout.</p><a href="${escapeHtml(checkoutUrl)}" target="_blank" rel="noopener noreferrer" class="block w-full bg-gray-900 text-white py-3 rounded-md hover:bg-gray-800 font-medium text-center">Go to ${escapeHtml(storeInfo?.name || 'Restaurant')}</a></div>
           </div>` : `<div class="payment-lock-stage" data-lock-target="${escapeHtml(paymentLockTarget.tab)}">
             <div class="payment-lock-preview" aria-hidden="true"><p class="text-sm text-gray-600 mb-3">Available payment methods</p><div class="space-y-2">${paymentRows || '<div class="payment-method-btn border p-4 bg-white"><span class="font-medium">Secure payment</span></div>'}${checkoutPaymentRow}</div></div>
@@ -290,7 +275,6 @@ export function generateRestaurantCartUI(params: {
     ${iframeAutoResizeScript}
     const storeId = ${scriptJson(storeId)};
     const cartId = ${scriptJson(cartId)};
-    const restaurantName = ${scriptJson(storeInfo?.name || 'the restaurant')};
     let currentOrderType = ${scriptJson(orderType)};
 
     function sendTool(toolName, params, onResponse) {
@@ -357,23 +341,42 @@ export function generateRestaurantCartUI(params: {
       });
     }
 
-    function requestRestaurantDetailsFromAI() {
-      const detailsInput = document.getElementById('restaurant-details-input');
-      const detailsText = detailsInput ? detailsInput.value.trim() : '';
-      if (!detailsText) {
-        alert('Please paste your ' + (currentOrderType === 'delivery' ? 'delivery address, ' : '') + 'name, email, and phone number in the text area above.');
+    function saveRestaurantDetails() {
+      const customerName = document.getElementById('customer-name');
+      const email = document.getElementById('customer-email');
+      const customerPhone = document.getElementById('customer-phone');
+      const fields = [customerName, email, customerPhone];
+      if (currentOrderType === 'delivery') {
+        fields.push(
+          document.getElementById('delivery-address'),
+          document.getElementById('delivery-city'),
+          document.getElementById('delivery-zip'),
+          document.getElementById('delivery-country-code'),
+        );
+      }
+      if (fields.some(field => !field || !field.value.trim() || !field.checkValidity())) {
+        fields.find(field => field && (!field.value.trim() || !field.checkValidity()))?.reportValidity();
         return;
       }
-
-      const deliveryInstruction = currentOrderType === 'delivery'
-        ? ' Include deliveryAddress, deliveryAddress2 when present, deliveryCity, deliveryState when present, deliveryZip, and a two-letter deliveryCountryCode.'
-        : '';
-      const prompt = 'Please set these ' + currentOrderType + ' order details for ' + restaurantName +
-        ' (storeId: ' + storeId + ', cartId: ' + cartId + '). Keep orderType as ' + currentOrderType +
-        '. Parse the following real customer information into customerName, email, and customerPhone.' +
-        deliveryInstruction + ' Use setRestaurantFulfillment exactly once. Do not invent missing values; ask me for anything required that is missing: ' + detailsText;
-
-      window.parent.postMessage({ type: 'prompt', payload: { prompt } }, '*');
+      const params = {
+        storeId,
+        cartId,
+        orderType: currentOrderType,
+        customerName: customerName.value.trim(),
+        email: email.value.trim(),
+        customerPhone: customerPhone.value.trim(),
+        ...(currentOrderType === 'delivery' ? {
+          deliveryAddress: document.getElementById('delivery-address').value.trim(),
+          deliveryAddress2: document.getElementById('delivery-address2').value.trim(),
+          deliveryCity: document.getElementById('delivery-city').value.trim(),
+          deliveryState: document.getElementById('delivery-state').value.trim(),
+          deliveryZip: document.getElementById('delivery-zip').value.trim(),
+          deliveryCountryCode: document.getElementById('delivery-country-code').value.trim().toUpperCase(),
+        } : {}),
+      };
+      sendTool('setRestaurantFulfillment', params, function (response) {
+        if (responseSucceeded(response)) refreshCart();
+      });
     }
 
     function selectPaymentProvider(provider) {
@@ -396,7 +399,7 @@ export function generateRestaurantCartUI(params: {
     window.updateQuantity = updateQuantity;
     window.removeItem = removeItem;
     window.selectFulfillment = selectFulfillment;
-    window.requestRestaurantDetailsFromAI = requestRestaurantDetailsFromAI;
+    window.saveRestaurantDetails = saveRestaurantDetails;
     window.selectPaymentProvider = selectPaymentProvider;
     window.beginPayment = beginPayment;
   </script>

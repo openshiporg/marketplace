@@ -11,6 +11,7 @@ export interface AnimatedBeamProps {
   fromRef: RefObject<HTMLElement | null>;
   toRef: RefObject<HTMLElement | null>;
   curvature?: number;
+  orientation?: "horizontal" | "vertical";
   reverse?: boolean;
   pathColor?: string;
   pathWidth?: number;
@@ -32,6 +33,7 @@ export const AnimatedBeam: React.FC<AnimatedBeamProps> = ({
   fromRef,
   toRef,
   curvature = 0,
+  orientation = "horizontal",
   reverse = false,
   duration = 5,
   delay = 0,
@@ -50,9 +52,13 @@ export const AnimatedBeam: React.FC<AnimatedBeamProps> = ({
   const [pathD, setPathD] = useState("");
   const [svgDimensions, setSvgDimensions] = useState({ width: 0, height: 0 });
 
-  const gradientCoordinates = reverse
-    ? { x1: ["90%", "-10%"], x2: ["100%", "0%"], y1: ["0%", "0%"], y2: ["0%", "0%"] }
-    : { x1: ["10%", "110%"], x2: ["0%", "100%"], y1: ["0%", "0%"], y2: ["0%", "0%"] };
+  const gradientCoordinates = orientation === "vertical"
+    ? reverse
+      ? { x1: ["0%", "0%"], x2: ["0%", "0%"], y1: ["90%", "-10%"], y2: ["100%", "0%"] }
+      : { x1: ["0%", "0%"], x2: ["0%", "0%"], y1: ["10%", "110%"], y2: ["0%", "100%"] }
+    : reverse
+      ? { x1: ["90%", "-10%"], x2: ["100%", "0%"], y1: ["0%", "0%"], y2: ["0%", "0%"] }
+      : { x1: ["10%", "110%"], x2: ["0%", "100%"], y1: ["0%", "0%"], y2: ["0%", "0%"] };
 
   useEffect(() => {
     const updatePath = () => {
@@ -66,19 +72,35 @@ export const AnimatedBeam: React.FC<AnimatedBeamProps> = ({
         const startY = rectA.top - containerRect.top + rectA.height / 2 + startYOffset;
         const endX = rectB.left - containerRect.left + rectB.width / 2 + endXOffset;
         const endY = rectB.top - containerRect.top + rectB.height / 2 + endYOffset;
-        const controlY = startY - curvature;
-        setPathD(`M ${startX},${startY} Q ${(startX + endX) / 2},${controlY} ${endX},${endY}`);
+        const controlX = orientation === "vertical" ? startX - curvature : (startX + endX) / 2;
+        const controlY = orientation === "vertical" ? (startY + endY) / 2 : startY - curvature;
+        setPathD(`M ${startX},${startY} Q ${controlX},${controlY} ${endX},${endY}`);
       }
     };
 
-    const resizeObserver = new ResizeObserver(updatePath);
-    if (containerRef.current) resizeObserver.observe(containerRef.current);
-    updatePath();
-    return () => resizeObserver.disconnect();
-  }, [containerRef, fromRef, toRef, curvature, startXOffset, startYOffset, endXOffset, endYOffset]);
+    let animationFrame = 0;
+    const scheduleUpdate = () => {
+      updatePath();
+      cancelAnimationFrame(animationFrame);
+      animationFrame = requestAnimationFrame(updatePath);
+    };
+    const resizeObserver = new ResizeObserver(scheduleUpdate);
+    [containerRef.current, fromRef.current, toRef.current].forEach((element) => {
+      if (element) resizeObserver.observe(element);
+    });
+    window.addEventListener("resize", scheduleUpdate);
+    scheduleUpdate();
+    return () => {
+      cancelAnimationFrame(animationFrame);
+      resizeObserver.disconnect();
+      window.removeEventListener("resize", scheduleUpdate);
+    };
+  }, [containerRef, fromRef, toRef, curvature, orientation, startXOffset, startYOffset, endXOffset, endYOffset]);
 
   return (
     <svg
+      aria-hidden="true"
+      focusable="false"
       fill="none"
       width={svgDimensions.width}
       height={svgDimensions.height}

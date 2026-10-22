@@ -5,7 +5,7 @@
  */
 
 import marketplaceConfigDefault from '@/marketplace.config.json';
-import { normalizeSourceBaseUrl, sourceIdFor, type SourcePlatform } from '@/lib/source-identity';
+import { legacySourceIdFor, normalizeSourceBaseUrl, sourceIdFor, type SourcePlatform } from '@/lib/source-identity';
 
 export const MARKETPLACE_STORAGE_KEY = 'openfront_marketplace_config';
 export const MARKETPLACE_CONFIG_UPDATED_EVENT = 'marketplaceConfigUpdated';
@@ -84,8 +84,11 @@ function normalizeMarketplaceConfig(value: unknown): MarketplaceStore[] | null {
     }
     if (!platform) return null;
 
-    const id = sourceIdFor({ baseUrl, platform });
-    if (typeof store.id === 'string' && store.id !== id) return null;
+    const identity = { baseUrl, platform };
+    const id = sourceIdFor(identity);
+    if (typeof store.id === 'string'
+      && store.id !== id
+      && store.id !== legacySourceIdFor(identity)) return null;
     if (sourceIds.has(id)) return null;
     sourceIds.add(id);
 
@@ -128,7 +131,8 @@ function selectAdmittedStores(config: MarketplaceStore[]): MarketplaceStore[] {
   const admittedById = new Map(getDefaultMarketplaceConfig().map(store => [store.id, store]));
   const selectedIds = new Set<string>();
   return config.flatMap(store => {
-    const replacement = LEGACY_SOURCE_REPLACEMENTS[store.id];
+    const legacyId = legacySourceIdFor({ baseUrl: store.baseUrl, platform: store.platform });
+    const replacement = LEGACY_SOURCE_REPLACEMENTS[store.id] || LEGACY_SOURCE_REPLACEMENTS[legacyId];
     const candidate = replacement
       ? {
           ...store,

@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { getStoreLogoHue } from "@/lib/store-logo";
+import { Store } from "lucide-react";
 
 interface StoreLogoProps {
   logoIcon?: string;
@@ -11,7 +12,6 @@ interface StoreLogoProps {
 }
 
 export function StoreLogo({
-  logoIcon,
   logoColor,
   className,
   iconClassName,
@@ -24,18 +24,13 @@ export function StoreLogo({
         className
       )}
     >
-      {logoIcon ? (
-        <span
-          dangerouslySetInnerHTML={{ __html: logoIcon }}
-          className={cn(
-            "flex items-center justify-center [&>svg]:block [&>svg]:h-full [&>svg]:w-full",
-            iconClassName
-          )}
-          style={{ filter: `hue-rotate(${getStoreLogoHue(logoColor)}deg)` }}
-        />
-      ) : (
-        fallback
-      )}
+      <span
+        aria-hidden="true"
+        className={cn("flex items-center justify-center", iconClassName)}
+        style={{ filter: `hue-rotate(${getStoreLogoHue(logoColor)}deg)` }}
+      >
+        {fallback || <Store className="size-3.5 text-ink-3" />}
+      </span>
     </span>
   );
 }

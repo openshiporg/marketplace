@@ -3,7 +3,7 @@
  *
  * Structure:
  * {
- *   "source-openfront-https_3A_2F_2Fmerchant.example": { cartId: "cart_123", createdAt: 1234567890 }
+ *   "source-v2-openfront-https_3A_2F_2Fmerchant.example": { cartId: "cart_123", createdAt: 1234567890 }
  * }
  */
 

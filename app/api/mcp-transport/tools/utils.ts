@@ -6,10 +6,18 @@ import {
   isListType,
 } from 'graphql';
 import { createTrustedFetch } from '@/lib/remote-endpoint';
+import {
+  cancelResponseBody,
+  readJsonResponseBounded,
+  SOURCE_GRAPHQL_RESPONSE_MAX_BYTES,
+  SOURCE_INTROSPECTION_RESPONSE_MAX_BYTES,
+} from '@/lib/request-budgets';
 import { parseStoreConfigs } from '../types/store-config';
 
 const SOURCE_REQUEST_TIMEOUT_MS = 8_000;
-const admittedSourceOrigins = parseStoreConfigs().map(store => new URL(store.baseUrl).origin);
+const admittedSources = parseStoreConfigs();
+const admittedSourceOrigins = admittedSources.map(store => new URL(store.baseUrl).origin);
+const admittedSourceByEndpoint = new Map(admittedSources.map(store => [store.endpoint, store]));
 const fetchTrustedSource = createTrustedFetch({
   allowedOrigins: admittedSourceOrigins,
   developmentPrivateOrigins: admittedSourceOrigins.filter(origin => {
@@ -17,6 +25,10 @@ const fetchTrustedSource = createTrustedFetch({
     return hostname.endsWith('.local') || hostname.endsWith('.localhost');
   }),
 });
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
 
 // Get simple type name for display
 export function getSimpleTypeName(type: any): string {
@@ -55,40 +67,59 @@ export async function executeGraphQL(
   variables?: any,
   ctoken?: string,
   cartProof?: string,
+  signal?: AbortSignal,
 ): Promise<any> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
 
-  // Marketplace authentication is forwarded explicitly. Never forward the
-  // Marketplace origin's cookie jar to a remote merchant source; only the
-  // Restaurant adapter's source-scoped public cart cookie is allowed through.
-  if (ctoken) {
-    headers['Authorization'] = `Bearer ${ctoken}`;
-  }
-  const sourceCartCookie = cookie
-    .split(';')
-    .map(part => part.trim())
+  // Preserve the existing source-scoped Restaurant cart cookie contract.
+  // The Marketplace cookie jar itself is never forwarded to a merchant.
+  const sourceCartCookie = cookie.split(';').map(part => part.trim())
     .find(part => part.startsWith('_restaurant_cart_id='));
-  if (sourceCartCookie) {
-    headers.Cookie = sourceCartCookie;
+  if (sourceCartCookie) headers.Cookie = sourceCartCookie;
+
+  // A caller bearer is selected by the source-specific tool handler.
+  if (ctoken) {
+    if (ctoken.length > 4_096 || /[\r\n]/.test(ctoken)) throw new Error('Invalid source credential');
+    headers.Authorization = `Bearer ${ctoken}`;
   }
   if (cartProof) {
-    headers['X-Openfront-Cart-Proof'] = cartProof;
+    if (cartProof.length > 4_096 || /[\r\n]/.test(cartProof)) throw new Error('Invalid source cart proof');
+    const source = admittedSourceByEndpoint.get(graphqlEndpoint);
+    if (source?.platform === 'openfront-restaurant') {
+      headers['X-Restaurant-Cart-Proof'] = cartProof;
+    } else if (source?.platform === 'openfront') {
+      headers['X-Openfront-Cart-Proof'] = cartProof;
+    } else {
+      throw new Error('Cart proof cannot be sent to an unknown source contract');
+    }
   }
+
+  const perCallTimeout = AbortSignal.timeout(SOURCE_REQUEST_TIMEOUT_MS);
+  const requestSignal = signal
+    ? AbortSignal.any([signal, perCallTimeout])
+    : perCallTimeout;
+  requestSignal.throwIfAborted();
 
   const response = await fetchTrustedSource(graphqlEndpoint, {
     method: 'POST',
     headers,
     body: JSON.stringify({ query, variables }),
-    signal: AbortSignal.timeout(SOURCE_REQUEST_TIMEOUT_MS),
+    signal: requestSignal,
   });
 
   if (!response.ok) {
+    await cancelResponseBody(response);
     throw new Error(`Source GraphQL HTTP ${response.status}`);
   }
 
-  const result = await response.json();
+  const result = await readJsonResponseBounded<unknown>(response, SOURCE_GRAPHQL_RESPONSE_MAX_BYTES);
+  if (!isRecord(result)
+    || (!('data' in result) && !('errors' in result))
+    || (result.errors !== undefined && !Array.isArray(result.errors))) {
+    throw new SyntaxError('Invalid source GraphQL response');
+  }
   if (Array.isArray(result.errors) && result.errors.length > 0) {
     // Keep detailed source diagnostics server-side without returning variables,
     // credentials, addresses, cart proofs, or payment references to the client.
@@ -106,7 +137,7 @@ export async function executeGraphQL(
   return result;
 }
 
-// Get GraphQL schema from introspection (supports both cookies and C-tokens)
+// Schema introspection has a larger but still explicit response budget.
 export async function getGraphQLSchema(graphqlEndpoint: string, _cookie: string, ctoken?: string): Promise<GraphQLSchema> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -124,15 +155,20 @@ export async function getGraphQLSchema(graphqlEndpoint: string, _cookie: string,
   });
 
   if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    await cancelResponseBody(response);
+    throw new Error(`HTTP ${response.status}`);
   }
 
-  const result = await response.json();
-  if (result.errors) {
+  const result = await readJsonResponseBounded<unknown>(response, SOURCE_INTROSPECTION_RESPONSE_MAX_BYTES);
+  if (!isRecord(result)
+    || !isRecord(result.data)
+    || (result.errors !== undefined && !Array.isArray(result.errors))
+    || (Array.isArray(result.errors) && result.errors.length > 0)
+    || !('__schema' in result.data)) {
     throw new Error('Source GraphQL introspection failed');
   }
 
-  return buildClientSchema(result.data);
+  return buildClientSchema(result.data as any);
 }
 
 // MCP UI helper function to create proper UI resources

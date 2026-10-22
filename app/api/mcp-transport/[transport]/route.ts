@@ -7,6 +7,27 @@ import { productTools, handleProductTools } from '../tools/product-tools';
 import { cartTools, handleCartTools } from '../tools/cart-tools';
 import { regionTools, handleRegionTools } from '../tools/region-tools';
 import { parseStoreConfigs } from '../types/store-config';
+import { MarketplaceSourceSelectionError } from '@/lib/source-identity';
+import {
+  MCP_TRANSPORT_REQUEST_MAX_BYTES,
+  parseBoundedStringMap,
+  readJsonBodyBounded,
+  validateJsonSchema,
+  type JsonSchemaLike,
+  RequestBodyTooLargeError,
+} from '@/lib/request-budgets';
+
+class InvalidTransportInputError extends Error {}
+
+function parseTransportStringMap(header: string): Record<string, string> {
+  if (!header) return {};
+  if (header.length > 32 * 1024) throw new InvalidTransportInputError();
+  try {
+    return parseBoundedStringMap(JSON.parse(header));
+  } catch {
+    throw new InvalidTransportInputError();
+  }
+}
 
 export async function POST(request: Request, { params }: { params: Promise<{ transport: string }> }) {
   // Track if any CRUD operations occurred during this request
@@ -20,6 +41,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tra
 
     // Extract token from Authorization header if present (supports both business ctoken and user session token)
     const authHeader = request.headers.get('authorization') || '';
+    if (authHeader.length > 4_104 || /[\r\n]/.test(authHeader)) throw new InvalidTransportInputError();
     let ctoken: string | undefined;
     if (/^Bearer\s+/i.test(authHeader)) {
       ctoken = authHeader.replace(/^Bearer\s+/i, '');
@@ -28,38 +50,37 @@ export async function POST(request: Request, { params }: { params: Promise<{ tra
     // Extract source-scoped cart IDs and guest-cart proofs. These maps remain
     // separate so a proof can only be selected by the requested stable storeId.
     const cartIdsHeader = request.headers.get('x-cart-ids') || '';
-    let cartIds: Record<string, string> = {};
-    if (cartIdsHeader) {
-      try {
-        cartIds = JSON.parse(cartIdsHeader);
-      } catch (error) {
-        console.error('Failed to parse cart IDs header:', error);
-      }
-    }
+    const cartIds = parseTransportStringMap(cartIdsHeader);
 
     const cartProofsHeader = request.headers.get('x-cart-proofs') || '';
-    let cartProofs: Record<string, string> = {};
-    if (cartProofsHeader) {
-      try {
-        cartProofs = JSON.parse(cartProofsHeader);
-      } catch (error) {
-        console.error('Failed to parse cart proofs header:', error);
-      }
-    }
+    const cartProofs = parseTransportStringMap(cartProofsHeader);
 
     // Extract marketplace config from custom header
     const marketplaceConfigHeader = request.headers.get('x-marketplace-config') || '';
     let customMarketplaceConfig: any[] | undefined;
     if (marketplaceConfigHeader) {
+      if (marketplaceConfigHeader.length > 64 * 1024) throw new InvalidTransportInputError();
       try {
-        customMarketplaceConfig = JSON.parse(marketplaceConfigHeader);
+        const parsedConfig: unknown = JSON.parse(marketplaceConfigHeader);
+        if (!Array.isArray(parsedConfig) || parsedConfig.length > 20) throw new InvalidTransportInputError();
+        customMarketplaceConfig = parsedConfig;
       } catch (error) {
-        console.error('Failed to parse marketplace config header:', error);
+        if (error instanceof InvalidTransportInputError) throw error;
+        throw new InvalidTransportInputError();
       }
     }
 
-    // Parse the JSON-RPC request
-    const body = await request.json();
+    // Bound parsing before JSON allocation; direct MCP callers do not inherit AI/UI schemas.
+    const body = await readJsonBodyBounded<Record<string, any>>(
+      request,
+      MCP_TRANSPORT_REQUEST_MAX_BYTES,
+    );
+    if (!body || typeof body !== 'object' || Array.isArray(body) || typeof body.method !== 'string') {
+      return new Response(JSON.stringify({ jsonrpc: '2.0', id: null, error: { code: -32600, message: 'Invalid request' } }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
 
     // Handle the request based on method
     if (body.method === 'initialize') {
@@ -69,7 +90,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tra
         result: {
           protocolVersion: '2024-11-05',
           capabilities: {
-            tools: { listChanged: true }
+            tools: { listChanged: false }
           },
           serverInfo: {
             name: 'openfront-marketplace-mcp-server',
@@ -110,8 +131,27 @@ export async function POST(request: Request, { params }: { params: Promise<{ tra
       });
 
     } else if (body.method === 'tools/call') {
-      // Handle tool call
-      const { name, arguments: args } = body.params;
+      // Handle tool call. Validate against the same schema exposed by tools/list
+      // before any source lookup or mutation.
+      const params = body.params;
+      const name = params && typeof params.name === 'string' ? params.name : '';
+      const args = params?.arguments === undefined ? {} : params.arguments;
+      const allTools = [...storeTools, ...productTools, ...cartTools, ...regionTools];
+      const schemaTool = allTools.find(tool => tool.name === name);
+
+      if (!schemaTool || !args || typeof args !== 'object' || Array.isArray(args)) {
+        return new Response(JSON.stringify({ jsonrpc: '2.0', id: body.id, error: { code: -32602, message: 'Invalid tool request', data: { code: 'INVALID_TOOL_ARGUMENTS' } } }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      const validation = validateJsonSchema(args, schemaTool.inputSchema as JsonSchemaLike);
+      if (!validation.valid) {
+        return new Response(JSON.stringify({ jsonrpc: '2.0', id: body.id, error: { code: -32602, message: 'Invalid tool arguments', data: { code: 'INVALID_TOOL_ARGUMENTS' } } }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
 
       try {
         let result;
@@ -163,17 +203,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ tra
         // credentials, addresses, cart proofs, payment references, and cart IDs.
         console.error('[Marketplace MCP tool failed]', {
           tool: name,
-          storeId: typeof args?.storeId === 'string' ? args.storeId : undefined,
+          storeId: typeof args?.storeId === 'string' ? args.storeId.slice(0, 160) : undefined,
           errorName: error instanceof Error ? error.name : 'UnknownError',
         });
         // Never return a source exception or argument echo through MCP/model output.
+        const sourceConfigError = error instanceof MarketplaceSourceSelectionError ? error : null;
         return new Response(JSON.stringify({
           jsonrpc: '2.0',
           id: body.id,
           error: {
-            code: -32603,
-            message: 'Tool request failed',
-            data: { code: 'SOURCE_REQUEST_FAILED' }
+            code: sourceConfigError ? -32602 : -32603,
+            message: sourceConfigError ? 'Marketplace source configuration is stale or invalid' : 'Tool request failed',
+            data: { code: sourceConfigError?.code ?? 'SOURCE_REQUEST_FAILED' }
           }
         }), {
           status: 200,
@@ -192,17 +233,19 @@ export async function POST(request: Request, { params }: { params: Promise<{ tra
       });
     }
 
-  } catch {
+  } catch (error) {
+    const oversized = error instanceof RequestBodyTooLargeError;
+    const invalidInput = error instanceof InvalidTransportInputError || error instanceof SyntaxError;
     return new Response(JSON.stringify({
       jsonrpc: '2.0',
       id: null,
       error: {
-        code: -32603,
-        message: 'Internal error',
-        data: { code: 'INTERNAL_ERROR' }
+        code: oversized || invalidInput ? -32600 : -32603,
+        message: oversized ? 'Request body too large' : invalidInput ? 'Invalid request' : 'Internal error',
+        data: { code: oversized ? 'REQUEST_TOO_LARGE' : invalidInput ? 'INVALID_REQUEST' : 'INTERNAL_ERROR' }
       }
     }), {
-      status: 500,
+      status: oversized ? 413 : invalidInput ? 400 : 500,
       headers: { 'Content-Type': 'application/json' },
     });
   }

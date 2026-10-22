@@ -1,6 +1,6 @@
 "use client";
 
-import { Settings2, ExternalLink } from "lucide-react";
+import { Settings2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -76,6 +76,7 @@ export function SimpleSettingsPopover({ disabled = false }: SimpleSettingsPopove
   const button = (
     <button
       type="button"
+      aria-label="AI settings"
       disabled={disabled}
       className={`beautiful-icon-button size-7 rounded-control bg-surface shadow-btn disabled:pointer-events-none disabled:opacity-40 ${showWarning ? "text-red" : "text-ink-3"}`}
     >
@@ -106,16 +107,18 @@ export function SimpleSettingsPopover({ disabled = false }: SimpleSettingsPopove
         {button}
       </PopoverTrigger>
       <PopoverContent
-        className="w-[min(320px,calc(100vw-16px))] p-0"
+        className="flex min-h-0 w-[min(320px,calc(100vw-16px))] flex-col overflow-hidden p-0"
+        style={{ maxHeight: "min(var(--radix-popover-content-available-height), calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 1rem))" }}
         align="start"
         side="top"
         sideOffset={8}
+        collisionPadding={8}
       >
         {/* <div className="border-b px-4 py-3">
           <h3 className="font-medium text-sm">AI Assistant Settings</h3>
         </div> */}
 
-        <div className="p-3">
+        <div className="min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-y-contain p-3 [-webkit-overflow-scrolling:touch]">
           {/* Provider Selection */}
           <div className="mb-4">
             <Label htmlFor="provider" className="text-xs font-medium">
@@ -195,7 +198,7 @@ export function SimpleSettingsPopover({ disabled = false }: SimpleSettingsPopove
           </div>
         </div>
 
-        <div className="flex items-center justify-end gap-2 border-t border-line px-3 py-2.5">
+        <div className="flex shrink-0 items-center justify-end gap-2 border-t border-line bg-surface px-3 py-2.5">
           {/* <Button
             type="button"
             variant="ghost"

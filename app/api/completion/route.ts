@@ -13,6 +13,14 @@ import {
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { discoveryToolForUserText } from '@/lib/marketplace-discovery';
 import { forcedFollowUpToolForSteps } from '@/lib/completion-tool-routing';
+import { isMarketplaceModelToolAllowed, projectMarketplaceMessagesForModel, projectMarketplaceToolOutput } from '@/lib/marketplace-ai-boundary';
+import { parseBoundedStringMap, readJsonBodyBounded, RequestBodyTooLargeError } from '@/lib/request-budgets';
+import { applyMarketplaceSelfMcpActions } from '@/lib/marketplace-self-mcp-actions';
+import { attachStoreScopedSessionAuthorization } from '@/lib/marketplace-self-mcp-auth';
+import {
+  InvalidCompletionTokenBudgetError,
+  resolveCompletionMaxOutputTokens,
+} from '@/lib/completion-token-budget';
 
 function getLatestUserText(messages: any[]): string {
   const latestUserMessage = [...messages].reverse().find((message) => message?.role === 'user');
@@ -51,7 +59,7 @@ type ScopedMcpRequest = {
  * not replace global.fetch: the completion process may concurrently talk to an
  * AI provider, another MCP request, or another customer.
  */
-function createScopedMcpFetch({ cookies, cartIds, cartProofs, sessionTokens, marketplaceConfig }: ScopedMcpRequest) {
+function createScopedMcpFetch({ cookies, cartIds, cartProofs, sessionTokens, marketplaceConfig }: ScopedMcpRequest, trustedBaseUrl: string) {
   let receivedCookies = cookies ? [cookies] : [];
   const currentCartIds: Record<string, string> = { ...(cartIds || {}) };
   const currentCartProofs: Record<string, string> = { ...(cartProofs || {}) };
@@ -59,59 +67,38 @@ function createScopedMcpFetch({ cookies, cartIds, cartProofs, sessionTokens, mar
   const marketplaceConfigHeader = Array.isArray(marketplaceConfig) ? JSON.stringify(marketplaceConfig) : undefined;
 
   const applyCartAction = async (response: Response) => {
-    try {
-      const rpc = await response.clone().json();
-      const content = rpc?.result?.content;
-      if (!Array.isArray(content)) return;
-      const metaAction = rpc?.result?._meta?.marketplace?.clientAction;
-      for (const item of content) {
-        if (item?.type !== 'text' || typeof item.text !== 'string') continue;
-        const data = JSON.parse(item.text);
-        const action = metaAction || data?.__clientAction;
-        const storeId = typeof action?.storeId === 'string' ? action.storeId : data?.storeId;
-        if (action?.type === 'saveCartId' && storeId && typeof action.cartId === 'string') {
-          currentCartIds[storeId] = action.cartId;
-          if (typeof action.cartProof === 'string') currentCartProofs[storeId] = action.cartProof;
-        }
-        if (action?.type === 'saveSessionToken' && storeId && typeof action.sessionToken === 'string') {
-          currentSessionTokens[storeId] = action.sessionToken;
-          if (typeof action.activeCartId === 'string') currentCartIds[storeId] = action.activeCartId;
-        }
-        if (data?.clearCartId === true && typeof storeId === 'string') {
-          delete currentCartIds[storeId];
-          delete currentCartProofs[storeId];
-        }
-      }
-    } catch {
-      // MCP lifecycle and UI-resource responses do not all contain JSON text.
-    }
+    await applyMarketplaceSelfMcpActions(response, {
+      cartIds: currentCartIds,
+      cartProofs: currentCartProofs,
+      sessionTokens: currentSessionTokens,
+    });
   };
 
+  const trustedOrigin = new URL(trustedBaseUrl).origin;
   return async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const request = new Request(input, init);
+    const target = new URL(request.url);
+    if (target.origin !== trustedOrigin || target.pathname !== '/api/mcp-transport/http') {
+      throw new Error('Refusing an untrusted Marketplace self-request destination');
+    }
     const headers = new Headers(request.headers);
     if (receivedCookies.length) headers.set('Cookie', receivedCookies.join('; '));
     if (Object.keys(currentCartIds).length) headers.set('X-Cart-Ids', JSON.stringify(currentCartIds));
     if (Object.keys(currentCartProofs).length) headers.set('X-Cart-Proofs', JSON.stringify(currentCartProofs));
     if (marketplaceConfigHeader) headers.set('X-Marketplace-Config', marketplaceConfigHeader);
 
-    let storeId: string | undefined;
-    try {
-      const payload = JSON.parse(await request.clone().text());
-      storeId = payload?.params?.arguments?.storeId;
-    } catch {
-      // MCP lifecycle requests do not all have JSON bodies.
-    }
-    if (storeId && currentSessionTokens[storeId]) {
-      headers.set('Authorization', `Bearer ${currentSessionTokens[storeId]}`);
-    }
+    await attachStoreScopedSessionAuthorization(request, headers, currentSessionTokens);
 
-    const response = await fetch(request, { headers });
-    if (typeof response.headers.getSetCookie === 'function') {
-      receivedCookies = [...receivedCookies, ...response.headers.getSetCookie()];
-    } else {
-      const setCookie = response.headers.get('set-cookie');
-      if (setCookie) receivedCookies = [...receivedCookies, setCookie];
+    const response = await fetch(request, { headers, redirect: 'error' });
+    const setCookies = typeof response.headers.getSetCookie === 'function'
+      ? response.headers.getSetCookie()
+      : [response.headers.get('set-cookie') || ''];
+    for (const setCookie of setCookies) {
+      const pair = setCookie.split(';', 1)[0]?.trim();
+      if (!pair || !/^[^=;\s]{1,256}=.{0,4096}$/.test(pair)) continue;
+      const name = pair.slice(0, pair.indexOf('='));
+      receivedCookies = receivedCookies.filter(existing => existing.slice(0, existing.indexOf('=')) !== name);
+      if (receivedCookies.join('; ').length + pair.length + 2 <= 8_192) receivedCookies.push(pair);
     }
     await applyCartAction(response);
     return response;
@@ -122,11 +109,24 @@ export async function POST(req: Request) {
   let mcpClient: Awaited<ReturnType<typeof createMCPClient>> | null = null;
 
   try {
-    const body = await req.json().catch(() => ({}));
-    let messages = Array.isArray(body?.messages) ? body.messages : [];
+    const body = await readJsonBodyBounded<Record<string, any>>(req, 256 * 1024);
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return Response.json({ error: 'Invalid completion request' }, { status: 400 });
+    }
+    const cartIds = parseBoundedStringMap(body.cartIds, { maxValueLength: 1_024 });
+    const cartProofs = parseBoundedStringMap(body.cartProofs);
+    const sessionTokens = parseBoundedStringMap(body.sessionTokens);
+    const marketplaceConfig = body.marketplaceConfig;
+    if (marketplaceConfig !== undefined && (!Array.isArray(marketplaceConfig)
+      || marketplaceConfig.length > 20
+      || JSON.stringify(marketplaceConfig).length > 64 * 1024)) {
+      throw new SyntaxError('Invalid marketplace configuration');
+    }
+    const requestCookies = req.headers.get('cookie') || '';
+    if (requestCookies.length > 8_192) throw new SyntaxError('Cookie header exceeds its limit');
 
-    const MAX_MESSAGES = 20;
-    if (messages.length > MAX_MESSAGES) messages = messages.slice(-MAX_MESSAGES);
+    let messages = Array.isArray(body.messages) ? body.messages.slice(-20) : [];
+    messages = projectMarketplaceMessagesForModel(messages);
 
     const useGlobalKeys = body?.useGlobalKeys === true;
     const useLocalKeys = body?.useLocalKeys === true;
@@ -143,16 +143,23 @@ export async function POST(req: Request) {
       return Response.json({ error: 'Unsupported AI provider' }, { status: 400 });
     }
 
+    const maxOutputTokens = resolveCompletionMaxOutputTokens({
+      useGlobalKeys,
+      openRouterMaxTokens: process.env.OPENROUTER_MAX_TOKENS,
+      hasRequestMaxTokens: Object.prototype.hasOwnProperty.call(body, 'maxTokens'),
+      requestMaxTokens: body.maxTokens,
+    });
+
     const apiKey = useGlobalKeys
       ? process.env.OPENROUTER_API_KEY || ''
-      : typeof body?.apiKey === 'string'
+      : typeof body.apiKey === 'string' && body.apiKey.length <= 4_096
         ? body.apiKey.trim()
         : '';
     if (!apiKey) return Response.json({ error: 'API key is required' }, { status: 400 });
 
     const model = (useGlobalKeys
       ? process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini'
-      : typeof body?.model === 'string'
+      : typeof body.model === 'string' && body.model.length <= 128
         ? body.model
         : '').trim();
     if (!model) return Response.json({ error: 'Model is required' }, { status: 400 });
@@ -160,7 +167,10 @@ export async function POST(req: Request) {
     let customProvider: ReturnType<typeof createOpenAI> | null = null;
     if (provider === 'custom') {
       const endpointPolicy = customAiEndpointPolicy();
-      const baseURL = normalizeOpenAICompatibleBaseURL(body?.customEndpoint || '');
+      if (typeof body.customEndpoint !== 'string' || body.customEndpoint.length > 2_048) {
+        return Response.json({ error: 'Custom AI endpoint is invalid' }, { status: 400 });
+      }
+      const baseURL = normalizeOpenAICompatibleBaseURL(body.customEndpoint);
       await assertTrustedHttpsEndpoint(baseURL, endpointPolicy);
       customProvider = createOpenAI({
         apiKey,
@@ -175,28 +185,26 @@ export async function POST(req: Request) {
       new URL(`${baseUrl}/api/mcp-transport/http`),
       {
         fetch: createScopedMcpFetch({
-          cookies: req.headers.get('cookie') || '',
-          cartIds: body?.cartIds,
-          cartProofs: body?.cartProofs,
-          sessionTokens: body?.sessionTokens,
-          marketplaceConfig: body?.marketplaceConfig,
-        }),
+          cookies: requestCookies,
+          cartIds,
+          cartProofs,
+          sessionTokens,
+          marketplaceConfig: marketplaceConfig as unknown[] | undefined,
+        }, baseUrl),
       }
     );
 
     mcpClient = await createMCPClient({ transport });
-    const aiTools = await mcpClient.tools();
+    const availableTools = await mcpClient.tools();
+    const aiTools = Object.fromEntries(Object.entries(availableTools)
+      .filter(([name]) => isMarketplaceModelToolAllowed(name))
+      .map(([name, tool]) => [name, {
+        ...tool,
+        toModelOutput: ({ output }: { output: unknown }) => projectMarketplaceToolOutput(name, output),
+      }]));
     const languageModel = provider === 'custom'
       ? customProvider!.chat(model)
       : createOpenRouter({ apiKey })(model);
-
-    const maxTokens = useGlobalKeys
-      ? process.env.OPENROUTER_MAX_TOKENS
-        ? parseInt(process.env.OPENROUTER_MAX_TOKENS)
-        : 4000
-      : body?.maxTokens
-        ? parseInt(body.maxTokens)
-        : undefined;
 
     const cartContext = body?.cartIds && Object.keys(body.cartIds).length > 0
       ? `\n\nCURRENT CART CONTEXT: ${JSON.stringify(body.cartIds)}`
@@ -224,7 +232,7 @@ AVAILABLE TOOLS: getAvailableStores, getAvailableCountries, discoverProducts, di
     const streamTextConfig: Parameters<typeof streamText>[0] = {
       model: languageModel,
       tools: aiTools,
-      messages: await convertToModelMessages(messages),
+      messages: await convertToModelMessages(messages as any),
       system: systemInstructions,
       stopWhen: [stepCountIs(10), latestStepReturnedUiResource],
       prepareStep: ({ stepNumber, steps }) => {
@@ -244,17 +252,24 @@ AVAILABLE TOOLS: getAvailableStores, getAvailableCountries, discoverProducts, di
       onError: async () => { await mcpClient?.close(); },
     };
 
-    if (maxTokens) streamTextConfig.maxOutputTokens = maxTokens;
+    if (maxOutputTokens !== undefined) streamTextConfig.maxOutputTokens = maxOutputTokens;
 
     return streamText(streamTextConfig).toUIMessageStreamResponse({
       originalMessages: messages,
       onError: () => 'The completion request failed',
     });
   } catch (error) {
-    console.error('[Marketplace completion]', error instanceof Error
-      ? { name: error.name, message: error.message, stack: error.stack }
-      : { name: 'UnknownError' });
+    console.error('[Marketplace completion failed]', {
+      errorName: error instanceof Error ? error.name : 'UnknownError',
+    });
     if (mcpClient) await mcpClient.close();
+    if (error instanceof InvalidCompletionTokenBudgetError) {
+      return error.source === 'shared-config'
+        ? Response.json({ error: 'Shared AI token budget is misconfigured' }, { status: 503 })
+        : Response.json({ error: 'Invalid max token budget' }, { status: 400 });
+    }
+    if (error instanceof RequestBodyTooLargeError) return Response.json({ error: 'Request body too large' }, { status: 413 });
+    if (error instanceof SyntaxError) return Response.json({ error: 'Invalid completion request' }, { status: 400 });
     return Response.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }

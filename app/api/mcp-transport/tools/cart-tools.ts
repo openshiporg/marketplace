@@ -52,6 +52,20 @@ function marketplaceClientMeta(clientAction: Record<string, unknown>) {
   return { marketplace: { clientAction } };
 }
 
+function publicCartSummary(cart: any) {
+  const lineItems = Array.isArray(cart?.lineItems) ? cart.lineItems.slice(0, 100) : [];
+  return {
+    id: typeof cart?.id === 'string' ? cart.id.slice(0, 200) : undefined,
+    itemCount: lineItems.length,
+    items: lineItems.map((item: any) => ({
+      title: typeof item?.productTitle === 'string' ? item.productTitle.slice(0, 160) : 'Item',
+      quantity: Number.isSafeInteger(item?.quantity) ? Math.max(1, Math.min(99, item.quantity)) : 1,
+    })),
+    currency: typeof cart?.currency === 'string' && /^[A-Z]{3}$/.test(cart.currency) ? cart.currency : undefined,
+    status: ['active', 'completed', 'cancelled'].includes(cart?.status) ? cart.status : 'unknown',
+  };
+}
+
 async function resolveActiveCart({
   store,
   adapter,
@@ -665,7 +679,7 @@ export async function handleCartTools(
         content: [{
           type: 'text',
           text: JSON.stringify({
-            cart: resolved.cart,
+            cart: publicCartSummary(resolved.cart),
             countryCode,
             storeId,
             message: resolved.isNewCart
@@ -676,7 +690,6 @@ export async function handleCartTools(
               : 'Cart already exists and is active. Use this cart ID for cart operations.',
             isNewCart: resolved.isNewCart,
             isExistingCart: !resolved.isNewCart,
-            __clientAction: saveCartClientAction(storeId, resolved.cartId),
           }, null, 2),
         }],
         _meta: marketplaceClientMeta(clientAction),
@@ -698,12 +711,11 @@ export async function handleCartTools(
         content: [{
           type: 'text',
           text: JSON.stringify({
-            cart: publicCart,
+            cart: publicCartSummary(publicCart),
             countryCode,
             storeId,
             message: `Cart created successfully for ${countryCode.toUpperCase()}. Cart ID: ${cart.id}`,
             instruction: 'Use this cart ID with other cart operations (addToCart, setShippingAddress, etc.)',
-            __clientAction: saveCartClientAction(storeId, cart.id),
           }, null, 2),
         }],
         _meta: marketplaceClientMeta(clientAction),
@@ -935,7 +947,7 @@ export async function handleCartTools(
         }
 
         const uiResource = createUIResource({
-          uri: `ui://marketplace/email-conflict?email=${encodeURIComponent(email)}&store=${encodeURIComponent(storeId)}`,
+          uri: `ui://marketplace/email-conflict?store=${encodeURIComponent(storeId)}&cart=${encodeURIComponent(cartId)}`,
           content: { type: 'rawHtml', htmlString: htmlContent },
           encoding: 'text',
         });
@@ -1386,7 +1398,10 @@ export async function handleCartTools(
           });
           finalCartId = cartId;
         } catch (connectError: any) {
-          console.error(`[authenticateUser] Failed to connect cart to user:`, connectError);
+          console.error('[authenticateUser] Source cart association unavailable', {
+            storeId,
+            errorName: connectError instanceof Error ? connectError.name : 'UnknownError',
+          });
         }
       }
 
@@ -1454,7 +1469,7 @@ export async function handleCartTools(
     }
 
     const uiResource = createUIResource({
-      uri: `ui://marketplace/login?store=${encodeURIComponent(storeId)}`,
+      uri: `ui://marketplace/login?store=${encodeURIComponent(storeId)}${cartId ? `&cart=${encodeURIComponent(cartId)}` : ''}`,
       content: { type: 'rawHtml', htmlString: htmlContent },
       encoding: 'text',
     });

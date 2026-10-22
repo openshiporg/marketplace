@@ -54,12 +54,12 @@ Use the same automatic country selection logic:
   }
 ];
 
-export async function handleRegionTools(name: string, args: any, cookie: string, ctoken?: string, customConfig?: any[]) {
+export async function handleRegionTools(name: string, args: any, _cookie: string, _ctoken?: string, customConfig?: any[]) {
   if (name === 'getAvailableCountries') {
     const { storeId } = args;
 
     const { store, adapter } = await resolveAdapter(storeId, customConfig);
-    const countries = await adapter.getAvailableCountries({ store, cookie, ctoken });
+    const countries = await adapter.getAvailableCountries({ store });
 
     const allCountries = (countries || []).map((c: any) => ({
       code: (c.code || '').toLowerCase(),
@@ -92,7 +92,7 @@ export async function handleRegionTools(name: string, args: any, cookie: string,
     const { storeId } = args;
 
     const { store, adapter } = await resolveAdapter(storeId, customConfig);
-    const countries = await adapter.getAvailableCountries({ store, cookie, ctoken });
+    const countries = await adapter.getAvailableCountries({ store });
     const sym = (code: string) => ({ USD: '$', EUR: '\u20ac', GBP: '\u00a3', CAD: 'CA$', AUD: 'A$' } as Record<string, string>)[code] || '$';
 
     // Map to the legacy flattened shape expected by the UI

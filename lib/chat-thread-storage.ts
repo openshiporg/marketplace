@@ -4,7 +4,8 @@ export const CHAT_THREADS_STORAGE_KEY = 'openfront_marketplace_chat_threads';
 export const CHAT_THREADS_UPDATED_EVENT = 'marketplaceChatThreadsUpdated';
 export const NEW_CHAT_TITLE = 'New chat';
 
-const STORAGE_VERSION = 1 as const;
+export const CHAT_THREADS_STORAGE_VERSION = 2 as const;
+const STORAGE_VERSION = CHAT_THREADS_STORAGE_VERSION;
 const MAX_THREADS = 50;
 const MAX_MESSAGES_PER_THREAD = 100;
 const MAX_STORAGE_BYTES = 3_750_000;
@@ -80,7 +81,7 @@ function normalizeThread(value: unknown): MarketplaceChatThread | null {
   }
 
   const title = value.title.trim().slice(0, 80) || NEW_CHAT_TITLE;
-  const messages = value.messages.filter(isStoredMessage).slice(-MAX_MESSAGES_PER_THREAD);
+  const messages = sanitizeMarketplaceChatMessages(value.messages.filter(isStoredMessage).slice(-MAX_MESSAGES_PER_THREAD));
   const draft = typeof value.draft === 'string' ? value.draft.slice(0, 20_000) : undefined;
   return {
     id: value.id,
@@ -93,7 +94,7 @@ function normalizeThread(value: unknown): MarketplaceChatThread | null {
 }
 
 function normalizeState(value: unknown): MarketplaceChatThreadState {
-  if (!isRecord(value) || value.version !== STORAGE_VERSION || !Array.isArray(value.threads)) {
+  if (!isRecord(value) || (value.version !== 1 && value.version !== STORAGE_VERSION) || !Array.isArray(value.threads)) {
     return emptyState();
   }
 
@@ -166,10 +167,22 @@ function sanitizeUnknown(value: unknown, seen: WeakSet<object>): { value: unknow
   return { value: sanitized, redacted };
 }
 
-/** Remove source credentials and non-model MCP metadata before persisting history. */
+/** Persist inert text, never merchant HTML, credentials, or executable tool results. */
 export function sanitizeMarketplaceChatMessages(messages: UIMessage[]): UIMessage[] {
-  const bounded = messages.slice(-MAX_MESSAGES_PER_THREAD);
-  return sanitizeUnknown(bounded, new WeakSet<object>()).value as UIMessage[];
+  const projected = messages.slice(-MAX_MESSAGES_PER_THREAD).flatMap(message => {
+    if (!isStoredMessage(message)) return [];
+    const parts: UIMessage['parts'] = message.parts.slice(0, 40).flatMap(part => {
+      if (part.type === 'text' && typeof part.text === 'string') {
+        return [{ type: 'text' as const, text: part.text.slice(0, 12_000) }];
+      }
+      return [];
+    });
+    if (!parts.length && message.role === 'assistant') {
+      parts.push({ type: 'text', text: 'Historical tool result omitted for privacy. Refresh discovery for current details; no action was replayed.' });
+    }
+    return parts.length ? [{ id: message.id.slice(0, 160), role: message.role, parts }] : [];
+  });
+  return sanitizeUnknown(projected, new WeakSet<object>()).value as UIMessage[];
 }
 
 function firstUserText(messages: UIMessage[]): string {

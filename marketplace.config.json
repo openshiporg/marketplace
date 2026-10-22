@@ -1,16 +1,16 @@
 [
   {
-    "id": "source-openfront-https_3A_2F_2Fnimbus-gallery.openship.org",
+    "id": "source-v2-openfront-https_3A_2F_2Fnimbus-gallery.openship.org",
     "baseUrl": "https://nimbus-gallery.openship.org",
     "platform": "openfront"
   },
   {
-    "id": "source-openfront-https_3A_2F_2Fimpossible-tees.openship.org",
+    "id": "source-v2-openfront-https_3A_2F_2Fimpossible-tees.openship.org",
     "baseUrl": "https://impossible-tees.openship.org",
     "platform": "openfront"
   },
   {
-    "id": "source-openfront-restaurant-https_3A_2F_2Fcraft-burgers.openship.org",
+    "id": "source-v2-openfront-restaurant-https_3A_2F_2Fcraft-burgers.openship.org",
     "baseUrl": "https://craft-burgers.openship.org",
     "platform": "openfront-restaurant"
   }

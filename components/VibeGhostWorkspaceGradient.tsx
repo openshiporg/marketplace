@@ -1,6 +1,6 @@
 "use client";
 
-import type { CSSProperties } from "react";
+import { useId, type CSSProperties } from "react";
 import { cn } from "@/lib/utils";
 import { getVibeGhostWorkspaceGradient, hashToVibeGhostSeeds } from "@/lib/vibeghost-workspace-gradient";
 
@@ -14,10 +14,11 @@ export function VibeGhostWorkspaceGradient({
   className?: string;
 }) {
   const { colors, seeds } = getVibeGhostWorkspaceGradient(seed, accentColor);
+  const instanceId = useId().replace(/[^a-zA-Z0-9_-]/g, "");
   const uidSeed = accentColor ? `${seed}:${accentColor}` : seed;
   const uid = `marketplace-workspace-gradient-${hashToVibeGhostSeeds(uidSeed, 2)
     .map((value) => Math.floor(value * 1_000_000).toString(36))
-    .join("-")}`;
+    .join("-")}-${instanceId}`;
   const clipId = `${uid}-clip`;
   const gradientAId = `${uid}-gradient-a`;
   const gradientBId = `${uid}-gradient-b`;

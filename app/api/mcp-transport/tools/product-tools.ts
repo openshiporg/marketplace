@@ -151,7 +151,7 @@ function sortOptionValues(values: string[], optionTitle: string): string[] {
   });
 }
 
-export async function handleProductTools(name: string, args: any, cookie: string, ctoken?: string, customConfig?: any[]) {
+export async function handleProductTools(name: string, args: any, _cookie: string, _ctoken?: string, customConfig?: any[]) {
   if (name === 'getProduct') {
     const { storeId, productId, productHandle, countryCode } = args;
 
@@ -165,7 +165,7 @@ export async function handleProductTools(name: string, args: any, cookie: string
     // Resolve product ID if only handle provided (platform-agnostic adapters typically key by ID)
     let resolvedProductId = productId;
     if (!resolvedProductId && productHandle) {
-      const list = await adapter.searchProducts({ store, countryCode, limit: 50, cookie, ctoken });
+      const list = await adapter.searchProducts({ store, countryCode, limit: 50 });
       const hit = list.find((pp: any) => pp.handle === productHandle);
       resolvedProductId = hit?.id;
     }
@@ -173,7 +173,7 @@ export async function handleProductTools(name: string, args: any, cookie: string
       throw new Error('Product not found');
     }
 
-    const p = await adapter.getProduct({ store, productId: resolvedProductId, countryCode, cookie, ctoken });
+    const p = await adapter.getProduct({ store, productId: resolvedProductId, countryCode });
 
     if (adapter.generateProductUI) {
       const htmlContent = await adapter.generateProductUI({
@@ -709,8 +709,8 @@ export async function handleProductTools(name: string, args: any, cookie: string
         const { store, adapter } = await resolveAdapter(storeConfig.id, customConfig);
 
         const [storeInfo, countries] = await Promise.all([
-          adapter.getStoreInfo({ store, cookie, ctoken }),
-          adapter.getAvailableCountries({ store, cookie, ctoken }),
+          adapter.getStoreInfo({ store }),
+          adapter.getAvailableCountries({ store }),
         ]);
 
         if (!storeMatchesDiscoveryLocation(storeInfo, countries, discovery.location)) {
@@ -729,8 +729,6 @@ export async function handleProductTools(name: string, args: any, cookie: string
           store,
           countryCode: selectedCountry.code,
           limit: sourceLimit,
-          cookie,
-          ctoken,
         });
         const sym = (code: string) => ({ USD: '$', EUR: '\u20ac', GBP: '\u00a3', CAD: 'CA$', AUD: 'A$' } as Record<string, string>)[code] || '$';
         const products = adapterProducts
@@ -794,7 +792,7 @@ export async function handleProductTools(name: string, args: any, cookie: string
           address: storeInfo?.address,
         };
       } catch (error) {
-        console.error(`Failed to fetch products from ${storeConfig.id}:`, error);
+        console.error('[Marketplace discovery source failed]', { sourceId: storeConfig.id, errorName: error instanceof Error ? error.name : 'UnknownError' });
         return null;
       }
     });

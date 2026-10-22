@@ -497,28 +497,6 @@ export default function HomePage() {
     }
   };
 
-  useEffect(() => {
-    const handlePostMessage = (event: MessageEvent) => {
-      if (event.data?.type === 'chat-message' && event.data?.message) {
-        sendMessage({ text: event.data.message });
-      }
-    };
-    window.addEventListener('message', handlePostMessage);
-    return () => window.removeEventListener('message', handlePostMessage);
-  }, [sendMessage]);
-
-  useEffect(() => {
-    messages.forEach((message) => {
-      if (message.role === 'assistant' && message.parts) {
-        message.parts.forEach((part: any) => {
-          if (part.type === 'dynamic-tool' && part.state === 'output-available' && part.output) {
-            applyCartLifecycleFromToolResult(part.output);
-          }
-        });
-      }
-    });
-  }, [messages]);
-
   const isAiChatReady = aiConfig.enabled && aiConfig.onboarded && selectedMode !== "disabled";
   if (isInitializing || !areThreadsHydrated) return null;
   const showOnboarding = isAiChatReady && messages.length === 0 && !directCartMessage;
@@ -602,7 +580,7 @@ export default function HomePage() {
                           onSubmit={(event) => { event.preventDefault(); submitPrompt(); }}
                           className="relative mt-7"
                         >
-                          <div className="relative isolate flex flex-col gap-2.5 overflow-hidden rounded-[22px] border border-line bg-surface p-3.5 shadow-card transition-[border-color,box-shadow] duration-150 focus-within:border-line-strong focus-within:shadow-raised">
+                          <div className="chat-input-grain relative isolate flex flex-col gap-2.5 overflow-hidden rounded-[22px] border border-line bg-surface p-3.5 shadow-card transition-[border-color,box-shadow] duration-150 focus-within:border-line-strong focus-within:shadow-raised">
                             <textarea
                               value={input}
                               onChange={(event) => setInput(event.target.value)}
@@ -697,9 +675,9 @@ export default function HomePage() {
                 {!showOnboarding ? (
                   <form
                     onSubmit={(event) => { event.preventDefault(); submitPrompt(); }}
-                    className="mx-auto w-full max-w-[760px] shrink-0 px-3 pb-[max(.75rem,env(safe-area-inset-bottom))] sm:px-6"
+                    className="mx-auto w-full max-w-[760px] shrink-0 pb-[max(.75rem,env(safe-area-inset-bottom))] sm:px-6"
                   >
-                    <div className="flex cursor-text flex-col gap-2.5 rounded-[18px] border border-line bg-surface p-3 shadow-card transition-[border-color,box-shadow] duration-150 focus-within:border-line-strong focus-within:shadow-raised">
+                    <div className="chat-input-grain relative isolate flex cursor-text flex-col gap-2.5 border-t border-line bg-page p-3 transition-[border-color,box-shadow] duration-150 focus-within:border-line-strong sm:rounded-[18px] sm:border sm:bg-surface sm:shadow-card sm:focus-within:shadow-raised">
                       <textarea
                         value={input}
                         onChange={(event) => setInput(event.target.value)}
