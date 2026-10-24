@@ -365,7 +365,9 @@ const PureAIMessage = ({
               }
             } else if (result?.error || responseData?.error) {
               const store = getMarketplaceConfig().find(candidate => candidate.id === storeIdForCall);
-              const message = store?.platform === 'openfront-restaurant'
+              const message = result?.error?.data?.code === 'INVALID_TOOL_ARGUMENTS'
+                ? 'Marketplace rejected this add-to-cart request before it reached the store. This is a Marketplace problem, not the store; please report it.'
+                : store?.platform === 'openfront-restaurant'
                 ? 'This restaurant is not accepting Marketplace cart requests right now. Try another restaurant source.'
                 : 'This store could not add that item to its cart right now. Please try again.';
               stop();

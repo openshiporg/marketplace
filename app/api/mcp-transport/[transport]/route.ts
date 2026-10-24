@@ -147,7 +147,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ tra
       }
       const validation = validateJsonSchema(args, schemaTool.inputSchema as JsonSchemaLike);
       if (!validation.valid) {
-        return new Response(JSON.stringify({ jsonrpc: '2.0', id: body.id, error: { code: -32602, message: 'Invalid tool arguments', data: { code: 'INVALID_TOOL_ARGUMENTS' } } }), {
+        return new Response(JSON.stringify({ jsonrpc: '2.0', id: body.id, error: {
+          code: -32602,
+          message: `Invalid arguments for ${name}`,
+          // Name the failing argument paths (never their values) so callers can see what was rejected.
+          data: {
+            code: 'INVALID_TOOL_ARGUMENTS',
+            issues: validation.issues.slice(0, 10).map(issue => ({ path: issue.path.slice(0, 160), reason: issue.reason })),
+          },
+        } }), {
           status: 200,
           headers: { 'Content-Type': 'application/json' },
         });
