@@ -324,10 +324,12 @@ function validateValue(
       const propertySchema = properties[key];
       if (isRecord(propertySchema)) {
         validateValue(nestedValue, propertySchema, `${path}.${key}`, depth + 1, issues);
-      } else if (schema.additionalProperties === true) {
-        validateUnknownValue(nestedValue, `${path}.${key}`, depth + 1, issues);
-      } else {
+      } else if (schema.additionalProperties === false) {
         issues.push({ path: `${path}.${key}`, reason: 'unknown property' });
+      } else {
+        // JSON Schema admits undeclared properties by default; MCP UI cards send
+        // context such as countryCode that handlers ignore.
+        validateUnknownValue(nestedValue, `${path}.${key}`, depth + 1, issues);
       }
     }
   }

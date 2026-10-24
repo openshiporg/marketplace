@@ -25,6 +25,17 @@ test('request maps and schemas reject malformed or unbounded tool input', () => 
   assert.equal(validateJsonSchema({ quantity: 2, id: 'variant-1', user: { connect: { id: 'admin' } } }, schema).valid, false);
 });
 
+test('schemas without additionalProperties admit undeclared UI context such as countryCode', () => {
+  // Mirrors the addToCart payload posted by the product card iframe.
+  const addToCartSchema = {
+    type: 'object',
+    properties: { storeId: { type: 'string' }, variantId: { type: 'string' }, quantity: { type: 'number' } },
+    required: ['storeId', 'variantId', 'quantity'],
+  };
+  assert.equal(validateJsonSchema({ storeId: 's', variantId: 'v', quantity: 1, countryCode: 'us' }, addToCartSchema).valid, true);
+  assert.equal(validateJsonSchema({ storeId: 's', variantId: 'v', quantity: 1, constructor: 'x' }, addToCartSchema).valid, false);
+});
+
 test('generated content helpers escape HTML/script data and reject active image URLs', () => {
   const escaped = escapeHtml('\"><img src=x onerror=alert(1)>&');
   assert.equal(escaped.includes('<img'), false);

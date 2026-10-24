@@ -617,7 +617,7 @@ Returns interactive login form that handles authentication and session managemen
           additionalProperties: false
         }
       },
-      required: ['storeId', 'email', 'password', 'cartId', 'addressData']
+      required: ['storeId', 'email', 'password']
     }
   }
 ];
