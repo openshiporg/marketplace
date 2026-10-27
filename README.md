@@ -2,6 +2,8 @@
 
 A conversational commerce marketplace where shopping happens entirely in AI chat. Products, cart, checkout, and payment, all rendered in the conversation via MCP UI. Zero transaction fees, zero data collection, complete store independence.
 
+**Documentation:** [docs.openship.org/docs/openfront/marketplace](https://docs.openship.org/docs/openfront/marketplace)
+
 ## Demo
 https://github.com/user-attachments/assets/7ecf5787-3681-4ad7-a223-302d5439d0c1
 
