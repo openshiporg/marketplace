@@ -7,6 +7,8 @@
  * }
  */
 
+import { renameSourceKeys } from './source-renames.ts';
+
 const CART_STORAGE_KEY = 'openfront_marketplace_carts';
 
 export interface CartInfo {
@@ -29,7 +31,10 @@ export function getAllCarts(): MultiStoreCartStorage {
 
   try {
     const stored = localStorage.getItem(CART_STORAGE_KEY);
-    return stored ? JSON.parse(stored) : {};
+    if (!stored) return {};
+    const { record, changed } = renameSourceKeys<CartInfo>(JSON.parse(stored));
+    if (changed) localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(record));
+    return record;
   } catch (error) {
     console.error('Error reading carts from localStorage:', error);
     return {};

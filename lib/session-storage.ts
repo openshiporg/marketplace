@@ -3,6 +3,8 @@
  * Keyed by store ID
  */
 
+import { renameSourceKeys } from './source-renames.ts';
+
 const SESSION_STORAGE_KEY = 'openfront_marketplace_sessions';
 
 export interface SessionInfo {
@@ -21,7 +23,10 @@ export function getAllSessions(): MultiStoreSessionStorage {
   if (typeof window === 'undefined') return {};
   try {
     const raw = localStorage.getItem(SESSION_STORAGE_KEY);
-    return raw ? JSON.parse(raw) : {};
+    if (!raw) return {};
+    const { record, changed } = renameSourceKeys<SessionInfo>(JSON.parse(raw));
+    if (changed) localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(record));
+    return record;
   } catch (e) {
     console.error('Error reading sessions from localStorage:', e);
     return {};

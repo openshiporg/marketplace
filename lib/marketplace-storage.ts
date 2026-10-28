@@ -58,6 +58,15 @@ const LEGACY_SOURCE_REPLACEMENTS: Record<string, Pick<MarketplaceStore, 'baseUrl
     baseUrl: 'https://restaurant.local',
     platform: 'openfront-restaurant',
   },
+  // The demo shops moved hostnames (same backends); see lib/source-renames.ts.
+  'source-v2-openfront-https_3A_2F_2Fimpossible-tees.openship.org': {
+    baseUrl: 'https://e-commerce.openship.org',
+    platform: 'openfront',
+  },
+  'source-v2-openfront-restaurant-https_3A_2F_2Fcraft-burgers.openship.org': {
+    baseUrl: 'https://restaurant.openship.org',
+    platform: 'openfront-restaurant',
+  },
 };
 
 function normalizeMarketplaceConfig(value: unknown): MarketplaceStore[] | null {
