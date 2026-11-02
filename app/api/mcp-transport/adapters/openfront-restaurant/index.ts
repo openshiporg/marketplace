@@ -21,10 +21,12 @@ function extractDocumentText(value: any): string {
   return document.map(collect).filter(Boolean).join('\n').trim();
 }
 
-function cartCookie(_existingCookie: string | undefined, cartId: string): string {
+export function cartCookie(_existingCookie: string | undefined, cartId: string, cartProof?: string): string {
   // Build a source-scoped cookie from the selected Restaurant cart only. Never
-  // mix the Marketplace origin's cookie jar into a merchant request.
-  return `_restaurant_cart_id=${encodeURIComponent(cartId)}`;
+  // mix the Marketplace origin's cookie jar into a merchant request. The
+  // source-issued proof authorizes guest access to this cart.
+  return `_restaurant_cart_id=${encodeURIComponent(cartId)}` +
+    (cartProof ? `; _restaurant_cart_proof=${encodeURIComponent(cartProof)}` : '');
 }
 
 function countryName(countryCode: string): string {
@@ -155,11 +157,11 @@ async function fetchMenuItem(store: any, productId: string, cookie?: string, cto
   };
 }
 
-async function fetchRawCart(store: any, cartId: string, cookie?: string) {
+async function fetchRawCart(store: any, cartId: string, cookie?: string, cartProof?: string) {
   const result = await executeGraphQL(
     `query MarketplaceRestaurantCart($cartId: ID!) { activeCart(cartId: $cartId) }`,
     store.endpoint,
-    cartCookie(cookie, cartId),
+    cartCookie(cookie, cartId, cartProof),
     { cartId }
   );
   const cart = result.data?.activeCart;
@@ -225,20 +227,21 @@ const restaurantAdapter: PlatformAdapter = {
   async createCart({ store, cookie }) {
     const result = await executeGraphQL(
       `mutation MarketplaceCreateRestaurantCart($orderType: String) {
-        createActiveCart(orderType: $orderType) { id orderType }
+        createActiveCart(orderType: $orderType) { id orderType accessProof }
       }`,
       store.endpoint,
       cookie || '',
       { orderType: 'pickup' }
     );
     const cartId = result.data?.createActiveCart?.id;
-    if (!cartId) throw new Error('Restaurant cart could not be created');
-    const raw = await fetchRawCart(store, cartId, cookie);
-    return normalizeCart(raw);
+    const cartProof = result.data?.createActiveCart?.accessProof;
+    if (!cartId || !cartProof) throw new Error('Restaurant cart could not be created');
+    const raw = await fetchRawCart(store, cartId, cookie, cartProof);
+    return { ...normalizeCart(raw), cartProof };
   },
 
-  async addToCart({ store, cartId, variantId, quantity, modifierIds, specialInstructions, orderType, cookie }) {
-    const { item } = await fetchMenuItem(store, variantId, cartCookie(cookie, cartId));
+  async addToCart({ store, cartId, variantId, quantity, modifierIds, specialInstructions, orderType, cookie, cartProof }) {
+    const { item } = await fetchMenuItem(store, variantId, cookie);
     if (!item || item.available === false) throw new Error('Menu item is not available');
 
     const availableModifiers = new Map<string, any>((item.modifiers || []).map((modifier: any) => [modifier.id, modifier]));
@@ -266,7 +269,7 @@ const restaurantAdapter: PlatformAdapter = {
         addActiveCartItem(cartId: $cartId, input: $input) { id }
       }`,
       store.endpoint,
-      cartCookie(cookie, cartId),
+      cartCookie(cookie, cartId, cartProof),
       {
         cartId,
         input: {
@@ -277,47 +280,47 @@ const restaurantAdapter: PlatformAdapter = {
         },
       }
     );
-    const raw = await fetchRawCart(store, cartId, cookie);
+    const raw = await fetchRawCart(store, cartId, cookie, cartProof);
     return normalizeCart(raw);
   },
 
-  async getCart({ store, cartId, cookie }) {
-    const raw = await fetchRawCart(store, cartId, cookie);
+  async getCart({ store, cartId, cookie, cartProof }) {
+    const raw = await fetchRawCart(store, cartId, cookie, cartProof);
     if (!raw) throw new Error('Restaurant cart not found');
     return normalizeCart(raw);
   },
 
-  async getCartRaw({ store, cartId, cookie }) {
-    return fetchRawCart(store, cartId, cookie);
+  async getCartRaw({ store, cartId, cookie, cartProof }) {
+    return fetchRawCart(store, cartId, cookie, cartProof);
   },
 
   async getCartShippingOptions() {
     return [];
   },
 
-  async setShippingMethod({ store, cartId, cookie }) {
-    return fetchRawCart(store, cartId, cookie);
+  async setShippingMethod({ store, cartId, cookie, cartProof }) {
+    return fetchRawCart(store, cartId, cookie, cartProof);
   },
 
-  async updateCartItemQuantity({ store, cartId, lineItemId, quantity, cookie }) {
+  async updateCartItemQuantity({ store, cartId, lineItemId, quantity, cookie, cartProof }) {
     const result = await executeGraphQL(
       `mutation MarketplaceUpdateRestaurantItem($cartItemId: ID!, $quantity: Int!) {
         updateCartItemQuantity(cartItemId: $cartItemId, quantity: $quantity) { id }
       }`,
       store.endpoint,
-      cartCookie(cookie, cartId),
+      cartCookie(cookie, cartId, cartProof),
       { cartItemId: lineItemId, quantity }
     );
     return result.data?.updateCartItemQuantity;
   },
 
-  async removeCartItem({ store, cartId, lineItemId, cookie }) {
+  async removeCartItem({ store, cartId, lineItemId, cookie, cartProof }) {
     const result = await executeGraphQL(
       `mutation MarketplaceRemoveRestaurantItem($cartItemId: ID!) {
         removeCartItem(cartItemId: $cartItemId) { id }
       }`,
       store.endpoint,
-      cartCookie(cookie, cartId),
+      cartCookie(cookie, cartId, cartProof),
       { cartItemId: lineItemId }
     );
     return result.data?.removeCartItem;
@@ -342,24 +345,24 @@ const restaurantAdapter: PlatformAdapter = {
     return { sessionToken: auth.sessionToken, user: { id: auth.item.id, email: auth.item.email } };
   },
 
-  async connectCartToUser({ store, cartId, userId, email, cookie }) {
+  async connectCartToUser({ store, cartId, userId, email, cookie, cartProof }) {
     await executeGraphQL(
       `mutation MarketplaceConnectRestaurantCart($cartId: ID!, $data: ActiveCartUpdateInput!) {
         updateActiveCart(cartId: $cartId, data: $data) { id }
       }`,
       store.endpoint,
-      cartCookie(cookie, cartId),
+      cartCookie(cookie, cartId, cartProof),
       { cartId, data: { email, userId } }
     );
   },
 
-  async setShippingAddress({ store, cartId, address, cookie }) {
+  async setShippingAddress({ store, cartId, address, cookie, cartProof }) {
     await executeGraphQL(
       `mutation MarketplaceSetRestaurantDelivery($cartId: ID!, $data: ActiveCartUpdateInput!) {
         updateActiveCart(cartId: $cartId, data: $data) { id }
       }`,
       store.endpoint,
-      cartCookie(cookie, cartId),
+      cartCookie(cookie, cartId, cartProof),
       {
         cartId,
         data: {
@@ -375,7 +378,7 @@ const restaurantAdapter: PlatformAdapter = {
         },
       }
     );
-    const raw = await fetchRawCart(store, cartId, cookie);
+    const raw = await fetchRawCart(store, cartId, cookie, cartProof);
     return normalizeCart(raw);
   },
 
@@ -394,6 +397,7 @@ const restaurantAdapter: PlatformAdapter = {
     deliveryCountryCode,
     cookie,
     ctoken,
+    cartProof,
   }) {
     const data = {
       orderType,
@@ -415,11 +419,11 @@ const restaurantAdapter: PlatformAdapter = {
         updateActiveCart(cartId: $cartId, data: $data) { id }
       }`,
       store.endpoint,
-      cartCookie(cookie, cartId),
+      cartCookie(cookie, cartId, cartProof),
       { cartId, data },
       ctoken
     );
-    return fetchRawCart(store, cartId, cookie);
+    return fetchRawCart(store, cartId, cookie, cartProof);
   },
 
   async buildCheckoutLink({ store, cartId }) {
@@ -439,7 +443,7 @@ const restaurantAdapter: PlatformAdapter = {
     return result.data?.activeCartPaymentProviders || [];
   },
 
-  async initiatePaymentSession({ store, cartId, paymentProviderCodeOrName, cookie }) {
+  async initiatePaymentSession({ store, cartId, paymentProviderCodeOrName, cookie, cartProof }) {
     const providers = await this.getAvailablePaymentMethods({ store, regionId: '', cookie });
     const query = paymentProviderCodeOrName.toLowerCase();
     const provider = providers.find((candidate) =>
@@ -453,13 +457,13 @@ const restaurantAdapter: PlatformAdapter = {
         initiatePaymentSession(cartId: $cartId, paymentProviderId: $paymentProviderId) { id data amount }
       }`,
       store.endpoint,
-      cartCookie(cookie, cartId),
+      cartCookie(cookie, cartId, cartProof),
       { cartId, paymentProviderId: provider.code }
     );
     return result.data?.initiatePaymentSession;
   },
 
-  async completeCart({ store, cartId, paymentSessionId, cookie }) {
+  async completeCart({ store, cartId, paymentSessionId, cookie, cartProof }) {
     const result = await executeGraphQL(
       `mutation MarketplaceCompleteRestaurantCart($cartId: ID!, $paymentSessionId: ID) {
         completeActiveCart(cartId: $cartId, paymentSessionId: $paymentSessionId) {
@@ -467,7 +471,7 @@ const restaurantAdapter: PlatformAdapter = {
         }
       }`,
       store.endpoint,
-      cartCookie(cookie, cartId),
+      cartCookie(cookie, cartId, cartProof),
       { cartId, paymentSessionId }
     );
     return result.data?.completeActiveCart;

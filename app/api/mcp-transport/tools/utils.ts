@@ -82,7 +82,9 @@ export async function executeGraphQL(
   // The Marketplace cookie jar itself is never forwarded to a merchant.
   const sourceCartCookie = cookie.split(';').map(part => part.trim())
     .find(part => part.startsWith('_restaurant_cart_id='));
-  if (sourceCartCookie) headers.Cookie = sourceCartCookie;
+  const sourceCartProofCookie = cookie.split(';').map(part => part.trim())
+    .find(part => part.startsWith('_restaurant_cart_proof='));
+  if (sourceCartCookie) headers.Cookie = sourceCartProofCookie ? `${sourceCartCookie}; ${sourceCartProofCookie}` : sourceCartCookie;
 
   // A caller bearer is selected by the source-specific tool handler.
   if (ctoken) {
