@@ -11,6 +11,7 @@ import { UIResourceRenderer, isUIResource } from '@mcp-ui/client';
 import { setSession } from '@/lib/session-storage';
 import { getMarketplaceConfig } from '@/lib/marketplace-storage';
 import { buildMarketplaceMcpHeaders } from '@/lib/mcp-client-headers';
+import { addToCartErrorMessage } from '@/lib/mcp-customer-error';
 import { LoadingState } from '@/components/beautiful-ui/loading-state';
 import { useTheme } from 'next-themes';
 import {
@@ -365,11 +366,10 @@ const PureAIMessage = ({
               }
             } else if (result?.error || responseData?.error) {
               const store = getMarketplaceConfig().find(candidate => candidate.id === storeIdForCall);
-              const message = result?.error?.data?.code === 'INVALID_TOOL_ARGUMENTS'
-                ? 'Marketplace rejected this add-to-cart request before it reached the store. This is a Marketplace problem, not the store; please report it.'
-                : store?.platform === 'openfront-restaurant'
-                ? 'This restaurant is not accepting Marketplace cart requests right now. Try another restaurant source.'
-                : 'This store could not add that item to its cart right now. Please try again.';
+              const message = addToCartErrorMessage(result?.error || responseData?.error,
+                store?.platform === 'openfront-restaurant'
+                  ? 'This restaurant is not accepting Marketplace cart requests right now. Try another restaurant source.'
+                  : 'This store could not add that item to its cart right now. Please try again.');
               stop();
               setMessages((currentMessages) => [...currentMessages, {
                 id: `msg-${Date.now()}`,

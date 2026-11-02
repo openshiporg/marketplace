@@ -25,6 +25,7 @@ import {
 import { StoreEditor } from "./store-editor-redesigned";
 import { StoreLogo } from "../store-logo";
 import { getStorePlatformLabel } from "@/lib/store-platform";
+import { buildMarketplaceMcpHeaders } from "@/lib/mcp-client-headers";
 
 interface Cart {
   storeId: string;
@@ -67,15 +68,9 @@ export function CartsDropdown({
     const requestId = ++latestStoreInfoRequest.current;
     setIsLoading(true);
     try {
-      const marketplaceConfig = getMarketplaceConfig();
-      // No global ucpMode anymore
-
       const response = await fetch("/api/mcp-transport/http", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-marketplace-config": JSON.stringify(marketplaceConfig),
-        },
+        headers: buildMarketplaceMcpHeaders(),
         body: JSON.stringify({
           jsonrpc: "2.0",
           id: Date.now(),

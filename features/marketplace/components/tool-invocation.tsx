@@ -11,9 +11,9 @@ import {
   Circle,
 } from 'lucide-react';
 import { PaymentUI } from './payment/payment-ui';
-import { getAllCarts } from '@/lib/cart-storage';
-import { getSessionToken } from '@/lib/session-storage';
-import { getMarketplaceConfig } from '@/lib/marketplace-storage';
+import { buildMarketplaceMcpHeaders } from '@/lib/mcp-client-headers';
+import { ORDER_COMPLETION_FALLBACK } from '@/lib/mcp-customer-error';
+import { completedOrderUrl } from '@/lib/complete-paid-cart';
 import {
   applyCartLifecycleFromToolResult,
   getMcpToolResultData,
@@ -69,26 +69,13 @@ export const ToolInvocation = memo(function ToolInvocation({
       const storeId = paymentData?.storeId;
 
       if (!cartId || !storeId) {
-        console.error('[Payment] Missing cart or store ID');
-        setCompletingOrder(false);
-        return;
+        throw new Error(ORDER_COMPLETION_FALLBACK);
       }
 
       const completeResult = await serializeCartMutation(storeId, async () => {
-        const cartIds = Object.fromEntries(
-          Object.entries(getAllCarts()).map(([key, value]) => [key, value.cartId])
-        );
-        const token = getSessionToken(storeId);
-        const headers: Record<string, string> = {
-          'Content-Type': 'application/json',
-          'x-cart-ids': JSON.stringify(cartIds),
-          'x-marketplace-config': JSON.stringify(getMarketplaceConfig()),
-        };
-        if (token) headers.Authorization = `Bearer ${token}`;
-
         const response = await fetch('/api/mcp-transport/http', {
           method: 'POST',
-          headers,
+          headers: buildMarketplaceMcpHeaders(storeId),
           credentials: 'include',
           body: JSON.stringify({
             jsonrpc: '2.0',
@@ -111,17 +98,13 @@ export const ToolInvocation = memo(function ToolInvocation({
         return result;
       });
 
-      if (completeResult.result) {
-        const orderData = getMcpToolResultData(completeResult);
-        if (orderData) {
-          if (typeof orderData.redirectUrl === 'string') {
-            setOrderUrl(orderData.redirectUrl);
-          }
-          setPaymentCompleted(true);
-        }
-      }
+      const orderData = getMcpToolResultData(completeResult);
+      setOrderUrl(completedOrderUrl(completeResult, orderData));
+      setPaymentCompleted(true);
     } catch (error) {
-      console.error('[Payment] Error completing cart:', error);
+      // The payment form retains the succeeded payment and shows this error;
+      // retry must complete the same cart, never charge it again.
+      throw error;
     } finally {
       setCompletingOrder(false);
     }

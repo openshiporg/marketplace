@@ -363,10 +363,7 @@ export default function HomePage() {
     try {
       const discoverResponse = await fetch('/api/mcp-transport/http', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-marketplace-config': JSON.stringify(getMarketplaceConfig()),
-        },
+        headers: buildMarketplaceMcpHeaders(),
         credentials: 'include',
         body: JSON.stringify({
           jsonrpc: '2.0',

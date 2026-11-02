@@ -8,6 +8,8 @@ import { RiLoader2Fill } from "@remixicon/react"
 import { CheckCircle2 } from "lucide-react"
 import { useState } from "react"
 import { LoadingState } from "@/components/beautiful-ui/loading-state"
+import { ORDER_COMPLETION_FALLBACK } from "@/lib/mcp-customer-error"
+import { retryPaidIntent } from "@/lib/complete-paid-cart"
 
 interface PaymentUIProps {
   paymentProvider: 'stripe' | 'paypal'
@@ -135,14 +137,14 @@ function StripePaymentForm({ paymentSession, cart, onPaymentComplete, paymentCom
       return
     }
 
-    const cardElement = elements.getElement(CardElement)
-    if (!cardElement) {
-      setSubmitting(false)
-      setErrorMessage("Card element not found.")
-      return
-    }
-
     try {
+      // Payment may already have succeeded before an order-completion failure.
+      if (await retryPaidIntent(
+        () => stripe.retrievePaymentIntent(paymentSession.data.clientSecret!),
+        () => onPaymentComplete(paymentSession.id),
+      )) return
+      const cardElement = elements.getElement(CardElement)
+      if (!cardElement) throw new Error("Card element not found.")
 
       const { error: confirmError, paymentIntent } = await stripe.confirmCardPayment(
         paymentSession.data.clientSecret,
@@ -177,8 +179,7 @@ function StripePaymentForm({ paymentSession, cart, onPaymentComplete, paymentCom
         setErrorMessage("Payment was not successful. Please try again.")
       }
     } catch (error: any) {
-      console.error('Payment error:', error)
-      setErrorMessage(error.message || "An error occurred during payment processing.")
+      setErrorMessage(error.message || ORDER_COMPLETION_FALLBACK)
     } finally {
       setSubmitting(false)
     }
@@ -199,15 +200,7 @@ function StripePaymentForm({ paymentSession, cart, onPaymentComplete, paymentCom
     )
   }
 
-  // Show completing state
-  if (completingOrder) {
-    return (
-      <div className="bg-surface p-3 shadow-hairline">
-        <LoadingState label="Completing order" variant="Orbit" />
-      </div>
-    )
-  }
-
+  // Keep the form mounted during completion so an error does not reset it.
   // Show payment form
   return (
     <div className="space-y-3 bg-surface p-3 shadow-hairline">
@@ -232,7 +225,7 @@ function StripePaymentForm({ paymentSession, cart, onPaymentComplete, paymentCom
 
       <Button
         onClick={handlePayment}
-        disabled={!stripe || submitting}
+        disabled={!stripe || submitting || completingOrder}
         className="w-full"
         size="lg"
       >
@@ -240,8 +233,9 @@ function StripePaymentForm({ paymentSession, cart, onPaymentComplete, paymentCom
         Pay ${(paymentSession.amount / 100).toFixed(2)}
       </Button>
 
+      {completingOrder && <LoadingState label="Completing order" variant="Orbit" />}
       {errorMessage && (
-        <div className="mt-2 rounded-control bg-red-tint p-2 text-[12px] text-red">
+        <div role="alert" className="mt-2 rounded-control bg-red-tint p-2 text-[12px] text-red">
           {errorMessage}
         </div>
       )}
