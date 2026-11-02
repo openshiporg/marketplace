@@ -2,6 +2,7 @@
 // Multi-platform e-commerce marketplace with platform adapters
 // Supports multiple admitted sources via a stable origin/profile-bound storeId.
 
+import { SourceGraphQLError } from '../tools/utils';
 import { storeTools, handleStoreTools } from '../tools/store-tools';
 import { productTools, handleProductTools } from '../tools/product-tools';
 import { cartTools, handleCartTools } from '../tools/cart-tools';
@@ -214,15 +215,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ tra
           storeId: typeof args?.storeId === 'string' ? args.storeId.slice(0, 160) : undefined,
           errorName: error instanceof Error ? error.name : 'UnknownError',
         });
-        // Never return a source exception or argument echo through MCP/model output.
+        // Return only the source's GraphQL message and public rule metadata, never the exception/request.
+        const customerError = error instanceof SourceGraphQLError ? error.customerError : null;
         const sourceConfigError = error instanceof MarketplaceSourceSelectionError ? error : null;
         return new Response(JSON.stringify({
           jsonrpc: '2.0',
           id: body.id,
           error: {
             code: sourceConfigError ? -32602 : -32603,
-            message: sourceConfigError ? 'Marketplace source configuration is stale or invalid' : 'Tool request failed',
-            data: { code: sourceConfigError?.code ?? 'SOURCE_REQUEST_FAILED' }
+            message: sourceConfigError ? 'Marketplace source configuration is stale or invalid' : customerError?.message || 'Unexpected error.',
+            data: { code: sourceConfigError?.code ?? customerError?.code ?? 'SOURCE_REQUEST_FAILED', ...(customerError?.opensAt ? { opensAt: customerError.opensAt } : {}) }
           }
         }), {
           status: 200,

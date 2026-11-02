@@ -1,3 +1,4 @@
+import { sourceCustomerError, type SourceError } from '@/lib/source-customer-errors';
 import {
   getIntrospectionQuery,
   buildClientSchema,
@@ -45,8 +46,12 @@ export class SourceGraphQLError extends Error {
   readonly sourceMessages: string[];
   readonly sourceCodes: string[];
 
-  constructor(errors: Array<{ message?: unknown; extensions?: { code?: unknown } }>) {
-    super('Source GraphQL request failed');
+  readonly customerError: ReturnType<typeof sourceCustomerError>;
+
+  constructor(errors: SourceError[]) {
+    const customerError = sourceCustomerError(errors);
+    super(customerError.message);
+    this.customerError = customerError;
     this.name = 'SourceGraphQLError';
     this.sourceMessages = errors
       .map(error => typeof error?.message === 'string' ? error.message : '')
