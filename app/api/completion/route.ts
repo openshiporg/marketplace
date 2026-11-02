@@ -17,6 +17,7 @@ import { isMarketplaceModelToolAllowed, projectMarketplaceMessagesForModel, proj
 import { parseBoundedStringMap, readJsonBodyBounded, RequestBodyTooLargeError } from '@/lib/request-budgets';
 import { applyMarketplaceSelfMcpActions } from '@/lib/marketplace-self-mcp-actions';
 import { attachStoreScopedSessionAuthorization } from '@/lib/marketplace-self-mcp-auth';
+import { providerErrorSummary } from '@/lib/provider-error-log';
 import {
   InvalidCompletionTokenBudgetError,
   resolveCompletionMaxOutputTokens,
@@ -249,7 +250,10 @@ AVAILABLE TOOLS: getAvailableStores, getAvailableCountries, discoverProducts, di
         return undefined;
       },
       onFinish: async () => { await mcpClient?.close(); },
-      onError: async () => { await mcpClient?.close(); },
+      onError: async ({ error }) => {
+        console.error('[Marketplace completion provider error]', providerErrorSummary(error));
+        await mcpClient?.close();
+      },
     };
 
     if (maxOutputTokens !== undefined) streamTextConfig.maxOutputTokens = maxOutputTokens;
