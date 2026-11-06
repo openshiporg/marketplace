@@ -1,6 +1,8 @@
 import { Tool } from '@modelcontextprotocol/sdk/types.js';
 import { parseStoreConfigs } from '../types/store-config';
 import { getPlatformAdapter } from '../adapters';
+import { createUIResource } from './utils';
+import { renderMcpCard } from '../../../../mcp-ui/server/shell';
 
 export const storeTools: Tool[] = [
   {
@@ -77,7 +79,11 @@ export async function handleStoreTools(name: string, args: any, _cookie: string,
             message: `Found ${stores.length} stores in marketplace`,
             instruction: 'Use storeId for commerce operations. Route by platform, and use only explicit address/country metadata for location requests.'
           }, null, 2),
-        }],
+        }, createUIResource({
+          uri: 'ui://marketplace/stores',
+          content: { type: 'rawHtml', htmlString: await renderMcpCard({ kind: 'stores', data: { stores: stores.map((x: any) => ({ storeId: x.storeId, name: x.name, platform: x.platform, address: x.address || undefined, countryCode: x.countryCode || undefined })) } }, 'Stores') },
+          encoding: 'text',
+        })],
       }
     };
   }

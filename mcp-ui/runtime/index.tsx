@@ -5,7 +5,7 @@ import { useAutoResize, useTheme } from './ui';
 import { DiscoverCard } from './DiscoverCard';
 import { ProductCard } from './ProductCard';
 import { CartCard } from './CartCard';
-import { ConflictCard, ErrorCard, LoginCard } from './MiscCards';
+import { ConflictCard, EmptyCard, ErrorCard, LoginCard, StoresCard } from './MiscCards';
 
 function App({ payload }: { payload: CardPayload }) {
   useTheme();
@@ -16,6 +16,8 @@ function App({ payload }: { payload: CardPayload }) {
         {payload.kind === 'discover' && <DiscoverCard data={payload.data} />}
         {payload.kind === 'product' && <ProductCard data={payload.data} />}
         {payload.kind === 'cart' && <CartCard initial={payload.data} />}
+        {payload.kind === 'stores' && <StoresCard data={payload.data} />}
+        {payload.kind === 'empty' && <EmptyCard data={payload.data} />}
         {payload.kind === 'login' && <LoginCard data={payload.data} />}
         {payload.kind === 'conflict' && <ConflictCard data={payload.data} />}
         {payload.kind === 'error' && <ErrorCard data={payload.data} />}

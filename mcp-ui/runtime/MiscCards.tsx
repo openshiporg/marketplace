@@ -6,7 +6,9 @@ import { RadioGroup, Radio } from '../vendor/choice-controls';
 import { Button } from '../vendor/action-button';
 import { TextField } from '../vendor/text-field';
 import { Panel, Shell, ShellHeader } from '../vendor/surface';
-import type { ConflictData, ErrorData, LoginData } from '../types';
+import { ResultCarousel } from '../vendor/result-carousel';
+import { Storefront, Package } from '../vendor/icons';
+import type { ConflictData, EmptyData, ErrorData, LoginData, StoresData } from '../types';
 import { callTool, errorMessage } from './bridge';
 import { Note } from './ui';
 
@@ -96,3 +98,29 @@ export function ErrorCard({ data }: { data: ErrorData }) {
 }
 
 export { SignIn };
+
+export function StoresCard({ data }: { data: StoresData }) {
+  if (!data.stores.length) return <EmptyCard data={{ title: 'No stores connected', message: 'No marketplace stores are available right now.' }} />;
+  return (
+    <ResultCarousel
+      title="Stores"
+      subtitle={`${data.stores.length} ${data.stores.length === 1 ? 'store' : 'stores'}`}
+      data={data.stores.map((s) => ({
+        id: s.storeId,
+        title: s.name,
+        meta: [s.platform === 'openfront-restaurant' ? 'Restaurant' : 'Shop', s.address].filter(Boolean).join(' · '),
+      }))}
+    />
+  );
+}
+
+export function EmptyCard({ data }: { data: EmptyData }) {
+  return (
+    <EmptyState
+      icon={data.title.toLowerCase().includes('store') ? Storefront : Package}
+      title={data.title}
+      description={data.query ? `${data.message} (${data.query})` : data.message}
+      compact
+    />
+  );
+}

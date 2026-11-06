@@ -153,6 +153,12 @@ function sortOptionValues(values: string[], optionTitle: string): string[] {
   });
 }
 
+const emptyResource = async (title: string, message: string, query?: string) => createUIResource({
+  uri: `ui://marketplace/empty?title=${encodeURIComponent(title)}`,
+  content: { type: 'rawHtml', htmlString: await renderMcpCard({ kind: 'empty', data: { title, message, query } }, title) },
+  encoding: 'text',
+});
+
 export async function handleProductTools(name: string, args: any, _cookie: string, _ctoken?: string, customConfig?: any[]) {
   if (name === 'getProduct') {
     const { storeId, productId, productHandle, countryCode } = args;
@@ -233,7 +239,7 @@ export async function handleProductTools(name: string, args: any, _cookie: strin
               vertical,
               message: `No admitted ${vertical} sources match this request.`,
             }),
-          }]
+          }, await emptyResource('No stores available', `No admitted ${vertical === 'restaurant' ? 'restaurant' : 'shop'} sources match this request.`, discovery.query)]
         }
       };
     }
@@ -304,7 +310,7 @@ export async function handleProductTools(name: string, args: any, _cookie: strin
               ...(discovery.location ? { location: discovery.location } : {}),
               message: `No ${vertical} results matched the requested items, location, and country.`,
             }),
-          }]
+          }, await emptyResource('No results', vertical === 'restaurant' ? 'No menus matched your search.' : 'No products matched your search.', discovery.query)]
         }
       };
     }
