@@ -1,6 +1,6 @@
 import { Tool } from '@modelcontextprotocol/sdk/types.js';
 import { createUIResource, SourceGraphQLError } from './utils';
-import { beautifulUIStyles, iframeAutoResizeScript } from '../ui/beautiful-ui';
+import { errorCardHtml } from '../../../../mcp-ui/server/cards';
 import { getPlatformAdapter } from '../adapters';
 import { parseStoreConfigs } from '../types/store-config';
 import {
@@ -1222,39 +1222,7 @@ export async function handleCartTools(
       }
 
       // Return an error UI for the legacy retail payment flow.
-      const errorHTML = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="UTF-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <script src="https://cdn.tailwindcss.com"></script>
-          <style>${beautifulUIStyles}</style>
-        </head>
-        <body class="p-4 sm:p-6">
-          <div class="mcp-card max-w-md mx-auto bg-red-tint border border-red rounded-lg p-4 sm:p-6">
-            <div class="flex items-start">
-              <div class="flex-shrink-0">
-                <svg class="h-5 w-5 sm:h-6 sm:w-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
-                </svg>
-              </div>
-              <div class="ml-3 sm:ml-4">
-                <h3 class="text-base sm:text-lg font-semibold text-red-800 mb-1 sm:mb-2">Cart Not Ready for Payment</h3>
-                <p class="text-sm text-red-700 mb-3 sm:mb-4">Please complete the following:</p>
-                <ul class="list-disc list-inside space-y-1.5 sm:space-y-2 text-sm text-red-700">
-                  ${validationIssues.map(issue => `<li>${issue}</li>`).join('')}
-                </ul>
-              </div>
-            </div>
-          </div>
-
-          <script>
-            ${iframeAutoResizeScript}
-          </script>
-        </body>
-        </html>
-      `;
+      const errorHTML = await errorCardHtml({ title: 'Cart not ready for payment', message: 'Please complete the following:', issues: validationIssues.map(String) });
 
       const errorResource = createUIResource({
         uri: `ui://marketplace/payment-error?cart=${cartId}`,
