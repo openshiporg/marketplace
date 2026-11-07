@@ -45,6 +45,7 @@ const TOOLS_THAT_APPEND_CHAT_UI = new Set([
   'discoverMarketplace',
   'discoverProducts',
   'discoverRestaurantMenus',
+  'getAvailableStores',
   'getProduct',
   'initiatePaymentSession',
   'loginUser',

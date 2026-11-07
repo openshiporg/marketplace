@@ -1170,9 +1170,9 @@ export async function handleCartTools(
       issues.push(...getRestaurantCheckoutIssues(cart).map(restaurantCheckoutIssueMessage));
       isReady = issues.length === 0;
     } else {
-      if (!cart.lineItems || cart.lineItems.length === 0) { issues.push('Cart is empty - add products first'); isReady = false; }
-      if (!cart.shippingAddress) { issues.push('No shipping address set - call setShippingAddress or user can update it in the cart UI'); isReady = false; }
-      if (!cart.shippingMethods || cart.shippingMethods.length === 0) { issues.push('No shipping method selected - user needs to select shipping in cart UI or call setShippingMethod'); isReady = false; }
+      if (!cart.lineItems || cart.lineItems.length === 0) { issues.push('Add products to the cart'); isReady = false; }
+      if (!cart.shippingAddress) { issues.push('No shipping address set - add a shipping address in the cart'); isReady = false; }
+      if (!cart.shippingMethods || cart.shippingMethods.length === 0) { issues.push('Choose a shipping method or call setShippingMethod'); isReady = false; }
     }
 
     return {
@@ -1200,7 +1200,7 @@ export async function handleCartTools(
       ? getRestaurantCheckoutIssues(cart).map(restaurantCheckoutIssueMessage)
       : [];
     if (!isRestaurantStore && (!cart.lineItems || cart.lineItems.length === 0)) validationIssues.push('Cart is empty - add products first');
-    if (!isRestaurantStore && !cart.shippingAddress) validationIssues.push('No shipping address set - call setShippingAddress first');
+    if (!isRestaurantStore && !cart.shippingAddress) validationIssues.push('Add a shipping address');
     if (!isRestaurantStore && (!cart.shippingMethods || cart.shippingMethods.length === 0)) validationIssues.push('No shipping method selected - user needs to select shipping in cart UI');
 
     if (validationIssues.length > 0) {

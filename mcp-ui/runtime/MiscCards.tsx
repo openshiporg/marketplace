@@ -104,23 +104,29 @@ export function StoresCard({ data }: { data: StoresData }) {
   return (
     <ResultCarousel
       title="Stores"
+      compact
       subtitle={`${data.stores.length} ${data.stores.length === 1 ? 'store' : 'stores'}`}
       data={data.stores.map((s) => ({
         id: s.storeId,
         title: s.name,
-        meta: [s.platform === 'openfront-restaurant' ? 'Restaurant' : 'Shop', s.address].filter(Boolean).join(' · '),
+        meta: [s.platform === 'openfront-restaurant' ? 'Restaurant' : 'E-commerce', s.address].filter(Boolean).join(' · '),
       }))}
     />
   );
 }
 
 export function EmptyCard({ data }: { data: EmptyData }) {
+  const browse = data.title.toLowerCase().includes('store') ? undefined : { label: 'Browse stores', onClick: () => { void callTool('getAvailableStores', {}).catch(() => {}); } };
   return (
-    <EmptyState
-      icon={data.title.toLowerCase().includes('store') ? Storefront : Package}
-      title={data.title}
-      description={data.query ? `${data.message} (${data.query})` : data.message}
-      compact
-    />
+    <Shell className="max-w-md">
+      <Panel>
+        <EmptyState
+          icon={data.title.toLowerCase().includes('store') ? Storefront : Package}
+          title={data.title}
+          description={data.query ? `${data.message} (${data.query})` : data.message}
+          action={browse}
+        />
+      </Panel>
+    </Shell>
   );
 }

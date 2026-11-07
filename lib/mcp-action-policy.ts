@@ -56,6 +56,10 @@ export function isPermittedMcpUiAction(
         && admittedStoreIds.includes(values.storeId);
     }
 
+    if (resource.pathname === '/empty') {
+      return toolName === 'getAvailableStores' && Object.keys(values).length === 0;
+    }
+
     if (resource.pathname === '/login' || resource.pathname === '/email-conflict') {
       const cartId = resource.searchParams.get('cart');
       const isEmailUpdate = resource.pathname === '/email-conflict' && toolName === 'setShippingAddress' && Boolean(cartId);
