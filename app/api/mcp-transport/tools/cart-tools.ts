@@ -8,6 +8,9 @@ import {
   restaurantCheckoutIssueMessage,
 } from '@/lib/restaurant-checkout';
 
+/** One cart line holds a whole quantity from 1 to this bound; sources reject anything else. */
+export const MAX_LINE_QUANTITY = 1000;
+
 async function resolveAdapter(storeId: string, customConfig?: any[]) {
   const stores = parseStoreConfigs(customConfig);
   const store = stores.find(s => s.id === storeId);
@@ -243,8 +246,10 @@ export const cartTools: Tool[] = [
           description: 'Product variant ID to add'
         },
         quantity: {
-          type: 'number',
-          description: 'Quantity to add (default: 1)'
+          type: 'integer',
+          minimum: 1,
+          maximum: MAX_LINE_QUANTITY,
+          description: 'Quantity to add: a whole number from 1 to 1000 (default: 1)'
         },
         modifierIds: {
           type: 'array',
@@ -283,8 +288,10 @@ export const cartTools: Tool[] = [
           description: 'Line item ID to update'
         },
         quantity: {
-          type: 'number',
-          description: 'New quantity'
+          type: 'integer',
+          minimum: 1,
+          maximum: MAX_LINE_QUANTITY,
+          description: 'New quantity: a whole number from 1 to 1000 (use removeCartItem to remove)'
         },
       },
       required: ['storeId', 'cartId', 'lineItemId', 'quantity']
@@ -797,11 +804,11 @@ export async function handleCartTools(
       orderType,
     } = args;
 
-    if (quantity <= 0) {
-      return { jsonrpc: '2.0', result: { content: [{ type: 'text', text: JSON.stringify({ error: 'Invalid quantity', message: 'Quantity must be greater than 0', variantId, attemptedQuantity: quantity }, null, 2) }] } };
+    if (!Number.isSafeInteger(quantity) || quantity <= 0) {
+      return { jsonrpc: '2.0', result: { content: [{ type: 'text', text: JSON.stringify({ error: 'Invalid quantity', message: 'Quantity must be a whole number greater than 0', variantId, attemptedQuantity: quantity }, null, 2) }] } };
     }
 
-    const MAX_QUANTITY = 1000;
+    const MAX_QUANTITY = MAX_LINE_QUANTITY;
     if (quantity > MAX_QUANTITY) {
       return { jsonrpc: '2.0', result: { content: [{ type: 'text', text: JSON.stringify({ error: 'Quantity too large', message: `Quantity cannot exceed ${MAX_QUANTITY} items per line. For bulk orders, please contact support.`, variantId, attemptedQuantity: quantity, maxAllowed: MAX_QUANTITY }, null, 2) }] } };
     }
@@ -968,11 +975,11 @@ export async function handleCartTools(
   if (name === 'updateCartItem') {
     const { storeId, cartId, lineItemId, quantity } = args;
 
-    if (quantity <= 0) {
-      return { jsonrpc: '2.0', result: { content: [{ type: 'text', text: JSON.stringify({ error: 'Invalid quantity', message: 'Quantity must be greater than 0. To remove this item, use removeCartItem instead.', lineItemId, attemptedQuantity: quantity }, null, 2) }] } };
+    if (!Number.isSafeInteger(quantity) || quantity <= 0) {
+      return { jsonrpc: '2.0', result: { content: [{ type: 'text', text: JSON.stringify({ error: 'Invalid quantity', message: 'Quantity must be a whole number greater than 0. To remove this item, use removeCartItem instead.', lineItemId, attemptedQuantity: quantity }, null, 2) }] } };
     }
 
-    const MAX_QUANTITY = 1000;
+    const MAX_QUANTITY = MAX_LINE_QUANTITY;
     if (quantity > MAX_QUANTITY) {
       return { jsonrpc: '2.0', result: { content: [{ type: 'text', text: JSON.stringify({ error: 'Quantity too large', message: `Quantity cannot exceed ${MAX_QUANTITY} items per line. For bulk orders, please contact support.`, lineItemId, attemptedQuantity: quantity, maxAllowed: MAX_QUANTITY }, null, 2) }] } };
     }
