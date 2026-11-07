@@ -10,6 +10,11 @@ function rules(src, name) {
     ['mx-auto flex items-center gap-2 rounded-full bg-foreground/[0.05] px-3 py-1.5', 'mx-auto flex items-center gap-2 px-3 py-1.5'],
     ['absolute -top-1 -right-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-negative px-1.5 text-[0.6875rem] font-semibold text-white tabular-nums', 'absolute -top-1 -right-1 flex h-5 min-w-5 items-center justify-center px-1.5 text-xs font-semibold text-negative tabular-nums'],
     ['<p className="truncate text-sm">{item.label}</p>', '<p className="line-clamp-2 text-sm">{item.label}</p>'],
+    ["<div className=\"flex items-center gap-3 rounded-xl px-2 py-2.5\">\n                          <div className=\"min-w-0 flex-1\">", "<div className=\"flex flex-col gap-2 rounded-xl px-2 py-2.5\">\n                          <div className=\"min-w-0\">"],
+    ["<p className=\"truncate text-xs text-muted-foreground\">\n                                {item.detail}", "<p className=\"line-clamp-2 text-xs text-muted-foreground\">\n                                {item.detail}"],
+    ["                          {item.editable && (\n                            <div\n                              role=\"group\"", "                          <div className=\"flex items-center gap-3\">\n                          {item.editable && (\n                            <div\n                              role=\"group\""],
+    ["<span className=\"w-20 text-right font-mono text-[0.8125rem] tabular-nums\">", "<span className=\"ml-auto text-right font-mono text-[0.8125rem] tabular-nums\">"],
+    ["                              onClick={() => update(item.id, null)}\n                            />\n                          )}\n                        </div>", "                              onClick={() => update(item.id, null)}\n                            />\n                          )}\n                          </div>\n                        </div>"],
   ];
   for (const [from, to] of PLAIN) src = src.split(from).join(to);
   src = src.replace(/oklch\(([\d.]+) [\d.]+ 286/g, 'oklch($1 0 0'); // neutral greys instead of a violet-tinted 286 hue

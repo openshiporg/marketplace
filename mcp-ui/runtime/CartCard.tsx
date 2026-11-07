@@ -15,9 +15,9 @@ import { Note, money, useBusy } from './ui';
 type NoteState = { tone: 'positive' | 'negative'; text: string } | null;
 const PROVIDER_LABEL: Record<PaymentChoice, string> = { stripe: 'Card (Stripe)', paypal: 'PayPal', checkout: 'Pay on the store checkout' };
 
-export function CartCard({ initial }: { initial: CartData }) {
+export function CartCard({ initial, initialTab = 'cart' }: { initial: CartData; initialTab?: string }) {
   const [cart, setCart] = useState(initial);
-  const [tab, setTab] = useState('cart');
+  const [tab, setTab] = useState(initialTab);
   const [note, setNote] = useState<NoteState>(null);
   const { busy, run } = useBusy();
   const retail = cart.kind === 'retail';

@@ -3,6 +3,7 @@ import { parseStoreConfigs } from '../types/store-config';
 import { getPlatformAdapter } from '../adapters';
 import { createUIResource } from './utils';
 import { renderMcpCard } from '../../../../mcp-ui/server/shell';
+import { safeHttpUrl } from '@/lib/safe-content';
 
 export const storeTools: Tool[] = [
   {
@@ -68,6 +69,23 @@ export async function handleStoreTools(name: string, args: any, _cookie: string,
       }
     }));
 
+    // Real imagery and a catalog size for the Stores card: the first product's picture and the product count.
+    const samples = await Promise.all(parsed.map(async (cfg, i) => {
+      const x: any = stores[i];
+      try {
+        const adapter = await getPlatformAdapter(cfg);
+        const country = String(x.countryCode || x.countries?.[0]?.code || 'us').toLowerCase();
+        const list: any[] = await Promise.race([
+          adapter.searchProducts({ store: cfg, countryCode: country, limit: 50 }),
+          new Promise<any[]>((_, reject) => setTimeout(() => reject(new Error('timeout')), 4000)),
+        ]);
+        const image = list.map((p: any) => safeHttpUrl(p.thumbnail, cfg.baseUrl)).find(Boolean);
+        return { image: image || undefined, productCount: list.length };
+      } catch {
+        return {} as { image?: string; productCount?: number };
+      }
+    }));
+
     return {
       jsonrpc: '2.0',
       result: {
@@ -81,7 +99,7 @@ export async function handleStoreTools(name: string, args: any, _cookie: string,
           }, null, 2),
         }, createUIResource({
           uri: 'ui://marketplace/stores',
-          content: { type: 'rawHtml', htmlString: await renderMcpCard({ kind: 'stores', data: { stores: stores.map((x: any) => ({ storeId: x.storeId, name: x.name, platform: x.platform, address: x.address || undefined, countryCode: x.countryCode || undefined })) } }, 'Stores') },
+          content: { type: 'rawHtml', htmlString: await renderMcpCard({ kind: 'stores', data: { stores: stores.map((x: any) => ({ storeId: x.storeId, name: x.name, platform: x.platform, address: x.address || undefined, countryCode: x.countryCode || undefined, image: samples[stores.indexOf(x)]?.image, productCount: samples[stores.indexOf(x)]?.productCount })) } }, 'Stores') },
           encoding: 'text',
         })],
       }

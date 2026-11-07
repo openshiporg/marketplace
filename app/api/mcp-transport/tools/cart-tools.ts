@@ -1199,9 +1199,9 @@ export async function handleCartTools(
     const validationIssues: string[] = isRestaurantStore
       ? getRestaurantCheckoutIssues(cart).map(restaurantCheckoutIssueMessage)
       : [];
-    if (!isRestaurantStore && (!cart.lineItems || cart.lineItems.length === 0)) validationIssues.push('Cart is empty - add products first');
-    if (!isRestaurantStore && !cart.shippingAddress) validationIssues.push('Add a shipping address');
-    if (!isRestaurantStore && (!cart.shippingMethods || cart.shippingMethods.length === 0)) validationIssues.push('No shipping method selected - user needs to select shipping in cart UI');
+    if (!isRestaurantStore && (!cart.lineItems || cart.lineItems.length === 0)) validationIssues.push('Add products to the cart');
+    if (!isRestaurantStore && !cart.shippingAddress) validationIssues.push('Add a shipping address first');
+    if (!isRestaurantStore && (!cart.shippingMethods || cart.shippingMethods.length === 0)) validationIssues.push('Choose a shipping method');
 
     if (validationIssues.length > 0) {
       if (isRestaurantStore) {
@@ -1222,10 +1222,10 @@ export async function handleCartTools(
       }
 
       // Return an error UI for the legacy retail payment flow.
-      const errorHTML = await errorCardHtml({ title: 'Cart not ready for payment', message: 'Please complete the following:', issues: validationIssues.map(String) });
+      const errorHTML = await errorCardHtml({ title: 'Cart not ready for payment', message: 'Finish these steps first.', issues: validationIssues.map(String), action: validationIssues.some((i) => /shipping address/i.test(i)) ? { label: 'Add shipping address', storeId, cartId, tab: 'address' } : undefined });
 
       const errorResource = createUIResource({
-        uri: `ui://marketplace/payment-error?cart=${cartId}`,
+        uri: `ui://marketplace/payment-error?cart=${encodeURIComponent(cartId)}&store=${encodeURIComponent(storeId)}`,
         content: { type: 'rawHtml', htmlString: errorHTML },
         encoding: 'text',
       });

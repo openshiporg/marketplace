@@ -56,6 +56,11 @@ export function isPermittedMcpUiAction(
         && admittedStoreIds.includes(values.storeId);
     }
 
+    if (resource.pathname === '/payment-error') {
+      const cartId = resource.searchParams.get('cart');
+      return toolName === 'viewCart' && sameString(values.storeId, storeId) && sameString(values.cartId, cartId);
+    }
+
     if (resource.pathname === '/empty') {
       return toolName === 'getAvailableStores' && Object.keys(values).length === 0;
     }

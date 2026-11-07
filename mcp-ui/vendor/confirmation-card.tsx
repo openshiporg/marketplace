@@ -114,15 +114,16 @@ export function ConfirmationCard({
                         exit={{ opacity: 0, height: 0, transition: exit }}
                         className="overflow-hidden"
                       >
-                        <div className="flex items-center gap-3 rounded-xl px-2 py-2.5">
-                          <div className="min-w-0 flex-1">
+                        <div className="flex flex-col gap-2 rounded-xl px-2 py-2.5">
+                          <div className="min-w-0">
                             <p className="line-clamp-2 text-sm">{item.label}</p>
                             {item.detail && (
-                              <p className="truncate text-xs text-muted-foreground">
+                              <p className="line-clamp-2 text-xs text-muted-foreground">
                                 {item.detail}
                               </p>
                             )}
                           </div>
+                          <div className="flex items-center gap-3">
                           {item.editable && (
                             <div
                               role="group"
@@ -160,7 +161,7 @@ export function ConfirmationCard({
                               />
                             </div>
                           )}
-                          <span className="w-20 text-right font-mono text-[0.8125rem] tabular-nums">
+                          <span className="ml-auto text-right font-mono text-[0.8125rem] tabular-nums">
                             <RollingNumber
                               value={money(item.amount * (item.quantity ?? 1))}
                             />
@@ -175,6 +176,7 @@ export function ConfirmationCard({
                               onClick={() => update(item.id, null)}
                             />
                           )}
+                          </div>
                         </div>
                       </motion.li>
                     ))}

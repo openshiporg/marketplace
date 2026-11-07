@@ -51,7 +51,7 @@ export type DiscoverData = {
   stores: { storeId: string; name: string; platform?: string; countryCode: string; currency: string; products: SlimProduct[] }[];
 };
 
-export type StoresData = { stores: { storeId: string; name: string; platform?: string; address?: string; countryCode?: string }[] };
+export type StoresData = { stores: { storeId: string; name: string; platform?: string; address?: string; countryCode?: string; image?: string; productCount?: number }[] };
 export type EmptyData = { title: string; message: string; query?: string };
 
 export type ProductData = { storeId: string; countryCode: string; product: SlimProduct };
@@ -97,7 +97,7 @@ export type ConflictData = {
   storeId: string; cartId: string; email: string; storeName: string; checkoutUrl: string;
   addressData: Record<string, unknown>;
 };
-export type ErrorData = { title: string; message?: string; issues: string[] };
+export type ErrorData = { title: string; message?: string; issues: string[]; action?: { label: string; storeId: string; cartId: string; tab: 'address' | 'shipping' } };
 
 export type CardPayload =
   | { kind: 'discover'; data: DiscoverData }

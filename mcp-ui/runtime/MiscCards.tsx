@@ -8,8 +8,9 @@ import { TextField } from '../vendor/text-field';
 import { Panel, Shell, ShellHeader } from '../vendor/surface';
 import { ResultCarousel } from '../vendor/result-carousel';
 import { Storefront, Package } from '../vendor/icons';
-import type { ConflictData, EmptyData, ErrorData, LoginData, StoresData } from '../types';
-import { callTool, errorMessage } from './bridge';
+import type { CartData, ConflictData, EmptyData, ErrorData, LoginData, StoresData } from '../types';
+import { callTool, errorMessage, cartFromResponse } from './bridge';
+import { CartCard } from './CartCard';
 import { Note } from './ui';
 
 export function LoginCard({ data }: { data: LoginData }) {
@@ -87,11 +88,18 @@ export function ConflictCard({ data }: { data: ConflictData }) {
 }
 
 export function ErrorCard({ data }: { data: ErrorData }) {
+  const [cart, setCart] = useState<CartData | undefined>();
+  if (cart) return <CartCard initial={cart} initialTab={data.action?.tab} />;
   return (
     <Shell className="max-w-md">
       <Panel>
         <EmptyState tone="error" icon={WarningCircle} title={data.title} description={data.message} />
         {data.issues.length > 0 && <div className="flex flex-col gap-1 px-6 pb-5">{data.issues.map((i) => <Note key={i} tone="negative">{i}</Note>)}</div>}
+        {data.action && (
+          <div className="flex justify-end px-6 pb-5">
+            <Button variant="primary" onClick={() => { const a = data.action!; void callTool('viewCart', { storeId: a.storeId, cartId: a.cartId }).then((r) => setCart(cartFromResponse(r))).catch(() => {}); }}>{data.action.label}</Button>
+          </div>
+        )}
       </Panel>
     </Shell>
   );
@@ -101,22 +109,27 @@ export { SignIn };
 
 export function StoresCard({ data }: { data: StoresData }) {
   if (!data.stores.length) return <EmptyCard data={{ title: 'No stores connected', message: 'No marketplace stores are available right now.' }} />;
+  const withImages = data.stores.every((s) => s.image);
   return (
     <ResultCarousel
       title="Stores"
-      compact
+      compact={!withImages}
       subtitle={`${data.stores.length} ${data.stores.length === 1 ? 'store' : 'stores'}`}
       data={data.stores.map((s) => ({
         id: s.storeId,
         title: s.name,
-        meta: [s.platform === 'openfront-restaurant' ? 'Restaurant' : 'E-commerce', s.address].filter(Boolean).join(' · '),
+        image: s.image,
+        meta: [
+          s.platform === 'openfront-restaurant' ? 'Restaurant' : 'E-commerce',
+          s.productCount ? `${s.productCount}${s.productCount >= 50 ? '+' : ''} ${s.platform === 'openfront-restaurant' ? 'items' : 'products'}` : s.address,
+        ].filter(Boolean).join(' · '),
       }))}
     />
   );
 }
 
 export function EmptyCard({ data }: { data: EmptyData }) {
-  const browse = data.title.toLowerCase().includes('store') ? undefined : { label: 'Browse stores', onClick: () => { void callTool('getAvailableStores', {}).catch(() => {}); } };
+  const browse = data.title.toLowerCase().includes('store') ? undefined : { label: data.query ? 'Try another search' : 'Browse stores', onClick: () => { void callTool('getAvailableStores', {}).catch(() => {}); } };
   return (
     <Shell className="max-w-md">
       <Panel>
