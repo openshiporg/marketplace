@@ -265,15 +265,16 @@ export async function handleProductTools(name: string, args: any, _cookie: strin
 
         // Fetch enough public results to apply keyword matching locally without
         // interpolating model-provided search text into a source query.
-        const sourceLimit = discovery.query ? 50 : discovery.limit;
-        const adapterProducts = await adapter.searchProducts({
-          store,
-          countryCode: selectedCountry.code,
-          limit: sourceLimit,
-        });
+        // A keyword search pages through the whole catalogue (50 at a time, up to 1,000 items) until it has enough matches.
+        const pageSize = discovery.query ? 50 : discovery.limit;
+        const matched: any[] = [];
+        for (let skip = 0; skip < (discovery.query ? 1000 : pageSize) && matched.length < discovery.limit; skip += pageSize) {
+          const page = await adapter.searchProducts({ store, countryCode: selectedCountry.code, limit: pageSize, skip });
+          matched.push(...page.filter((product) => productMatchesDiscoveryQuery(product, discovery.query)));
+          if (page.length < pageSize) break;
+        }
         // Display-only product shape for the TuffUI card
-        const products = adapterProducts
-          .filter((product) => productMatchesDiscoveryQuery(product, discovery.query))
+        const products = matched
           .slice(0, discovery.limit)
           .map((p: any) => slimProduct(p, store.baseUrl));
 

@@ -11,10 +11,10 @@ function paymentProviderName(code: string): string {
 }
 
 const openfrontAdapter: PlatformAdapter = {
-  async searchProducts({ store, countryCode, limit = 10, cookie, ctoken }): Promise<Product[]> {
+  async searchProducts({ store, countryCode, limit = 10, skip = 0, cookie, ctoken }): Promise<Product[]> {
     const query = `
-      query SearchProducts {
-        products(take: ${limit}) {
+      query SearchProducts($take: Int!, $skip: Int!) {
+        products(take: $take, skip: $skip, orderBy: [{ id: asc }]) {
           id
           title
           handle
@@ -42,7 +42,7 @@ const openfrontAdapter: PlatformAdapter = {
       }
     `;
 
-    const result = await executeGraphQL(query, store.endpoint, cookie || '', undefined, ctoken);
+    const result = await executeGraphQL(query, store.endpoint, cookie || '', { take: Math.max(1, Math.min(Number(limit) || 10, 50)), skip: Math.max(0, Number(skip) || 0) }, ctoken);
     const products = result.data?.products || [];
 
     // Helper to convert local image paths to full URLs
@@ -560,7 +560,9 @@ const openfrontAdapter: PlatformAdapter = {
     return s || { id: store.id, name: new URL(store.baseUrl).hostname };
   },
 
-  async buildCheckoutLink({ store, cartId, countryCode }) {
+  async buildCheckoutLink({ store, cartId, countryCode, cartProof }) {
+    // A guest cart opens only with its proof: the shop's resume route sets the cart cookie, then opens the cart.
+    if (cartProof) return `${store.baseUrl}/api/cart-recover?p=${encodeURIComponent(cartProof)}&c=${encodeURIComponent(countryCode.toLowerCase())}`;
     return `${store.baseUrl}/${countryCode.toLowerCase()}/account/checkout-link?cartId=${cartId}`;
   },
 

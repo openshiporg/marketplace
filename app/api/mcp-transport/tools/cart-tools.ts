@@ -825,11 +825,10 @@ export async function handleCartTools(
       ctoken,
       cartProof: scopedCartProof(storeId, candidateCartId, cartIds, cartProofs),
     });
-    const finalCartId = resolved.cartId;
-
-    await adapter.addToCart({
+    let resolvedCart = resolved;
+    const add = (target: { cartId: string; cartProof?: string }) => adapter.addToCart({
       store,
-      cartId: finalCartId,
+      cartId: target.cartId,
       variantId,
       quantity,
       modifierIds,
@@ -837,19 +836,30 @@ export async function handleCartTools(
       orderType,
       cookie,
       ctoken,
-      cartProof: resolved.cartProof,
+      cartProof: target.cartProof,
     });
+    try {
+      await add(resolvedCart);
+    } catch (error) {
+      // The pinned cart became an order outside this chat (E-commerce reads it without a status):
+      // start a fresh cart at this shop instead of failing every add.
+      if (!(error instanceof SourceGraphQLError) || !error.sourceCodes.includes('CART_COMPLETED') || resolvedCart.isNewCart) throw error;
+      resolvedCart = await resolveActiveCart({ store, adapter, countryCode: args.countryCode || 'us', cookie, ctoken });
+      await add(resolvedCart);
+    }
+    const resolvedFinal = resolvedCart;
+    const finalCartId = resolvedFinal.cartId;
     const cart = await adapter.getCartRaw({
       store,
       cartId: finalCartId,
       cookie,
       ctoken,
-      cartProof: resolved.cartProof,
+      cartProof: resolvedFinal.cartProof,
     });
 
     dataHasChanged.value = true;
 
-    const clientAction = saveCartClientAction(storeId, finalCartId, resolved.cartProof);
+    const clientAction = saveCartClientAction(storeId, finalCartId, resolvedFinal.cartProof);
     return {
       jsonrpc: '2.0',
       result: {
@@ -927,7 +937,7 @@ export async function handleCartTools(
         const { store, adapter } = await resolveAdapter(storeId, customMarketplaceConfig);
         const storeInfo = await adapter.getStoreInfo({ store, cookie, ctoken });
         const storeName = storeInfo?.name || 'the store';
-        const checkoutUrl = await adapter.buildCheckoutLink({ store, cartId, countryCode });
+        const checkoutUrl = await adapter.buildCheckoutLink({ store, cartId, countryCode, cartProof: cartProofFor(storeId, cartId) });
 
         // Generate HTML using adapter UI method if available
         let htmlContent: string;
@@ -1138,7 +1148,7 @@ export async function handleCartTools(
     const isComplete = warnings.length === 0;
     const status = isComplete ? 'READY' : 'INCOMPLETE';
 
-    const checkoutUrl = await adapter.buildCheckoutLink({ store, cartId, countryCode });
+    const checkoutUrl = await adapter.buildCheckoutLink({ store, cartId, countryCode, cartProof: cartProofFor(storeId, cartId) });
 
     return {
       jsonrpc: '2.0',

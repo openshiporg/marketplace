@@ -187,16 +187,39 @@ async function fetchRawCart(store: any, cartId: string, cookie?: string, cartPro
   };
 }
 
+const RESERVED_STATES = ['initializing', 'provider_pending', 'ready', 'unknown', 'finalizing', 'cancelling'];
+
+/**
+ * The shop locks a cart while a payment attempt holds its quote. Release an unpaid attempt
+ * through the shop's own cancellation (it refuses an authorized or paid one) so the customer
+ * can still change the order or the payment method. keepProviderCode keeps a matching attempt.
+ */
+async function releaseUnpaidAttempt(store: any, cartId: string, cookie?: string, cartProof?: string, keepProviderCode?: string) {
+  const raw = await fetchRawCart(store, cartId, cookie, cartProof);
+  const attempt = raw?.paymentCollection?.paymentSessions?.find((session: any) =>
+    session.isSelected && session.data?.checkoutQuote && RESERVED_STATES.includes(session.data?.state));
+  if (!attempt || (keepProviderCode && attempt.paymentProvider?.code === keepProviderCode)) return;
+  await executeGraphQL(
+    `mutation MarketplaceReleaseRestaurantPayment($cartId: ID!, $paymentSessionId: ID!) {
+      cancelCheckoutPaymentSession(cartId: $cartId, paymentSessionId: $paymentSessionId) { success error }
+    }`,
+    store.endpoint,
+    cartCookie(cookie, cartId, cartProof),
+    { cartId, paymentSessionId: attempt.id }
+  );
+}
+
 const restaurantAdapter: PlatformAdapter = {
-  async searchProducts({ store, limit = 10, cookie, ctoken }) {
+  async searchProducts({ store, limit = 10, skip = 0, cookie, ctoken }) {
     const take = Math.max(1, Math.min(Number(limit) || 10, 50));
     const query = `
-      query MarketplaceRestaurantMenu($take: Int!) {
+      query MarketplaceRestaurantMenu($take: Int!, $skip: Int!) {
         storeSettings { currencyCode }
         menuItems(
           take: $take
+          skip: $skip
           where: { available: { equals: true } }
-          orderBy: [{ featured: desc }, { popular: desc }, { name: asc }]
+          orderBy: [{ featured: desc }, { popular: desc }, { name: asc }, { id: asc }]
         ) {
           id name thumbnail price available calories prepTime allergens dietaryFlags mealPeriods
           description { document }
@@ -209,7 +232,7 @@ const restaurantAdapter: PlatformAdapter = {
       }
     `;
     const [result, cartAvailable] = await Promise.all([
-      executeGraphQL(query, store.endpoint, cookie || '', { take }, ctoken),
+      executeGraphQL(query, store.endpoint, cookie || '', { take, skip: Math.max(0, Number(skip) || 0) }, ctoken),
       getRestaurantCartAvailability(store, cookie, ctoken),
     ]);
     const currency = result.data?.storeSettings?.currencyCode || 'USD';
@@ -264,6 +287,7 @@ const restaurantAdapter: PlatformAdapter = {
       }
     }
 
+    await releaseUnpaidAttempt(store, cartId, cookie, cartProof);
     await executeGraphQL(
       `mutation MarketplaceAddRestaurantItem($cartId: ID!, $input: ActiveCartItemInput!) {
         addActiveCartItem(cartId: $cartId, input: $input) { id }
@@ -303,6 +327,7 @@ const restaurantAdapter: PlatformAdapter = {
   },
 
   async updateCartItemQuantity({ store, cartId, lineItemId, quantity, cookie, cartProof }) {
+    await releaseUnpaidAttempt(store, cartId, cookie, cartProof);
     const result = await executeGraphQL(
       `mutation MarketplaceUpdateRestaurantItem($cartItemId: ID!, $quantity: Int!) {
         updateCartItemQuantity(cartItemId: $cartItemId, quantity: $quantity) { id }
@@ -315,6 +340,7 @@ const restaurantAdapter: PlatformAdapter = {
   },
 
   async removeCartItem({ store, cartId, lineItemId, cookie, cartProof }) {
+    await releaseUnpaidAttempt(store, cartId, cookie, cartProof);
     const result = await executeGraphQL(
       `mutation MarketplaceRemoveRestaurantItem($cartItemId: ID!) {
         removeCartItem(cartItemId: $cartItemId) { id }
@@ -357,6 +383,7 @@ const restaurantAdapter: PlatformAdapter = {
   },
 
   async setShippingAddress({ store, cartId, address, cookie, cartProof }) {
+    await releaseUnpaidAttempt(store, cartId, cookie, cartProof);
     await executeGraphQL(
       `mutation MarketplaceSetRestaurantDelivery($cartId: ID!, $data: ActiveCartUpdateInput!) {
         updateActiveCart(cartId: $cartId, data: $data) { id }
@@ -414,6 +441,7 @@ const restaurantAdapter: PlatformAdapter = {
         : {}),
     };
 
+    await releaseUnpaidAttempt(store, cartId, cookie, cartProof);
     await executeGraphQL(
       `mutation MarketplaceUpdateRestaurantFulfillment($cartId: ID!, $data: ActiveCartUpdateInput!) {
         updateActiveCart(cartId: $cartId, data: $data) { id }
@@ -452,6 +480,7 @@ const restaurantAdapter: PlatformAdapter = {
       paymentProviderName(candidate.code || '').includes(query)
     );
     if (!provider) throw new Error(`Payment provider ${paymentProviderCodeOrName} is not available`);
+    await releaseUnpaidAttempt(store, cartId, cookie, cartProof, provider.code);
     const result = await executeGraphQL(
       `mutation MarketplaceInitiateRestaurantPayment($cartId: ID!, $paymentProviderId: String!) {
         initiatePaymentSession(cartId: $cartId, paymentProviderId: $paymentProviderId) { id data amount }

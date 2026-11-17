@@ -63,6 +63,7 @@ export interface PlatformAdapter {
     store: ParsedStore;
     countryCode: string;
     limit?: number;
+    skip?: number;
     cookie?: string;
     ctoken?: string;
   }): Promise<Product[]>;
@@ -215,6 +216,7 @@ export interface PlatformAdapter {
     store: ParsedStore;
     cartId: string;
     countryCode: string;
+    cartProof?: string;
   }): Promise<string>;
 
   // Payments
