@@ -13,8 +13,13 @@ import { callTool, errorMessage, cartFromResponse } from './bridge';
 import { CartCard } from './CartCard';
 import { Note } from './ui';
 
+function jsonText(response: any): any {
+  try { return JSON.parse(response?.content?.[0]?.text); } catch { return undefined; }
+}
+
 export function LoginCard({ data }: { data: LoginData }) {
   const [done, setDone] = useState(false);
+  const [error, setError] = useState('');
   return (
     <div className="flex flex-col gap-2">
       <FormCard
@@ -33,14 +38,18 @@ export function LoginCard({ data }: { data: LoginData }) {
           if (data.cartId) params.cartId = data.cartId;
           if (data.addressData) params.addressData = data.addressData;
           const response = await callTool('authenticateUser', params);
-          const text = response?.content?.[0]?.text;
-          let ok = false;
-          try { ok = JSON.parse(text)?.__clientAction?.type === 'saveSessionToken'; } catch { /* error text */ }
-          if (!ok) throw new Error(errorMessage(response, 'Login failed. Check your credentials and try again.'));
+          // The session token travels in _meta (the host saves it); the text carries the signed-in user.
+          const ok = response?._meta?.marketplace?.clientAction?.type === 'saveSessionToken' || Boolean(jsonText(response)?.userId);
+          if (!ok) {
+            setError(errorMessage(response, 'Login failed. Check your credentials and try again.'));
+            throw new Error('login failed');
+          }
+          setError('');
           setDone(true);
         }}
       />
       {done && <Note tone="positive">Signed in.</Note>}
+      {error && <Note tone="negative">{error}</Note>}
     </div>
   );
 }
@@ -58,8 +67,15 @@ export function ConflictCard({ data }: { data: ConflictData }) {
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return setStatus('Enter a valid email address.');
       setStatus('Updating this source cart…');
       try {
-        await callTool('setShippingAddress', { storeId: data.storeId, cartId: data.cartId, email: email.trim(), ...data.addressData });
-        setStatus('The source could not confirm the email change. Please try again or sign in.');
+        const response = await callTool('setShippingAddress', { storeId: data.storeId, cartId: data.cartId, ...data.addressData, email: email.trim() });
+        const saved = jsonText(response);
+        if (saved?.message && !saved?.error && String(saved.email || '').toLowerCase() === email.trim().toLowerCase()) {
+          setStatus(`Email changed to ${email.trim()}. Continue to payment in the cart.`);
+        } else if (response?.content?.[0]?.resource) {
+          setStatus('That email also has an account. Sign in or use another email.');
+        } else {
+          setStatus(errorMessage(response, 'The source could not confirm the email change. Please try again or sign in.'));
+        }
       } catch {
         setStatus('The source could not confirm the email change. Please try again or sign in.');
       }
