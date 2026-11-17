@@ -14,6 +14,7 @@ import { PaymentUI } from './payment/payment-ui';
 import { buildMarketplaceMcpHeaders } from '@/lib/mcp-client-headers';
 import { ORDER_COMPLETION_FALLBACK } from '@/lib/mcp-customer-error';
 import { completedOrderUrl } from '@/lib/complete-paid-cart';
+import { paymentSessionIsCurrent, PAYMENT_SESSION_STALE } from '@/lib/payment-session-current';
 import {
   applyCartLifecycleFromToolResult,
   getMcpToolResultData,
@@ -108,6 +109,26 @@ export const ToolInvocation = memo(function ToolInvocation({
     } finally {
       setCompletingOrder(false);
     }
+  };
+
+  // Refuse to charge from a form whose cart has changed since it opened.
+  const assertPaymentCurrent = async () => {
+    const cartId = paymentData?.cart?.id;
+    const storeId = paymentData?.storeId;
+    const sessionId = paymentData?.paymentSession?.id;
+    const response = await fetch('/api/mcp-transport/http', {
+      method: 'POST',
+      headers: buildMarketplaceMcpHeaders(storeId),
+      credentials: 'include',
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: `check-cart-${Date.now()}`,
+        method: 'tools/call',
+        params: { name: 'getCart', arguments: { storeId, cartId } },
+      }),
+    });
+    const data = getMcpToolResultData(await response.json());
+    if (!paymentSessionIsCurrent(data?.cart, sessionId)) throw new Error(PAYMENT_SESSION_STALE);
   };
 
   const getStatusIcon = () => {
@@ -213,6 +234,7 @@ export const ToolInvocation = memo(function ToolInvocation({
             publishableKey={paymentData.publishableKey}
             storeId={paymentData.storeId}
             onPaymentComplete={handlePaymentComplete}
+            onBeforePay={assertPaymentCurrent}
             paymentCompleted={paymentCompleted}
             completingOrder={completingOrder}
             orderUrl={orderUrl}

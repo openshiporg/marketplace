@@ -52,6 +52,7 @@ interface PaymentUIProps {
   publishableKey: string
   storeId: string
   onPaymentComplete: (paymentSessionId: string, paypalOrderId?: string) => Promise<void>
+  onBeforePay?: () => Promise<void>
   paymentCompleted?: boolean
   completingOrder?: boolean
   orderUrl?: string | null
@@ -64,6 +65,7 @@ export function PaymentUI({
   publishableKey,
   storeId,
   onPaymentComplete,
+  onBeforePay,
   paymentCompleted,
   completingOrder,
   orderUrl
@@ -77,6 +79,7 @@ export function PaymentUI({
           paymentSession={paymentSession}
           cart={cart}
           onPaymentComplete={onPaymentComplete}
+          onBeforePay={onBeforePay}
           paymentCompleted={paymentCompleted}
           completingOrder={completingOrder}
           orderUrl={orderUrl}
@@ -101,6 +104,7 @@ export function PaymentUI({
           paymentSession={paymentSession}
           cart={cart}
           onPaymentComplete={onPaymentComplete}
+          onBeforePay={onBeforePay}
           paymentCompleted={paymentCompleted}
           completingOrder={completingOrder}
           orderUrl={orderUrl}
@@ -116,12 +120,13 @@ interface PaymentFormProps {
   paymentSession: PaymentUIProps['paymentSession']
   cart: PaymentUIProps['cart']
   onPaymentComplete: PaymentUIProps['onPaymentComplete']
+  onBeforePay?: PaymentUIProps['onBeforePay']
   paymentCompleted?: boolean
   completingOrder?: boolean
   orderUrl?: string | null
 }
 
-function StripePaymentForm({ paymentSession, cart, onPaymentComplete, paymentCompleted, completingOrder, orderUrl }: PaymentFormProps) {
+function StripePaymentForm({ paymentSession, cart, onPaymentComplete, onBeforePay, paymentCompleted, completingOrder, orderUrl }: PaymentFormProps) {
   const [submitting, setSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const stripe = useStripe()
@@ -143,6 +148,7 @@ function StripePaymentForm({ paymentSession, cart, onPaymentComplete, paymentCom
         () => stripe.retrievePaymentIntent(paymentSession.data.clientSecret!),
         () => onPaymentComplete(paymentSession.id),
       )) return
+      await onBeforePay?.()
       const cardElement = elements.getElement(CardElement)
       if (!cardElement) throw new Error("Card element not found.")
 
@@ -243,25 +249,39 @@ function StripePaymentForm({ paymentSession, cart, onPaymentComplete, paymentCom
   )
 }
 
-function PayPalPaymentForm({ paymentSession, cart, onPaymentComplete, paymentCompleted, completingOrder, orderUrl }: PaymentFormProps) {
+function PayPalPaymentForm({ paymentSession, cart, onPaymentComplete, onBeforePay, paymentCompleted, completingOrder, orderUrl }: PaymentFormProps) {
   const [submitting, setSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  // Once PayPal has captured, a retry only completes the order; it never captures again.
+  const [capturedOrderId, setCapturedOrderId] = useState<string | null>(null)
   const [{ isPending }] = usePayPalScriptReducer()
+
+  const complete = async (orderId: string) => {
+    setSubmitting(true)
+    setErrorMessage(null)
+    try {
+      await onPaymentComplete(paymentSession.id, orderId)
+    } catch (error: any) {
+      setErrorMessage(error.message || ORDER_COMPLETION_FALLBACK)
+    } finally {
+      setSubmitting(false)
+    }
+  }
 
   const handlePayment = async (_data: any, actions: any) => {
     setSubmitting(true)
-
+    setErrorMessage(null)
+    let order: any
     try {
-      // Capture the PayPal order
-      const order = await actions.order.capture()
-
-      // Complete the cart with the PayPal order ID
-      await onPaymentComplete(paymentSession.id, order.id)
+      order = await actions.order.capture()
     } catch (error: any) {
       console.error('PayPal payment error:', error)
       setErrorMessage(error.message || "An error occurred during payment processing.")
       setSubmitting(false)
+      return
     }
+    setCapturedOrderId(order.id)
+    await complete(order.id)
   }
 
   // Show success state if payment is completed
@@ -296,11 +316,36 @@ function PayPalPaymentForm({ paymentSession, cart, onPaymentComplete, paymentCom
     return <div className="rounded-control bg-red-tint p-2 text-[12px] text-red">PayPal order ID not found.</div>
   }
 
+  if (capturedOrderId) {
+    return (
+      <div className="space-y-3 bg-surface p-3 shadow-hairline">
+        <Button onClick={() => complete(capturedOrderId)} disabled={submitting} className="w-full" size="lg">
+          {submitting && <RiLoader2Fill className="mr-2 h-4 w-4 animate-spin" />}
+          Finish order
+        </Button>
+        {errorMessage && (
+          <div role="alert" className="mt-2 rounded-control bg-red-tint p-2 text-[12px] text-red">
+            {errorMessage}
+          </div>
+        )}
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-3 bg-surface p-3 shadow-hairline">
       <PayPalButtons
         style={{ layout: "vertical" }}
-        createOrder={async () => paymentSession.data?.orderId as string}
+        createOrder={async () => {
+          setErrorMessage(null)
+          try {
+            await onBeforePay?.()
+          } catch (error: any) {
+            setErrorMessage(error.message)
+            throw error
+          }
+          return paymentSession.data?.orderId as string
+        }}
         onApprove={handlePayment}
         disabled={submitting || isPending}
       />
