@@ -9,7 +9,7 @@ import { Panel, Shell, ShellHeader } from '../vendor/surface';
 import { Segmented } from '../vendor/segmented-control';
 import { Tab, TabList, TabPanel, Tabs } from '../vendor/tab-panels';
 import type { CartData, PaymentChoice } from '../types';
-import { callTool, cartFromResponse, errorMessage, succeeded } from './bridge';
+import { callTool, cartFromResponse, errorMessage, responseText, succeeded } from './bridge';
 import { Note, money, useBusy } from './ui';
 
 type NoteState = { tone: 'positive' | 'negative'; text: string } | null;
@@ -237,8 +237,22 @@ function Payment({ cart, busy, run, onLockAction, setNote }: { cart: CartData; b
     if (!provider) return;
     setNote(null);
     try {
-      if (provider === 'checkout' && cart.kind === 'retail') await callTool('getCheckoutLink', { ...ids, countryCode: cart.countryCode });
-      else if (provider !== 'checkout') await callTool('initiatePaymentSession', { ...ids, paymentProvider: provider });
+      if (provider === 'checkout' && cart.kind === 'retail') {
+        // Open the tab before the await so the browser does not block it, then point it at the link.
+        const tab = window.open('', '_blank');
+        const response = await callTool('getCheckoutLink', { ...ids, countryCode: cart.countryCode });
+        const url = responseText(response);
+        if (!url || !/^https?:\/\//.test(url)) {
+          tab?.close();
+          setNote({ tone: 'negative', text: errorMessage(response, 'Could not open the store checkout.') });
+          return;
+        }
+        if (tab) { tab.opener = null; tab.location.href = url; } else window.open(url, '_blank', 'noopener,noreferrer');
+      } else if (provider !== 'checkout') {
+        const response = await callTool('initiatePaymentSession', { ...ids, paymentProvider: provider });
+        // A shop refusal arrives without a result; show its reason instead of nothing.
+        if (!response || !succeeded(response)) setNote({ tone: 'negative', text: errorMessage(response, 'Could not start the payment.') });
+      }
     } catch (error) {
       setNote({ tone: 'negative', text: error instanceof Error ? error.message : 'Could not start the payment.' });
     }

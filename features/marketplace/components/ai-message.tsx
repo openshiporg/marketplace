@@ -11,7 +11,7 @@ import { UIResourceRenderer, isUIResource } from '@mcp-ui/client';
 import { setSession } from '@/lib/session-storage';
 import { getMarketplaceConfig } from '@/lib/marketplace-storage';
 import { buildMarketplaceMcpHeaders } from '@/lib/mcp-client-headers';
-import { addToCartErrorMessage } from '@/lib/mcp-customer-error';
+import { addToCartErrorMessage, mcpCustomerError } from '@/lib/mcp-customer-error';
 import { LoadingState } from '@/components/beautiful-ui/loading-state';
 import { useTheme } from 'next-themes';
 import {
@@ -408,6 +408,10 @@ const PureAIMessage = ({
           } as any]);
         }
 
+        // A shop refusal is a JSON-RPC error with no result: hand the card the shop's own reason.
+        if (!result?.result && result?.error) {
+          return { content: [{ type: 'text', text: JSON.stringify({ error: mcpCustomerError(result.error, 'The store refused this request.') }) }] };
+        }
         return result.result;
       } catch (error) {
         console.error('[handleUiAction] Error calling MCP tool:', error);
