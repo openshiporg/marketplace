@@ -1,7 +1,7 @@
 import { Tool } from '@modelcontextprotocol/sdk/types.js';
 import { createUIResource } from './utils';
 import { renderMcpCard } from '../../../../mcp-ui/server/shell';
-import { productCardHtml } from '../../../../mcp-ui/server/cards';
+import { productCardHtml, storeMark } from '../../../../mcp-ui/server/cards';
 import { slimProduct } from '../../../../mcp-ui/server/slim';
 import { parseStoreConfigs } from '../types/store-config';
 import { getPlatformAdapter } from '../adapters';
@@ -181,7 +181,11 @@ export async function handleProductTools(name: string, args: any, _cookie: strin
       throw new Error('Product not found');
     }
 
-    const p = await adapter.getProduct({ store, productId: resolvedProductId, countryCode });
+    const [p, storeInfo] = await Promise.all([
+      adapter.getProduct({ store, productId: resolvedProductId, countryCode }),
+      // The card shows whose product this is; a product still opens if the store details cannot be read.
+      adapter.getStoreInfo({ store }).catch(() => undefined),
+    ]);
 
     if (adapter.generateProductUI) {
       const htmlContent = await adapter.generateProductUI({
@@ -189,6 +193,7 @@ export async function handleProductTools(name: string, args: any, _cookie: strin
         storeId,
         product: p,
         countryCode,
+        storeInfo,
       });
       const uiResource = createUIResource({
         uri: `ui://marketplace/product/${p.id}?country=${countryCode}&store=${encodeURIComponent(storeId)}`,
@@ -201,7 +206,7 @@ export async function handleProductTools(name: string, args: any, _cookie: strin
       };
     }
 
-    const htmlContent = await productCardHtml(storeId, countryCode, p, store.baseUrl);
+    const htmlContent = await productCardHtml(storeId, countryCode, p, store.baseUrl, storeInfo);
 
     // Use proper MCP UI format
     const uiResource = createUIResource({
@@ -281,7 +286,8 @@ export async function handleProductTools(name: string, args: any, _cookie: strin
         if (products.length === 0) return null;
 
         return {
-          storeName: storeInfo?.name || 'Unknown Store',
+          storeName: String(storeInfo?.name || 'Unknown Store').trim(),
+          logo: storeMark(storeInfo),
           storeId: store.id,
           platform: store.platform,
           country: { code: selectedCountry.code, name: selectedCountry.name, currency: { code: selectedCountry.currency } },
@@ -327,6 +333,7 @@ export async function handleProductTools(name: string, args: any, _cookie: strin
         stores: storesData.map((storeData) => ({
           storeId: storeData.storeId,
           name: storeData.storeName,
+          logo: storeData.logo,
           platform: storeData.platform,
           countryCode: storeData.country.code,
           currency: storeData.country.currency.code,

@@ -45,16 +45,19 @@ export type SlimProduct = {
   };
 };
 
+/** The store's own mark: an SVG data URI plus the hue the store picked for it. */
+export type StoreMark = { src: string; hue: number };
+
 export type DiscoverData = {
   title: string;
   subtitle?: string;
-  stores: { storeId: string; name: string; platform?: string; countryCode: string; currency: string; products: SlimProduct[] }[];
+  stores: { storeId: string; name: string; logo?: StoreMark; platform?: string; countryCode: string; currency: string; products: SlimProduct[] }[];
 };
 
 export type StoresData = { stores: { storeId: string; name: string; platform?: string; address?: string; countryCode?: string; image?: string; productCount?: number }[] };
 export type EmptyData = { title: string; message: string; query?: string };
 
-export type ProductData = { storeId: string; countryCode: string; product: SlimProduct };
+export type ProductData = { storeId: string; countryCode: string; product: SlimProduct; storeName?: string; logo?: StoreMark };
 
 export type CartLine = { id: string; label: string; detail?: string; amount: number; quantity: number };
 export type CartFee = { label: string; amount: number };
@@ -65,6 +68,7 @@ export type CartData = {
   storeId: string;
   cartId: string;
   storeName: string;
+  logo?: StoreMark;
   currency: string;
   items: CartLine[];
   fees: CartFee[];
@@ -75,6 +79,8 @@ export type CartData = {
   countryCode: string;
   retail?: {
     address: Record<string, string>;
+    /** Countries this cart's region ships to, for the country picker. */
+    countries?: { code: string; name: string }[];
     shippingOptions: { id: string; name: string; price: string }[];
     selectedShippingId?: string;
   };

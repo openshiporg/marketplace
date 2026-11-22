@@ -194,7 +194,7 @@ function StripePaymentForm({ paymentSession, cart, onPaymentComplete, onBeforePa
   // Show success state if payment is completed
   if (paymentCompleted && orderUrl) {
     return (
-      <div className="space-y-3 bg-surface p-3 shadow-hairline">
+      <div className="space-y-3 rounded-card bg-surface p-4 shadow-card">
         <Button className="w-full" size="lg" asChild>
           <a href={orderUrl} target="_blank" rel="noopener noreferrer">
             <CheckCircle2 className="mr-2 size-3.5 text-green" />
@@ -209,14 +209,16 @@ function StripePaymentForm({ paymentSession, cart, onPaymentComplete, onBeforePa
   // Keep the form mounted during completion so an error does not reset it.
   // Show payment form
   return (
-    <div className="space-y-3 bg-surface p-3 shadow-hairline">
+    <div className="space-y-3 rounded-card bg-surface p-4 shadow-card">
       <div className="rounded-control bg-field p-3 shadow-hairline">
         <CardElement
           options={{
+            // The shipping address already carries the postal code; dropping the field keeps the row readable at phone width.
+            hidePostalCode: Boolean(cart.deliveryZip || cart.shippingAddress?.postalCode),
             style: {
               base: {
                 fontSize: '16px',
-                color: '#424770',
+                color: typeof document !== 'undefined' && document.documentElement.classList.contains('dark') ? '#ededed' : '#1f1f1f',
                 '::placeholder': {
                   color: '#aab7c4',
                 },
@@ -287,7 +289,7 @@ function PayPalPaymentForm({ paymentSession, cart, onPaymentComplete, onBeforePa
   // Show success state if payment is completed
   if (paymentCompleted && orderUrl) {
     return (
-      <div className="space-y-3 bg-surface p-3 shadow-hairline">
+      <div className="space-y-3 rounded-card bg-surface p-4 shadow-card">
         <Button className="w-full" size="lg" asChild>
           <a href={orderUrl} target="_blank" rel="noopener noreferrer">
             <CheckCircle2 className="mr-2 size-3.5 text-green" />
@@ -302,7 +304,7 @@ function PayPalPaymentForm({ paymentSession, cart, onPaymentComplete, onBeforePa
   // Show completing state
   if (completingOrder) {
     return (
-      <div className="bg-surface p-3 shadow-hairline">
+      <div className="rounded-card bg-surface p-4 shadow-card">
         <LoadingState label="Completing order" variant="Orbit" />
       </div>
     )
@@ -318,7 +320,7 @@ function PayPalPaymentForm({ paymentSession, cart, onPaymentComplete, onBeforePa
 
   if (capturedOrderId) {
     return (
-      <div className="space-y-3 bg-surface p-3 shadow-hairline">
+      <div className="space-y-3 rounded-card bg-surface p-4 shadow-card">
         <Button onClick={() => complete(capturedOrderId)} disabled={submitting} className="w-full" size="lg">
           {submitting && <RiLoader2Fill className="mr-2 h-4 w-4 animate-spin" />}
           Finish order
@@ -333,7 +335,7 @@ function PayPalPaymentForm({ paymentSession, cart, onPaymentComplete, onBeforePa
   }
 
   return (
-    <div className="space-y-3 bg-surface p-3 shadow-hairline">
+    <div className="space-y-3 rounded-card bg-surface p-4 shadow-card">
       <PayPalButtons
         style={{ layout: "vertical" }}
         createOrder={async () => {

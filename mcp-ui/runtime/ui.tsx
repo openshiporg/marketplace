@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Button } from '../vendor/action-button';
-import { Shell, ShellHeader, Panel } from '../vendor/surface';
+import { HeaderMedia, Shell, ShellHeader, Panel } from '../vendor/surface';
+import type { StoreMark } from '../types';
 
 export const money = (n: number | undefined, currency = 'USD') =>
   typeof n === 'number' && Number.isFinite(n)
@@ -11,11 +12,25 @@ export const money = (n: number | undefined, currency = 'USD') =>
 export function Note({ tone, children }: { tone: 'positive' | 'negative' | 'neutral'; children: React.ReactNode }) {
   const dot = tone === 'positive' ? 'bg-positive' : tone === 'negative' ? 'bg-negative' : 'bg-muted-foreground';
   return (
-    <p role="status" className="flex items-start gap-2 px-1 pt-2 text-[0.8125rem] text-muted-foreground">
+    <p role="status" className="flex items-start gap-2 px-4 pb-3 text-[0.8125rem] text-muted-foreground">
       <span aria-hidden="true" className={`mt-[0.45rem] size-1.5 shrink-0 rounded-full ${dot}`} />
       <span className="min-w-0">{children}</span>
     </p>
   );
+}
+
+/** The store's own logo, tinted the way the store chose. Shown as an image, so nothing inside the SVG can run. */
+export function StoreLogo({ logo }: { logo: StoreMark }) {
+  return (
+    <span aria-hidden="true" className="flex size-9 shrink-0 items-center justify-center rounded-md border border-border">
+      <img src={logo.src} alt="" className="size-5 object-contain" style={{ filter: `hue-rotate(${logo.hue}deg)` }} />
+    </span>
+  );
+}
+
+/** Every header inside shows the store's logo in place of a generic icon, when the store has one. */
+export function WithStoreLogo({ logo, children }: { logo?: StoreMark; children: React.ReactNode }) {
+  return <HeaderMedia.Provider value={logo ? <StoreLogo logo={logo} /> : null}>{children}</HeaderMedia.Provider>;
 }
 
 export function useBusy() {

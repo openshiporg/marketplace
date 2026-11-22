@@ -1,9 +1,6 @@
 "use client";
 
-import { ConfigToggleButton } from "./config-toggle-button";
-import { SimpleSettingsPopover } from "./simple-settings-popover";
-import { AIModelSelector } from "./ai-model-selector";
-import { useAiConfig } from "../../hooks/use-ai-config";
+import { SlidersHorizontal } from "lucide-react";
 
 interface ModeSplitButtonProps {
   disabled?: boolean;
@@ -16,26 +13,21 @@ interface ModeSplitButtonProps {
   showModelLabelOnMobile?: boolean;
 }
 
-export function ModeSplitButton({
-  disabled = false,
-  onSettingsClick,
-  sharedKeys,
-  showModelLabelOnMobile = false,
-}: ModeSplitButtonProps) {
-  const { config: aiConfig, localAiEnabled } = useAiConfig();
-  const isGlobalMode = aiConfig.keyMode === "env";
-
+/**
+ * Shoppers type and send; the AI key, provider and model are operator settings.
+ * They sit behind one settings button that opens the full AI settings dialog.
+ */
+export function ModeSplitButton({ disabled = false, onSettingsClick }: ModeSplitButtonProps) {
   return (
-    <div className="flex items-center gap-2">
-      {localAiEnabled ? (
-        <ConfigToggleButton disabled={disabled} globalEnvsExist={!!sharedKeys} />
-      ) : null}
-      <SimpleSettingsPopover disabled={disabled || isGlobalMode} />
-      <AIModelSelector
-        disabled={disabled || isGlobalMode}
-        globalModel={sharedKeys?.model}
-        showLabelOnMobile={showModelLabelOnMobile}
-      />
-    </div>
+    <button
+      type="button"
+      aria-label="AI settings"
+      title="AI settings"
+      disabled={disabled}
+      onClick={onSettingsClick}
+      className="flex size-8 items-center justify-center rounded-control text-ink-3 transition-colors duration-150 hover:bg-hover hover:text-ink disabled:opacity-40 pointer-coarse:size-11"
+    >
+      <SlidersHorizontal className="size-4" strokeWidth={1.8} aria-hidden="true" />
+    </button>
   );
 }

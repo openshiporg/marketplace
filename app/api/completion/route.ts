@@ -35,9 +35,15 @@ function getLatestUserText(messages: any[]): string {
     : '';
 }
 
+/**
+ * Stop once a step returns a card the customer acts on. The stores list is excluded: step 0 is always
+ * getAvailableStores (forced below) and it carries a card too, so counting it ended every typed search
+ * at the store list before discovery ran.
+ */
 function latestStepReturnedUiResource({ steps }: { steps: Array<any> }): boolean {
   const latestStep = steps.at(-1);
   return (latestStep?.toolResults || []).some((toolResult: any) => {
+    if (toolResult?.toolName === 'getAvailableStores') return false;
     const output = toolResult?.output;
     const content = output?.content || output?.result?.content;
     return Array.isArray(content) && content.some((item: any) => {

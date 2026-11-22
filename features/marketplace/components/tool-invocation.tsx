@@ -5,7 +5,7 @@ import {
   ChevronDownIcon,
   Loader2,
   CheckCircle2,
-  TerminalSquare,
+  CircleDot,
   Code,
   ArrowRight,
   Circle,
@@ -20,6 +20,35 @@ import {
   getMcpToolResultData,
   serializeCartMutation,
 } from '@/lib/cart-client-actions';
+
+/** What a shopper reads for each step; tool names stay in the expanded details. */
+const TOOL_LABEL: Record<string, string> = {
+  getAvailableStores: 'Stores',
+  getAvailableCountries: 'Countries',
+  getAvailableRegions: 'Regions',
+  discoverMarketplace: 'Searching stores',
+  discoverProducts: 'Searching stores',
+  discoverRestaurantMenus: 'Searching menus',
+  getProduct: 'Product',
+  getOrCreateCart: 'Your cart',
+  createCart: 'Your cart',
+  viewCart: 'Your cart',
+  getCart: 'Your cart',
+  addToCart: 'Added to cart',
+  updateCartItem: 'Your cart',
+  removeCartItem: 'Your cart',
+  setShippingAddress: 'Shipping address',
+  setShippingMethod: 'Delivery method',
+  setRestaurantFulfillment: 'Pickup or delivery',
+  getAvailablePaymentMethods: 'Payment',
+  initiatePaymentSession: 'Payment',
+  completeCart: 'Order',
+  getCheckoutLink: 'Checkout',
+  validateCartForCheckout: 'Checkout',
+  loginUser: 'Sign in',
+  authenticateUser: 'Sign in',
+};
+export const toolLabel = (name: string) => TOOL_LABEL[name] ?? 'Working';
 
 interface ToolInvocationProps {
   toolName: string;
@@ -170,13 +199,13 @@ export const ToolInvocation = memo(function ToolInvocation({
         aria-expanded={isExpanded}
       >
         <span className="relative flex size-4 shrink-0 items-center justify-center text-ink-3">
-          <TerminalSquare className="size-3.5 transition-opacity duration-100 group-hover/row:opacity-0" />
+          <CircleDot className="size-3 transition-opacity duration-100 group-hover/row:opacity-0" />
           <ChevronDownIcon
             className="absolute size-3 opacity-0 transition-[opacity,transform] duration-150 group-hover/row:opacity-100"
             style={{ transform: isExpanded ? 'rotate(0deg)' : 'rotate(-90deg)' }}
           />
         </span>
-        <span className="shrink-0 font-mono text-[11.5px] font-medium tracking-tight text-ink">{toolName}</span>
+        <span className="shrink-0 text-[12px] font-medium text-ink-2" title={toolName}>{toolLabel(toolName)}</span>
         {state === 'call' ? (
           <span className="min-w-0 flex-1 truncate text-[11.5px] text-ink-3">
             {isLatestMessage && status !== 'ready' ? 'Running…' : 'Waiting'}

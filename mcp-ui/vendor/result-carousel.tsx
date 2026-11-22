@@ -126,7 +126,7 @@ export function ResultCarousel({
           tabIndex={0}
           role="group"
           aria-label={`${title}, scroll horizontally`}
-          className="flex snap-x snap-mandatory scroll-px-0 [scrollbar-width:none] gap-1.5 overflow-x-auto rounded-2xl outline-offset-2 [&::-webkit-scrollbar]:hidden"
+          className="flex snap-x snap-mandatory scroll-px-4 [scrollbar-width:none] gap-2 overflow-x-auto px-4 pt-2 pb-4 -outline-offset-2 [&::-webkit-scrollbar]:hidden"
         >
           {data.map((item, i) => (
             <motion.article
@@ -142,7 +142,7 @@ export function ResultCarousel({
                 delay: Math.min(i, 5) * 0.05,
               }}
               className={cn(
-                "flex shrink-0 snap-start flex-col overflow-hidden rounded-2xl bg-surface-inset",
+                "flex shrink-0 snap-start flex-col overflow-hidden rounded-xl border border-border",
                 compact ? "w-52" : "w-60",
               )}
             >
@@ -204,7 +204,7 @@ export function ResultCarousel({
                 {onAction && (
                   <Button
                     size="sm"
-                    variant={i === 0 ? "primary" : "secondary"}
+                    variant="secondary"
                     className="mt-2.5 w-full justify-center"
                     onClick={() => onAction(item)}
                   >

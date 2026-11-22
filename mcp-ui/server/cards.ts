@@ -1,6 +1,7 @@
 import { safeHttpUrl } from '@/lib/safe-content';
+import { getStoreLogoHue, storeLogoDataUri } from '@/lib/store-logo';
 import { getRestaurantCheckoutIssues, restaurantCheckoutIssueMessage } from '@/lib/restaurant-checkout';
-import type { CardPayload, CartData, ConflictData, ErrorData, LoginData, PaymentChoice, ProductData } from '../types';
+import type { StoreMark, CardPayload, CartData, ConflictData, ErrorData, LoginData, PaymentChoice, ProductData } from '../types';
 import { slimProduct, toDollars } from './slim';
 import { renderMcpCard } from './shell';
 
@@ -8,8 +9,13 @@ const ZERO_DECIMAL = ['BIF', 'CLP', 'DJF', 'GNF', 'JPY', 'KMF', 'KRW', 'MGA', 'P
 const str = (v: unknown) => (typeof v === 'string' ? v : v == null ? '' : String(v));
 const clean = (record: Record<string, unknown>) => Object.fromEntries(Object.entries(record).map(([k, v]) => [k, str(v)]).filter(([, v]) => v));
 
-export const productCardHtml = (storeId: string, countryCode: string, product: any, baseUrl?: string) =>
-  renderMcpCard({ kind: 'product', data: { storeId, countryCode, product: slimProduct(product, baseUrl) } satisfies ProductData }, str(product.title));
+export function storeMark(storeInfo: any): StoreMark | undefined {
+  const src = storeLogoDataUri(storeInfo?.logoIcon);
+  return src ? { src, hue: getStoreLogoHue(storeInfo?.logoColor) } : undefined;
+}
+
+export const productCardHtml = (storeId: string, countryCode: string, product: any, baseUrl?: string, storeInfo?: any) =>
+  renderMcpCard({ kind: 'product', data: { storeId, countryCode, product: slimProduct(product, baseUrl), storeName: str(storeInfo?.name).trim() || undefined, logo: storeMark(storeInfo) } satisfies ProductData }, str(product.title));
 
 export const loginCardHtml = (data: LoginData) => renderMcpCard({ kind: 'login', data }, 'Sign in');
 export const conflictCardHtml = (data: ConflictData) => renderMcpCard({ kind: 'conflict', data }, 'Email already in use');
@@ -48,12 +54,15 @@ export function retailCartData(params: { storeId: string; cartId: string; cart: 
   const a = cart.shippingAddress ?? {};
   const selected = (cart.shippingMethods ?? []).map((m: any) => m.shippingOption?.id).find(Boolean);
   return {
-    kind: 'retail', storeId, cartId, storeName: str(storeInfo?.name) || 'Checkout', currency, items, fees,
+    kind: 'retail', storeId, cartId, storeName: str(storeInfo?.name).trim() || 'Checkout', logo: storeMark(storeInfo), currency, items, fees,
     total: num(cart.total) ?? items.reduce((n: number, i: any) => n + i.amount * i.quantity, 0),
     issues, lockTarget, providers,
     countryCode: str(cart.region?.countries?.[0]?.iso2 || 'us'),
     retail: {
       address: clean({ email: cart.email, firstName: a.firstName, lastName: a.lastName, address1: a.address1, city: a.city, province: a.province, postalCode: a.postalCode, countryCode: a.country?.iso2, phone: a.phone, company: a.company }),
+      countries: (cart.region?.countries ?? [])
+        .map((c: any) => ({ code: str(c.iso2).toLowerCase(), name: str(c.displayName || c.name || c.iso2) }))
+        .filter((c: { code: string }) => /^[a-z]{2}$/.test(c.code)),
       shippingOptions: shippingOptions.map((o: any) => ({
         id: str(o.id), name: str(o.name),
         price: str(o.calculatedAmount) || (typeof o.amount === 'number' ? new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(o.amount / 100) : ''),
@@ -99,7 +108,7 @@ export function restaurantCartData(params: { storeId: string; cartId: string; ca
   const zones = Array.isArray(storeInfo?.deliveryPostalCodes) ? storeInfo.deliveryPostalCodes.filter(Boolean) : [];
   if (orderType === 'delivery' && zones.length) notes.push(`Delivers to postal codes: ${zones.join(', ')}`);
   return {
-    kind: 'restaurant', storeId, cartId, storeName: str(storeInfo?.name) || 'Restaurant', currency, items, fees,
+    kind: 'restaurant', storeId, cartId, storeName: str(storeInfo?.name).trim() || 'Restaurant', logo: storeMark(storeInfo), currency, items, fees,
     total: d(cart.total ?? cart.subtotal),
     issues: issueCodes.map(restaurantCheckoutIssueMessage), lockTarget,
     providers: [...direct, 'checkout'], countryCode: str(cart.deliveryCountryCode || storeInfo?.countryCode || 'us').toLowerCase(),

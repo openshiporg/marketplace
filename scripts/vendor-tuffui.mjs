@@ -3,6 +3,8 @@
 // Usage: node scripts/vendor-tuffui.mjs <dir with TuffUI registry JSON>   (fetch https://tuffui.com/r/<name>.json first)
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { rules, STATUS, phosphorModule } from './tuffui-rules.mjs';
+// mcp-ui/vendor now carries hand edits made after vendoring (one surface, 8px controls, 44px touch sizes, store-logo header).
+// Running this script overwrites them: diff mcp-ui/vendor against git before and after, and re-apply.
 const REG = process.argv[2] ?? '/tmp/tuffui/reg';
 const OUT = new URL('../mcp-ui/vendor/', import.meta.url).pathname;
 mkdirSync(OUT, { recursive: true });

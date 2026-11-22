@@ -71,8 +71,7 @@ export function Segmented<T extends string = string>({
         aria-label={label}
         onKeyDown={onKeyDown}
         className={cn(
-          "inline-flex items-center rounded-full bg-foreground/[0.05] p-0.5",
-          size === "sm" ? "h-8" : "h-9",
+          "inline-flex max-w-full flex-wrap items-center gap-y-0.5 rounded-md bg-foreground/[0.05] p-0.5",
           className,
         )}
       >
@@ -89,8 +88,8 @@ export function Segmented<T extends string = string>({
               disabled={option.disabled}
               onClick={(e) => select(option.value, e.detail === 0)}
               className={cn(
-                "relative h-full rounded-full font-medium transition-[color,scale] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] active:scale-[0.97] disabled:opacity-40",
-                size === "sm" ? "px-3 text-[0.8125rem]" : "px-4 text-sm",
+                "relative rounded-[6px] font-medium transition-[color,scale] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] active:scale-[0.97] disabled:opacity-40",
+                size === "sm" ? "h-8 px-3 text-[0.8125rem] pointer-coarse:h-10 pointer-coarse:min-w-11" : "h-9 px-4 text-sm pointer-coarse:h-10 pointer-coarse:min-w-11",
                 active
                   ? "text-foreground"
                   : "text-muted-foreground hover:text-foreground",
@@ -100,7 +99,7 @@ export function Segmented<T extends string = string>({
                 <motion.span
                   layoutId={pillId}
                   transition={instant ? { duration: 0 } : spring}
-                  className="absolute inset-0 rounded-full bg-surface-raised"
+                  className="absolute inset-0 rounded-[6px] bg-surface-raised shadow-(--raised-shadow)"
                 />
               )}
               <span className="relative">{option.label}</span>

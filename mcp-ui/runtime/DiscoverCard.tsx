@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { ResultCarousel, type ResultItem } from '../vendor/result-carousel';
 import type { DiscoverData, SlimProduct } from '../types';
 import { callTool, errorMessage, succeeded } from './bridge';
-import { Note, money } from './ui';
+import { Note, WithStoreLogo, money } from './ui';
 
 const cheapest = (p: SlimProduct) => {
   const prices = p.variants.map((v) => v.price).filter((n): n is number => typeof n === 'number');
@@ -35,7 +35,7 @@ export function DiscoverCard({ data }: { data: DiscoverData }) {
   };
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col divide-y divide-border">
       {data.stores.map((store, storeIdx) => {
         const items: ResultItem[] = store.products.map((p, productIdx) => {
           const low = cheapest(p);
@@ -55,14 +55,15 @@ export function DiscoverCard({ data }: { data: DiscoverData }) {
           return store.products[productIdx];
         };
         return (
+          <WithStoreLogo key={store.storeId} logo={store.logo}>
           <ResultCarousel
-            key={store.storeId}
             title={store.name}
             subtitle={multi ? `${store.platform === 'openfront-restaurant' ? 'Menu' : 'Products'} · ${store.currency}` : data.title}
             data={items}
             onAction={(item) => act(storeIdx, find(item))}
             onOpen={(item) => open(storeIdx, find(item))}
           />
+          </WithStoreLogo>
         );
       })}
       {note && <Note tone={note.tone}>{note.text}</Note>}

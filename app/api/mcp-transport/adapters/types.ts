@@ -261,6 +261,7 @@ export interface PlatformAdapter {
     storeId: string;
     product: Product;
     countryCode: string;
+    storeInfo?: StoreInfo;
   }): Promise<string>;
 
   generateCartUI?(params: {

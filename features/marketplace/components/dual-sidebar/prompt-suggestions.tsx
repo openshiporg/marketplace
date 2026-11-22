@@ -249,7 +249,9 @@ const OPTIONS: MarketplaceOption[] = [
 export function PromptSuggestions({ onSuggestionClick, footerAction }: PromptSuggestionsProps) {
   const [selected, setSelected] = useState<MarketplaceOption | null>(null);
   const [offset, setOffset] = useState(0);
-  const shown = [0, 1, 2, 3, 4, 5].map((index) => OPTIONS[(offset + index) % OPTIONS.length]);
+  // Only things a shopper can do today are suggested; the rest of the Openfront range lives on Ethos.
+  const live = OPTIONS.filter((option) => option.available && option.discovery);
+  const shown = live.length <= 6 ? live : [0, 1, 2, 3, 4, 5].map((index) => live[(offset + index) % live.length]);
 
   const choose = (option: MarketplaceOption) => {
     if (option.available && option.discovery) {
@@ -262,13 +264,13 @@ export function PromptSuggestions({ onSuggestionClick, footerAction }: PromptSug
   return (
     <>
       <div className="flex w-full flex-col" data-testid="suggested-actions" aria-label="Marketplace categories">
-        <div className="grid sm:grid-flow-col sm:grid-cols-2 sm:grid-rows-3 sm:gap-x-5">
+        <div className="grid sm:grid-cols-2 sm:gap-x-5">
           {shown.map((option, index) => (
             <button
               key={`${offset}-${option.id}`}
               type="button"
               onClick={() => choose(option)}
-              className={`${index >= 3 ? "hidden sm:flex" : "flex"} -mx-2 items-center gap-2.5 rounded-control px-2 py-2.5 text-left text-[13px] text-ink transition-colors duration-150 hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal`}
+              className={`flex -mx-2 min-h-11 items-center gap-2.5 rounded-control px-2 py-2.5 text-left text-[13px] text-ink transition-colors duration-150 hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal`}
               style={{ animation: `fade-up 350ms cubic-bezier(0.23,1,0.32,1) ${index * 45}ms both` }}
             >
               <span className="relative flex size-5 shrink-0 items-center justify-center rounded-full shadow-[var(--shadow-gradient-icon)]">
@@ -291,16 +293,16 @@ export function PromptSuggestions({ onSuggestionClick, footerAction }: PromptSug
         </div>
         <div className="mt-1 flex flex-col items-start gap-1 pl-0.5 text-[13px] text-ink-3">
           {footerAction}
-          <button
+          {live.length > 6 && <button
             type="button"
-            onClick={() => setOffset((current) => (current + 6) % OPTIONS.length)}
+            onClick={() => setOffset((current) => (current + 6) % live.length)}
             className="flex items-center gap-2 py-1 transition-colors duration-150 hover:text-ink"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M21 12a9 9 0 1 1-2.64-6.36M21 3v6h-6" />
             </svg>
             Shuffle suggestions
-          </button>
+          </button>}
         </div>
       </div>
 

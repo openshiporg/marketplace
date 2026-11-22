@@ -128,7 +128,7 @@ export function ConfirmationCard({
                             <div
                               role="group"
                               aria-label={`${item.label} quantity`}
-                              className="flex items-center gap-1 rounded-full bg-foreground/[0.05] p-0.5"
+                              className="flex items-center gap-1 rounded-md bg-foreground/[0.05] p-0.5"
                             >
                               <IconButton
                                 icon={Minus}
@@ -136,7 +136,7 @@ export function ConfirmationCard({
                                 label="Decrease"
                                 variant="quiet"
                                 size="sm"
-                                className="size-7"
+                                
                                 disabled={
                                   (item.quantity ?? 1) <= 1 || status !== "review"
                                 }
@@ -153,7 +153,7 @@ export function ConfirmationCard({
                                 label="Increase"
                                 variant="quiet"
                                 size="sm"
-                                className="size-7"
+                                
                                 disabled={status !== "review"}
                                 onClick={() =>
                                   update(item.id, { quantity: (item.quantity ?? 1) + 1 })
@@ -224,7 +224,7 @@ export function ConfirmationCard({
                   </div>
                 ) : null}
               </Panel>
-              <div className="flex items-center justify-end gap-1.5 pt-1.5">
+              <div className="flex items-center justify-end gap-1.5 px-4 pb-4 pt-1.5">
                 {onCancel && (
                   <Button
                     variant="quiet"

@@ -7,11 +7,11 @@ import { TextArea } from '../vendor/text-field';
 import { Panel, Shell, ShellHeader } from '../vendor/surface';
 import type { ProductData } from '../types';
 import { callTool, errorMessage, succeeded } from './bridge';
-import { Note, money, useBusy } from './ui';
+import { Note, WithStoreLogo, money, useBusy } from './ui';
 
 /** Product detail: image, options, price and add to cart, all from TuffUI controls. */
 export function ProductCard({ data }: { data: ProductData }) {
-  const { product, storeId, countryCode } = data;
+  const { product, storeId, countryCode, storeName, logo } = data;
   const [image, setImage] = useState(0);
   const [chosen, setChosen] = useState<Record<string, string>>(() => {
     const first = product.variants.find((v) => v.inStock) ?? product.variants[0];
@@ -72,8 +72,9 @@ export function ProductCard({ data }: { data: ProductData }) {
   const facts = restaurant ? [restaurant.prepTime && `${restaurant.prepTime} min`, restaurant.calories && `${restaurant.calories} cal`, ...restaurant.dietaryFlags].filter(Boolean).join(' · ') : '';
 
   return (
-    <Shell aria-label={product.title} className="max-w-xl">
-      <ShellHeader icon={ShoppingCart} title={product.title} subtitle={restaurant?.category ?? facts} aside={<span className="font-mono text-sm tabular-nums">{money(unit ?? product.variants[0]?.price, product.currency)}</span>} />
+    <WithStoreLogo logo={logo}>
+    <Shell aria-label={product.title}>
+      <ShellHeader icon={ShoppingCart} title={product.title} subtitle={storeName ?? restaurant?.category ?? facts} aside={<span className="font-mono text-sm tabular-nums">{money(unit ?? product.variants[0]?.price, product.currency)}</span>} />
       <Panel>
         <div className="flex flex-col gap-4 p-4 @md:flex-row">
           <div className="@md:w-44 @md:shrink-0">
@@ -119,10 +120,10 @@ export function ProductCard({ data }: { data: ProductData }) {
             {restaurant && <TextArea label="Special instructions" placeholder="Sauce on the side, no onions…" value={instructions} onChange={(e) => setInstructions(e.target.value)} maxLength={500} />}
             <div className="flex items-center gap-2 pt-1">
               {restaurant && (
-                <div role="group" aria-label="Quantity" className="flex items-center gap-1 rounded-full bg-foreground/[0.05] p-0.5">
-                  <IconButton icon={Minus} iconWeight="bold" label="Decrease" variant="quiet" className="size-7" disabled={quantity <= 1} onClick={() => setQuantity((q) => Math.max(1, q - 1))} />
+                <div role="group" aria-label="Quantity" className="flex items-center gap-1 rounded-md bg-foreground/[0.05] p-0.5">
+                  <IconButton icon={Minus} iconWeight="bold" label="Decrease" variant="quiet" disabled={quantity <= 1} onClick={() => setQuantity((q) => Math.max(1, q - 1))} />
                   <span className="w-5 text-center font-mono text-xs tabular-nums">{quantity}</span>
-                  <IconButton icon={Plus} iconWeight="bold" label="Increase" variant="quiet" className="size-7" disabled={quantity >= 25} onClick={() => setQuantity((q) => Math.min(25, q + 1))} />
+                  <IconButton icon={Plus} iconWeight="bold" label="Increase" variant="quiet" disabled={quantity >= 25} onClick={() => setQuantity((q) => Math.min(25, q + 1))} />
                 </div>
               )}
               <Button variant="primary" size="md" icon={ShoppingCart} loading={busy} disabled={!canAdd} onClick={add} className="min-w-0 flex-1">
@@ -134,5 +135,6 @@ export function ProductCard({ data }: { data: ProductData }) {
       </Panel>
       {note && <Note tone={note.tone}>{note.text}</Note>}
     </Shell>
+    </WithStoreLogo>
   );
 }

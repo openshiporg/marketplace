@@ -70,7 +70,7 @@ export function TextField({
   return (
     <Field label={label} description={description} error={error} className={className}>
       {(ids) => (
-        <input {...ids} {...props} className={cn(control, "h-9 rounded-full px-3.5")} />
+        <input {...ids} {...props} className={cn(control, "h-10 rounded-md px-3.5 pointer-coarse:h-11")} />
       )}
     </Field>
   );
@@ -109,7 +109,7 @@ export function SearchField({
             {...props}
             className={cn(
               control,
-              "h-9 rounded-full pr-9 pl-8 [&::-webkit-search-cancel-button]:hidden",
+              "h-10 rounded-md pr-9 pl-8 pointer-coarse:h-11 [&::-webkit-search-cancel-button]:hidden",
             )}
           />
           {onClear && value !== undefined && value !== "" && (
@@ -146,7 +146,7 @@ export function TextArea({
           {...ids}
           rows={rows}
           {...props}
-          className={cn(control, "resize-none rounded-xl px-3.5 py-2.5 leading-relaxed")}
+          className={cn(control, "resize-none rounded-md px-3.5 py-2.5 leading-relaxed")}
         />
       )}
     </Field>

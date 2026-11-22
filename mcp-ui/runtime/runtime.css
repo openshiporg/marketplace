@@ -2,18 +2,21 @@
 @source "./";
 @source "../vendor";
 
-/* TuffUI (https://tuffui.com, MIT) theme tokens. House rules: neutral greys (no hue in 240-300), no pills, 12px floor. */
+/* TuffUI (https://tuffui.com, MIT) theme tokens, re-pointed at the host chat's own palette (tokens.css) so a card and the page
+   around it use one grey scale and one radius scale: 6px chips, 8px controls, 10px cards. */
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  --radius: 0.75rem;
-  --background: oklch(0.975 0 0);
-  --foreground: oklch(0.2 0 0);
-  --surface: oklch(0.948 0 0);
+  --radius: 0.625rem;
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.2469 0.0064 258.36);
+  --surface: oklch(0.9787 0.0017 247.84);
   --surface-inset: oklch(1 0 0);
-  --surface-raised: oklch(0.912 0 0);
-  --border: oklch(0.2 0 0 / 0.07);
-  --muted-foreground: oklch(0.5 0 0);
+  --surface-raised: oklch(1 0 0);
+  --raised-shadow: 0 0 0 1px oklch(0.9121 0.0046 258.33), 0 1px 2px oklch(0.2 0.006 260 / 0.06);
+  --border: oklch(0.9459 0.0029 264.54);
+  --border-strong: oklch(0.9121 0.0046 258.33);
+  --muted-foreground: oklch(0.5062 0.0102 264.48);
   --ring: color-mix(in oklab, var(--brand) 55%, transparent);
   --brand: #0071e3;
   --brand-foreground: #ffffff;
@@ -30,13 +33,15 @@
 }
 
 .dark {
-  --background: oklch(0.155 0 0);
-  --foreground: oklch(0.97 0 0);
-  --surface: oklch(0.212 0 0);
-  --surface-inset: oklch(0.172 0 0);
-  --surface-raised: oklch(0.265 0 0);
-  --border: oklch(1 0 0 / 0.06);
-  --muted-foreground: oklch(0.68 0 0);
+  --background: oklch(0.2605 0.0058 271.19);
+  --foreground: oklch(0.9637 0.0017 247.84);
+  --surface: oklch(0.2433 0.0041 264.49);
+  --surface-inset: oklch(0.2605 0.0058 271.19);
+  --surface-raised: oklch(0.3177 0.0072 274.75);
+  --raised-shadow: 0 0 0 1px oklch(0.3557 0.0074 264.47);
+  --border: oklch(0.3084 0.0061 258.35);
+  --border-strong: oklch(0.3557 0.0074 264.47);
+  --muted-foreground: oklch(0.7307 0.0080 260.73);
   --ring: color-mix(in oklab, var(--brand) 60%, transparent);
   --brand: #0a84ff;
   --positive: #30d158;
@@ -59,6 +64,7 @@
   --color-surface-inset: var(--surface-inset);
   --color-surface-raised: var(--surface-raised);
   --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
   --color-muted-foreground: var(--muted-foreground);
   --color-ring: var(--ring);
   --color-brand: var(--brand);
@@ -66,10 +72,11 @@
   --color-positive: var(--positive);
   --color-negative: var(--negative);
   --color-warning: var(--warning);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 10px;
+  --radius-2xl: 10px;
 }
 
 @layer base {
@@ -78,7 +85,7 @@
   html { color-scheme: light; -webkit-text-size-adjust: 100%; }
   html.dark { color-scheme: dark; }
   body { margin: 0; background: transparent; color: var(--color-foreground); font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
-  :focus-visible { outline: 2px solid var(--color-ring); outline-offset: 2px; }
+  :focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
 }
 
 @utility label { font-size: 0.75rem; line-height: 1rem; font-weight: 500; }

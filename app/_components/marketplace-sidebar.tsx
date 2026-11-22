@@ -71,12 +71,12 @@ export function MarketplaceSidebar({
         className={cn(
           "h-full shrink-0 overflow-hidden transition-[width] duration-300 ease-[var(--ease-out)] lg:relative lg:inset-auto lg:z-auto lg:bg-transparent lg:shadow-none",
           mobileOpen
-            ? "fixed inset-y-0 left-0 z-50 flex w-56 bg-canvas shadow-raised"
+            ? "fixed inset-y-0 left-0 z-50 flex w-[min(20rem,85vw)] bg-canvas shadow-raised"
             : "relative hidden lg:flex",
           collapsed ? "lg:w-14" : "lg:w-56",
         )}
       >
-      <div className="flex h-full w-56 shrink-0 flex-col">
+      <div className={cn("flex h-full shrink-0 flex-col", mobileOpen ? "w-full lg:w-56" : "w-56")}>
         <div className="mb-2.5 flex h-10 shrink-0 items-center px-2">
           <Link
             href="/"
@@ -94,6 +94,16 @@ export function MarketplaceSidebar({
               the / marketplace
             </span>
           </Link>
+          {mobileOpen ? (
+            <button
+              type="button"
+              aria-label="Close menu"
+              onClick={onMobileClose}
+              className="ml-auto flex size-11 shrink-0 items-center justify-center rounded-control text-ink-3 hover:bg-hover-2 hover:text-ink lg:hidden"
+            >
+              <X className="size-5" strokeWidth={1.8} />
+            </button>
+          ) : null}
         </div>
 
         <nav className="flex flex-col gap-px" aria-label="Primary">
@@ -101,7 +111,7 @@ export function MarketplaceSidebar({
             type="button"
             disabled={disabled}
             onClick={onNew}
-            className="mx-2 flex h-8 items-center rounded-control px-2 text-left text-ink-2 transition-[background-color,transform] duration-150 hover:bg-hover-2 active:scale-[.98] disabled:opacity-40"
+            className="mx-2 flex h-8 items-center rounded-control px-2 pointer-coarse:h-11 text-left text-ink-2 transition-[background-color,transform] duration-150 hover:bg-hover-2 active:scale-[.98] disabled:opacity-40"
           >
             <NewChatIcon className="size-[18px] shrink-0 text-signal-ink" />
             <span className={cn("ml-1.5 truncate text-[14px] font-medium", collapsed && "sr-only")}>New chat</span>
@@ -109,7 +119,7 @@ export function MarketplaceSidebar({
           <Link
             href="/ethos"
             className={cn(
-              "mx-2 flex h-8 items-center rounded-control px-2 text-left text-ink-2 transition-[background-color,transform] duration-150 hover:bg-hover-2 active:scale-[.98]",
+              "mx-2 flex h-8 items-center rounded-control px-2 pointer-coarse:h-11 text-left text-ink-2 transition-[background-color,transform] duration-150 hover:bg-hover-2 active:scale-[.98]",
               pathname === "/ethos" && "bg-hover-2 text-ink",
             )}
           >
@@ -120,7 +130,7 @@ export function MarketplaceSidebar({
             href="https://github.com/openshiporg/marketplace"
             target="_blank"
             rel="noopener noreferrer"
-            className="mx-2 flex h-8 items-center rounded-control px-2 text-left text-ink-2 transition-[background-color,transform] duration-150 hover:bg-hover-2 active:scale-[.98]"
+            className="mx-2 flex h-8 items-center rounded-control px-2 pointer-coarse:h-11 text-left text-ink-2 transition-[background-color,transform] duration-150 hover:bg-hover-2 active:scale-[.98]"
           >
             <GitHubIcon className="size-[18px] shrink-0 text-green" />
             <span className={cn("ml-1.5 truncate text-[14px] font-medium", collapsed && "sr-only")}>GitHub</span>
@@ -178,7 +188,7 @@ export function MarketplaceSidebar({
                   title={thread.title}
                   onClick={() => onSelect(thread.id)}
                   className={cn(
-                    "mx-2 flex h-8 items-center rounded-control px-2 text-left text-[14px] font-medium transition-[background-color,color,transform] duration-150 active:scale-[.98] disabled:opacity-40",
+                    "mx-2 flex h-8 items-center rounded-control px-2 pointer-coarse:h-11 text-left text-[14px] font-medium transition-[background-color,color,transform] duration-150 active:scale-[.98] disabled:opacity-40",
                     active ? "bg-hover-2 text-ink" : "text-ink-2 hover:bg-hover-2",
                   )}
                 >
@@ -192,13 +202,13 @@ export function MarketplaceSidebar({
           </div>
         </div>
 
-        <div className="mx-2 mt-3 flex w-[208px] items-center justify-between pb-2.5">
+        <div className="mx-2 mt-3 flex items-center justify-between pb-[max(0.625rem,env(safe-area-inset-bottom))]">
           <button
             type="button"
             aria-label={dark ? "Use light theme" : "Use dark theme"}
             title={dark ? "Use light theme" : "Use dark theme"}
             onClick={() => setTheme(dark ? "light" : "dark")}
-            className="flex size-8 items-center justify-center rounded-control text-ink-3 transition-[background-color,color,transform] duration-150 hover:bg-hover-2 hover:text-ink active:scale-[.96]"
+            className="flex size-8 items-center justify-center rounded-control text-ink-3 pointer-coarse:size-11 transition-[background-color,color,transform] duration-150 hover:bg-hover-2 hover:text-ink active:scale-[.96]"
           >
             {dark ? <Sun className="size-4" /> : <Moon className="size-4" />}
           </button>
@@ -206,12 +216,12 @@ export function MarketplaceSidebar({
             href="https://github.com/openshiporg/marketplace"
             target="_blank"
             rel="noopener noreferrer"
-            aria-label="View marketplace on GitHub, 20 stars"
+            aria-label="View marketplace on GitHub"
             title="View marketplace on GitHub"
             className="inline-flex h-8 items-center justify-center gap-1.5 rounded-control px-1 transition-[background-color,transform] duration-150 hover:bg-hover-2 active:scale-[.96]"
           >
             <SharpStarIcon className="size-4" />
-            <span className="bg-[linear-gradient(135deg,var(--ink)_0%,var(--ink-3)_100%)] bg-clip-text font-mono text-[13px] font-normal text-transparent">20</span>
+            <span className="text-[13px] text-ink-3">Star</span>
           </a>
         </div>
         </div>

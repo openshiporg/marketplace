@@ -8,7 +8,7 @@ import {
   ChatContainerScrollAnchor,
 } from "@/features/marketplace/components/dual-sidebar/chat-container";
 import { ScrollButton } from "@/features/marketplace/components/dual-sidebar/scroll-button";
-import { ArrowRight, ArrowUp, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { ArrowRight, ArrowUp, Menu, PanelLeftClose, PanelLeftOpen, SquarePen } from "lucide-react";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
 import { LoadingState } from "@/components/beautiful-ui/loading-state";
@@ -526,7 +526,7 @@ export default function HomePage() {
       <div className="flex min-w-0 flex-1 flex-col gap-2.5">
         <div className="flex min-h-0 flex-1 gap-2.5">
           <section className="flex min-w-0 flex-1 flex-col overflow-hidden border-0 bg-page shadow-none sm:rounded-[14px] sm:border sm:shadow-card">
-            <div className="flex h-11 shrink-0 items-center gap-1 border-b border-line px-2">
+            <div className="flex h-12 shrink-0 items-center gap-1 border-b border-line px-1 sm:h-11 sm:px-2">
               <button
                 type="button"
                 aria-label="Open sidebar"
@@ -534,9 +534,9 @@ export default function HomePage() {
                 aria-expanded={mobileSidebarOpen}
                 title="Open sidebar"
                 onClick={() => setMobileSidebarOpen(true)}
-                className="flex size-6 shrink-0 items-center justify-center text-ink-3 transition-[color,transform] duration-150 hover:text-ink active:scale-[.96] lg:hidden"
+                className="flex size-11 shrink-0 items-center justify-center rounded-control text-ink-2 transition-[color,transform] duration-150 hover:text-ink active:scale-[.96] lg:hidden"
               >
-                <PanelLeftOpen className="size-3.5" strokeWidth={1.8} />
+                <Menu className="size-5" strokeWidth={1.8} />
               </button>
               <button
                 type="button"
@@ -549,10 +549,22 @@ export default function HomePage() {
               >
                 {sidebarCollapsed ? <PanelLeftOpen className="size-3.5" strokeWidth={1.8} /> : <PanelLeftClose className="size-3.5" strokeWidth={1.8} />}
               </button>
-              <div className="mx-1 h-5 w-px shrink-0 bg-line" aria-hidden="true" />
+              {/* Phones: menu, name, carts, new chat. Chats are listed in the menu, so the tab strip starts at sm. */}
+              <Link href="/" className="min-w-0 flex-1 truncate font-[family-name:var(--font-brand)] text-[15px] text-ink sm:hidden">the / marketplace</Link>
+              <div className="mx-1 hidden h-5 w-px shrink-0 bg-line sm:block" aria-hidden="true" />
               <CartsDropdown cartIds={cartIdsState} onCartSelect={handleCartSelect} disabled={isLoading} />
-              <div className="mx-1 h-5 w-px shrink-0 bg-line" aria-hidden="true" />
+              <button
+                type="button"
+                aria-label="New chat"
+                disabled={isLoading}
+                onClick={handleNewThread}
+                className="flex size-11 shrink-0 items-center justify-center rounded-control text-ink-2 hover:text-ink disabled:opacity-40 sm:hidden"
+              >
+                <SquarePen className="size-[18px]" strokeWidth={1.8} />
+              </button>
+              <div className="mx-1 hidden h-5 w-px shrink-0 bg-line sm:block" aria-hidden="true" />
               <ChatThreadTabs
+                className="hidden sm:flex"
                 threads={threads}
                 activeThreadId={activeThreadId}
                 disabled={isLoading}
@@ -589,7 +601,7 @@ export default function HomePage() {
                               rows={2}
                               className="min-h-[68px] w-full resize-none bg-transparent px-2 py-2 text-[16px] leading-6 text-ink outline-none [overflow-wrap:anywhere] placeholder:text-ink-3 disabled:opacity-40"
                             />
-                            <div className="grid grid-cols-[minmax(0,1fr)_28px] items-center gap-1">
+                            <div className="flex items-center justify-between gap-1">
                               <div>
                                 <ModeSplitButton
                                   disabled={isLoading}
@@ -603,7 +615,7 @@ export default function HomePage() {
                                 size="icon"
                                 disabled={isLoading || !input.trim()}
                                 aria-label="Send message"
-                                className="size-7 rounded-control"
+                                className="size-9 rounded-control pointer-coarse:size-11"
                               >
                                 <ArrowUp className="size-4" strokeWidth={2.4} />
                               </Button>
@@ -700,7 +712,7 @@ export default function HomePage() {
                             showModelLabelOnMobile
                           />
                         </div>
-                        <Button type="submit" size="icon" disabled={isLoading || !input.trim()} aria-label="Send message" className="size-7 rounded-control">
+                        <Button type="submit" size="icon" disabled={isLoading || !input.trim()} aria-label="Send message" className="size-9 rounded-control pointer-coarse:size-11">
                           <ArrowUp className="size-4" strokeWidth={2.4} />
                         </Button>
                       </div>

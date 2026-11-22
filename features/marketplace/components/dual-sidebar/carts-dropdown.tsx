@@ -178,7 +178,7 @@ export function CartsDropdown({
         <button
           type="button"
           disabled={disabled || isLoading}
-          className="ml-1.5 flex shrink-0 items-center gap-1.5 rounded-[6px] px-1 py-0.5 text-left outline-none transition-colors duration-150 hover:bg-hover disabled:pointer-events-none disabled:opacity-40"
+          className="ml-1.5 flex min-h-8 shrink-0 items-center gap-1.5 rounded-control px-1.5 text-left outline-none pointer-coarse:min-h-11 transition-colors duration-150 hover:bg-hover disabled:pointer-events-none disabled:opacity-40"
         >
           <span className="flex -space-x-1">
             {totalStores === 0 && (

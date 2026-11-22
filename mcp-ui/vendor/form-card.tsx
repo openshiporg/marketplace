@@ -49,6 +49,8 @@ export type FormCardProps = {
   /** Shows every field's error at once, as after a submit attempt. */
   revealErrors?: boolean;
   submitLabel?: string;
+  /** Shown above the fields, inside the form (e.g. a paste-your-details box). */
+  lead?: React.ReactNode;
   className?: string;
 };
 
@@ -84,6 +86,7 @@ export function FormCard({
   onStatusChange,
   revealErrors = false,
   submitLabel = "Submit",
+  lead,
   className,
 }: FormCardProps) {
   const [inner, setInner] = useState<FormValues>(defaultValues);
@@ -191,6 +194,7 @@ export function FormCard({
                 exit={{ opacity: 0, transition: exit }}
                 className="flex flex-col gap-4 p-4"
               >
+                {lead}
                 {data.fields.map((f) => (
                   <FieldControl
                     key={f.name}

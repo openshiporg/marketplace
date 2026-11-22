@@ -12,7 +12,7 @@ function App({ payload }: { payload: CardPayload }) {
   useAutoResize();
   return (
     <MotionConfig reducedMotion="user">
-      <main className="p-0.5 pb-2">
+      <main>
         {payload.kind === 'discover' && <DiscoverCard data={payload.data} />}
         {payload.kind === 'product' && <ProductCard data={payload.data} />}
         {payload.kind === 'cart' && <CartCard initial={payload.data} />}

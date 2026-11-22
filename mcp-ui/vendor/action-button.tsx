@@ -10,20 +10,20 @@ export type ButtonSize = "sm" | "md";
 const variants: Record<ButtonVariant, string> = {
   // The silver primary is the one place a hairline edge and a drop shadow are allowed.
   primary:
-    "border border-(--button-edge) bg-(image:--button) bg-origin-border text-(--button-foreground) shadow-(--button-shadow) hover:bg-(image:--button-hover)",
+    "bg-foreground text-background hover:bg-foreground/85",
   secondary:
-    "bg-(image:--button-secondary) text-foreground hover:bg-(image:--button-secondary-hover)",
+    "border border-border-strong bg-transparent text-foreground hover:bg-foreground/[0.05]",
   quiet: "text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground",
   danger: "bg-negative/15 text-negative hover:bg-negative/25",
 };
 
 const sizes: Record<ButtonSize, { base: string; icon: string; glyph: string }> = {
-  sm: { base: "h-8 gap-1.5 px-3.5 text-[0.8125rem]", icon: "size-8", glyph: "size-3.5" },
-  md: { base: "h-9 gap-2 px-4 text-sm", icon: "size-9", glyph: "size-4" },
+  sm: { base: "h-9 gap-1.5 px-3.5 text-[0.8125rem] pointer-coarse:h-11", icon: "size-9 pointer-coarse:size-11", glyph: "size-3.5" },
+  md: { base: "h-10 gap-2 px-4 text-sm pointer-coarse:h-11", icon: "size-10 pointer-coarse:size-11", glyph: "size-4" },
 };
 
 const base =
-  "inline-flex shrink-0 items-center justify-center rounded-full font-medium whitespace-nowrap transition-[background-color,color,scale,opacity] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] select-none active:scale-[0.97] disabled:pointer-events-none disabled:opacity-40";
+  "inline-flex shrink-0 items-center justify-center rounded-md font-medium whitespace-nowrap transition-[background-color,color,scale,opacity] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] select-none active:scale-[0.97] disabled:pointer-events-none disabled:opacity-40";
 
 export type ButtonProps = React.ComponentProps<"button"> & {
   variant?: ButtonVariant;

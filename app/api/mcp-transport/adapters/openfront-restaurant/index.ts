@@ -631,8 +631,8 @@ const restaurantAdapter: PlatformAdapter = {
     }];
   },
 
-  async generateProductUI({ store, storeId, product, countryCode }) {
-    return generateRestaurantProductUI({ storeId, storeUrl: store.baseUrl, product, countryCode });
+  async generateProductUI({ store, storeId, product, countryCode, storeInfo }) {
+    return generateRestaurantProductUI({ storeId, storeUrl: store.baseUrl, product, countryCode, storeInfo });
   },
 
   async generateCartUI({ store, cartId, storeInfo, cartData }) {

@@ -437,7 +437,7 @@ const PureAIMessage = ({
           </p>
         ) : (
           <div className="w-full space-y-2">
-            {message.parts?.map((part, i) => {
+            {message.parts?.map((part, i, parts) => {
               switch (part.type) {
                 case "text":
                   return part.text ? (
@@ -466,7 +466,12 @@ const PureAIMessage = ({
                   const input = toolInvocation.input || (toolInvocation as any).args;
                   const output = toolInvocation.output || (toolInvocation as any).result;
 
-                  const uiResources = output && typeof output === 'object' && output.content && Array.isArray(output.content)
+                  // The store list is only a stepping stone when a search card follows it in the same answer.
+                  const supersededStoreList = toolName === 'getAvailableStores' && parts.slice(i + 1).some((later: any) => {
+                    const o = later.output || later.toolInvocation?.result;
+                    return Array.isArray(o?.content) && o.content.some((c: any) => isUIResource(c));
+                  });
+                  const uiResources = !supersededStoreList && output && typeof output === 'object' && output.content && Array.isArray(output.content)
                     ? output.content.filter((content: any) => isUIResource(content))
                     : [];
 
@@ -488,14 +493,14 @@ const PureAIMessage = ({
                         return (
                           <div
                             key={resource?.uri || `ui-resource-${index}`}
-                            className="overflow-hidden rounded-[12px] bg-surface shadow-card"
+                            className="overflow-hidden rounded-card bg-surface shadow-card"
                           >
                             <UIResourceRenderer
                               resource={resource}
                               htmlProps={{
                                 autoResizeIframe: { height: true, width: false },
                                 iframeRenderData: { theme: resolvedTheme || 'light' },
-                                style: { display: 'block', width: '100%', height: '1px', overflow: 'hidden', border: 'none', borderRadius: '12px', background: 'var(--surface)', colorScheme: resolvedTheme === 'dark' ? 'dark' : 'light' },
+                                style: { display: 'block', width: '100%', height: '1px', overflow: 'hidden', border: 'none', borderRadius: "var(--radius-card)", background: 'var(--surface)', colorScheme: resolvedTheme === 'dark' ? 'dark' : 'light' },
                               }}
                               onUIAction={(action) => handleUiAction(action, resource?.uri)}
                             />

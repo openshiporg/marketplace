@@ -1,6 +1,7 @@
 // TUFFUI (https://tuffui.com) · MIT License · Copyright (c) 2026 TUFFUI contributors
 // Free to use. If it helps you, you can support it: https://ko-fi.com/yurigokoryan
 import type { Icon } from "./icons";
+import { createContext, useContext } from "react";
 import { cn } from "./cn";
 
 /*
@@ -15,7 +16,7 @@ type DivProps = React.ComponentProps<"div">;
 export function Shell({ className, ...props }: React.ComponentProps<"section">) {
   return (
     <section
-      className={cn("@container w-full rounded-[1.375rem] bg-surface p-1.5", className)}
+      className={cn("@container w-full", className)}
       {...props}
     />
   );
@@ -23,7 +24,7 @@ export function Shell({ className, ...props }: React.ComponentProps<"section">) 
 
 /** Main content area inside a shell. */
 export function Panel({ className, ...props }: DivProps) {
-  return <div className={cn("rounded-2xl bg-surface-inset", className)} {...props} />;
+  return <div className={cn(className)} {...props} />;
 }
 
 /** One level deeper: code, payloads, details inside a panel. */
@@ -42,7 +43,7 @@ export function IconTile({
     <div
       aria-hidden="true"
       className={cn(
-        "flex size-9 shrink-0 items-center justify-center rounded-xl bg-foreground/[0.06] text-muted-foreground",
+        "flex size-9 shrink-0 items-center justify-center rounded-md bg-foreground/[0.06] text-muted-foreground",
         className,
       )}
       {...props}
@@ -51,6 +52,9 @@ export function IconTile({
     </div>
   );
 }
+
+/** A card can swap every header icon for its own mark, e.g. the store logo. */
+export const HeaderMedia = createContext<React.ReactNode>(null);
 
 export type ShellHeaderProps = Omit<DivProps, "title"> & {
   icon?: Icon;
@@ -75,13 +79,14 @@ export function ShellHeader({
   className,
   ...props
 }: ShellHeaderProps) {
+  const media = useContext(HeaderMedia);
   return (
     <div
-      className={cn("flex items-center gap-3 pt-1.5 pr-3.5 pb-3 pl-1.5", className)}
+      className={cn("flex items-center gap-3 px-4 pt-4 pb-1", className)}
       {...props}
     >
-      {icon && <IconTile icon={icon} />}
-      <div className={cn("min-w-0 flex-1", !icon && "pl-2")}>
+      {media ?? (icon && <IconTile icon={icon} />)}
+      <div className={"min-w-0 flex-1"}>
         <Heading className="truncate text-[0.9375rem] font-medium">{title}</Heading>
         {subtitle && (
           <p className="truncate text-[0.8125rem] text-muted-foreground">{subtitle}</p>

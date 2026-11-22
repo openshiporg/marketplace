@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { TextArea } from '../vendor/text-field';
+import { parsePastedDetails, type PastedDetails } from './paste';
 import { CreditCard, LockKey, MapPin, ShoppingCart, Truck } from '../vendor/icons';
 import { Button } from '../vendor/action-button';
 import { ConfirmationCard, type ConfirmationItem } from '../vendor/confirmation-card';
@@ -10,7 +12,7 @@ import { Segmented } from '../vendor/segmented-control';
 import { Tab, TabList, TabPanel, Tabs } from '../vendor/tab-panels';
 import type { CartData, PaymentChoice } from '../types';
 import { callTool, cartFromResponse, errorMessage, responseText, succeeded } from './bridge';
-import { Note, money, useBusy } from './ui';
+import { Note, WithStoreLogo, money, useBusy } from './ui';
 
 type NoteState = { tone: 'positive' | 'negative'; text: string } | null;
 const PROVIDER_LABEL: Record<PaymentChoice, string> = { stripe: 'Card (Stripe)', paypal: 'PayPal', checkout: 'Pay on the store checkout' };
@@ -74,15 +76,16 @@ export function CartCard({ initial, initialTab = 'cart' }: { initial: CartData; 
   );
 
   return (
-    <div className="flex flex-col gap-2">
+    <WithStoreLogo logo={cart.logo}>
+    <div className="flex flex-col">
       <Tabs value={tab} onValueChange={setTab} defaultValue="cart" variant="default">
-        <TabList label="Checkout steps">
+        <TabList label="Checkout steps" className="border-b border-border px-1 pb-0">
           <Tab value="cart">Cart</Tab>
           {retail ? <Tab value="address">Address</Tab> : <Tab value="fulfillment">Fulfillment</Tab>}
           {retail ? <Tab value="shipping">Shipping</Tab> : <Tab value="details">Details</Tab>}
           <Tab value="payment">Payment</Tab>
         </TabList>
-        <div className="pt-2">
+        <div>
           <TabPanel value="cart">{cartPanel}</TabPanel>
           {retail ? (
             <>
@@ -100,10 +103,17 @@ export function CartCard({ initial, initialTab = 'cart' }: { initial: CartData; 
       </Tabs>
       {note && <Note tone={note.tone}>{note.text}</Note>}
     </div>
+    </WithStoreLogo>
   );
 }
 
 /* ---- Retail ---- */
+
+/** A country picker when the cart's region lists its countries, else a two-letter code. */
+const countryField = (name: string, countries: { code: string; name: string }[] | undefined, fallback: string): FormField =>
+  countries && countries.length
+    ? { name, label: 'Country', type: 'select', required: true, options: countries.map((c) => ({ value: c.code, label: c.name })) }
+    : { name, label: 'Country code', type: 'text', required: true, placeholder: fallback };
 
 const addressFields = (c: CartData): FormField[] => [
   { name: 'email', label: 'Email', type: 'email', required: true },
@@ -113,10 +123,44 @@ const addressFields = (c: CartData): FormField[] => [
   { name: 'city', label: 'City', type: 'text', required: true },
   { name: 'province', label: 'State or province', type: 'text' },
   { name: 'postalCode', label: 'Postal code', type: 'text', required: true },
-  { name: 'countryCode', label: 'Country code', type: 'text', required: true, placeholder: c.countryCode },
+  countryField('countryCode', c.retail?.countries, c.countryCode),
   { name: 'phone', label: 'Phone', type: 'text', required: true },
   { name: 'company', label: 'Company (optional)', type: 'text' },
 ];
+
+/**
+ * The old checkout let shoppers paste everything at once. Pasted text is parsed here, in the card, and only
+ * fills the fields below for the shopper to check; nothing is sent until they press Save.
+ */
+function PasteDetails({ onFill }: { onFill: (d: PastedDetails) => void }) {
+  const [text, setText] = useState('');
+  const [note, setNote] = useState('');
+  const fill = () => {
+    const d = parsePastedDetails(text);
+    const n = Object.keys(d).filter((k) => k !== 'name').length;
+    setNote(n ? 'Filled in below. Check them, then save.' : 'Could not find an address, email or phone in that text.');
+    if (n) onFill(d);
+  };
+  return (
+    <div className="flex flex-col gap-2 border-b border-border pb-4">
+      <TextArea
+        label="Paste your details (optional)"
+        description="Name, email, phone and address in any format. We fill the fields below."
+        rows={3}
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        placeholder={'Jane Doe\njane@email.com\n123 Main St\nNew York, NY 10001\n+1 555 123 4567'}
+      />
+      <div className="flex items-center justify-between gap-3">
+        <span role="status" className="text-xs text-muted-foreground">{note}</span>
+        <Button variant="secondary" disabled={!text.trim()} onClick={fill}>Fill in</Button>
+      </div>
+    </div>
+  );
+}
+
+const pick = (d: PastedDetails, map: Record<string, keyof PastedDetails>) =>
+  Object.fromEntries(Object.entries(map).map(([field, key]) => [field, d[key]]).filter(([, v]) => v));
 
 const addressParams = (v: FormValues) => {
   const s = (k: string) => String(v[k] ?? '').trim();
@@ -125,13 +169,21 @@ const addressParams = (v: FormValues) => {
 
 function AddressForm({ cart, onSave }: { cart: CartData; onSave: (v: FormValues) => Promise<void> }) {
   const known = cart.retail?.address ?? {};
+  const [values, setValues] = useState<FormValues>(() => ({ countryCode: cart.countryCode, ...known }));
   return (
     <FormCard
       data={{ title: 'Shipping address', description: cart.storeName, fields: addressFields(cart) }}
-      defaultValues={{ countryCode: cart.countryCode, ...known }}
+      values={values}
+      onValuesChange={setValues}
+      lead={<PasteDetails onFill={(d) => setValues((v) => ({ ...v, ...pick(d, { email: 'email', firstName: 'firstName', lastName: 'lastName', address1: 'address1', city: 'city', province: 'province', postalCode: 'postalCode', countryCode: 'countryCode', phone: 'phone' }) }))} />}
       onSubmit={onSave}
       submitLabel={Object.keys(known).length ? 'Update address' : 'Save address'}
-      validate={(v) => ({ countryCode: /^[A-Za-z]{2}$/.test(String(v.countryCode ?? '')) ? undefined : 'Use a two-letter country code' })}
+      validate={(v) => {
+        const code = String(v.countryCode ?? '').toLowerCase();
+        const list = cart.retail?.countries ?? [];
+        if (list.length) return { countryCode: list.some((c) => c.code === code) ? undefined : `${cart.storeName} does not ship there. Choose a country from the list.` };
+        return { countryCode: /^[a-z]{2}$/.test(code) ? undefined : 'Use a two-letter country code' };
+      }}
       className="max-w-none"
     />
   );
@@ -202,11 +254,14 @@ const restaurantParams = (cart: CartData, v: FormValues) => {
 function RestaurantDetails({ cart, onSave }: { cart: CartData; onSave: (v: FormValues) => Promise<void> }) {
   const r = cart.restaurant!;
   const delivery = r.orderType === 'delivery';
+  const [values, setValues] = useState<FormValues>(() => ({ ...r.contact, ...r.delivery }));
   return (
     <FormCard
       key={r.orderType}
       data={{ title: delivery ? 'Delivery details' : 'Pickup details', description: cart.storeName, fields: restaurantFields(delivery) }}
-      defaultValues={{ ...r.contact, ...r.delivery }}
+      values={values}
+      onValuesChange={setValues}
+      lead={<PasteDetails onFill={(d) => setValues((v) => ({ ...v, ...pick(d, { customerName: 'name', email: 'email', customerPhone: 'phone', ...(delivery ? { deliveryAddress: 'address1', deliveryAddress2: 'address2', deliveryCity: 'city', deliveryState: 'province', deliveryZip: 'postalCode', deliveryCountryCode: 'countryCode' } : {}) }) }))} />}
       onSubmit={onSave}
       submitLabel="Save details"
       validate={(v) => (delivery ? { deliveryCountryCode: /^[A-Za-z]{2}$/.test(String(v.deliveryCountryCode ?? '')) ? undefined : 'Use a two-letter country code' } : {})}
@@ -269,7 +324,7 @@ function Payment({ cart, busy, run, onLockAction, setNote }: { cart: CartData; b
           </RadioGroup>
           <div className="flex justify-end">
             {provider === 'checkout' && cart.restaurant ? (
-              <a href={cart.restaurant.checkoutUrl} target="_blank" rel="noopener noreferrer" className="inline-flex h-9 items-center rounded-full border border-(--button-edge) bg-(image:--button) px-4 text-sm font-medium text-(--button-foreground) shadow-(--button-shadow)">Go to {cart.storeName}</a>
+              <a href={cart.restaurant.checkoutUrl} target="_blank" rel="noopener noreferrer" className="inline-flex h-10 items-center rounded-md pointer-coarse:h-11 bg-foreground px-4 text-sm font-medium text-background hover:bg-foreground/85">Go to {cart.storeName}</a>
             ) : (
               <Button variant="primary" size="md" loading={busy} disabled={!provider} onClick={pay}>{provider === 'checkout' ? 'Go to checkout' : provider ? `Pay with ${provider === 'stripe' ? 'card' : 'PayPal'}` : 'Choose a method'}</Button>
             )}

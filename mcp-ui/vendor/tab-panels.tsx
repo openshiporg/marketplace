@@ -175,7 +175,7 @@ export function Tab({
       disabled={disabled}
       onClick={(e) => select(value, e.detail === 0)}
       className={cn(
-        "relative flex h-8 shrink-0 items-center gap-1.5 rounded-full px-3 text-[0.8125rem] font-medium whitespace-nowrap transition-[color,scale] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] active:scale-[0.97] disabled:opacity-40",
+        "relative flex h-10 shrink-0 items-center gap-1.5 rounded-md px-3 pointer-coarse:h-11 text-[0.8125rem] font-medium whitespace-nowrap transition-[color,scale] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] active:scale-[0.97] disabled:opacity-40",
         selected ? "text-foreground" : "text-muted-foreground hover:text-foreground",
         className,
       )}
@@ -188,7 +188,7 @@ export function Tab({
           className={
             variant === "pills"
               ? "absolute inset-0 rounded-full bg-surface-raised"
-              : "absolute inset-x-3 -bottom-1 h-0.5 rounded-full bg-foreground"
+              : "absolute inset-x-3 -bottom-px h-0.5 rounded-full bg-foreground"
           }
         />
       )}
