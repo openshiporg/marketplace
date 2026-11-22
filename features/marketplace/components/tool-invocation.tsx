@@ -13,7 +13,7 @@ import {
 import { PaymentUI } from './payment/payment-ui';
 import { buildMarketplaceMcpHeaders } from '@/lib/mcp-client-headers';
 import { ORDER_COMPLETION_FALLBACK } from '@/lib/mcp-customer-error';
-import { completedOrderUrl } from '@/lib/complete-paid-cart';
+import { completedOrder, type CompletedOrder } from '@/lib/complete-paid-cart';
 import { paymentSessionIsCurrent, PAYMENT_SESSION_STALE } from '@/lib/payment-session-current';
 import {
   applyCartLifecycleFromToolResult,
@@ -88,7 +88,7 @@ export const ToolInvocation = memo(function ToolInvocation({
 
   const [paymentCompleted, setPaymentCompleted] = useState(false);
   const [completingOrder, setCompletingOrder] = useState(false);
-  const [orderUrl, setOrderUrl] = useState<string | null>(null);
+  const [order, setOrder] = useState<CompletedOrder | null>(null);
 
   const handlePaymentComplete = async (paymentSessionId: string, paypalOrderId?: string) => {
     setCompletingOrder(true);
@@ -129,7 +129,7 @@ export const ToolInvocation = memo(function ToolInvocation({
       });
 
       const orderData = getMcpToolResultData(completeResult);
-      setOrderUrl(completedOrderUrl(completeResult, orderData));
+      setOrder(completedOrder(completeResult, orderData));
       setPaymentCompleted(true);
     } catch (error) {
       // The payment form retains the succeeded payment and shows this error;
@@ -266,7 +266,7 @@ export const ToolInvocation = memo(function ToolInvocation({
             onBeforePay={assertPaymentCurrent}
             paymentCompleted={paymentCompleted}
             completingOrder={completingOrder}
-            orderUrl={orderUrl}
+            order={order}
           />
         </div>
       )}

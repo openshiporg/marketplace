@@ -1336,6 +1336,9 @@ export async function handleCartTools(
     }
 
     dataHasChanged.value = true;
+    // The receipt in the chat names the store and the store's own order number.
+    const storeName = String((await adapter.getStoreInfo({ store, cookie, ctoken }).catch(() => null))?.name || new URL(store.baseUrl).hostname).trim();
+    const orderNumber = order.displayId ?? order.orderNumber ?? null;
 
     return {
       jsonrpc: '2.0',
@@ -1345,6 +1348,8 @@ export async function handleCartTools(
           text: JSON.stringify({
             success: true,
             orderId: order.id,
+            orderNumber,
+            storeName,
             redirectUrl,
             message: '✅ Order placed successfully!',
             clearCartId: true,

@@ -9,7 +9,7 @@ import { CheckCircle2 } from "lucide-react"
 import { useState } from "react"
 import { LoadingState } from "@/components/beautiful-ui/loading-state"
 import { ORDER_COMPLETION_FALLBACK } from "@/lib/mcp-customer-error"
-import { retryPaidIntent } from "@/lib/complete-paid-cart"
+import { retryPaidIntent, type CompletedOrder } from "@/lib/complete-paid-cart"
 
 interface PaymentUIProps {
   paymentProvider: 'stripe' | 'paypal'
@@ -55,7 +55,7 @@ interface PaymentUIProps {
   onBeforePay?: () => Promise<void>
   paymentCompleted?: boolean
   completingOrder?: boolean
-  orderUrl?: string | null
+  order?: CompletedOrder | null
 }
 
 export function PaymentUI({
@@ -68,7 +68,7 @@ export function PaymentUI({
   onBeforePay,
   paymentCompleted,
   completingOrder,
-  orderUrl
+  order
 }: PaymentUIProps) {
   if (paymentProvider === 'stripe') {
     const stripePromise = loadStripe(publishableKey)
@@ -82,7 +82,7 @@ export function PaymentUI({
           onBeforePay={onBeforePay}
           paymentCompleted={paymentCompleted}
           completingOrder={completingOrder}
-          orderUrl={orderUrl}
+          order={order}
         />
       </Elements>
     )
@@ -107,13 +107,31 @@ export function PaymentUI({
           onBeforePay={onBeforePay}
           paymentCompleted={paymentCompleted}
           completingOrder={completingOrder}
-          orderUrl={orderUrl}
+          order={order}
         />
       </PayPalScriptProvider>
     )
   }
 
   return null
+}
+
+/** What the shopper needs after paying: that it worked, which store has the order, and its number. */
+function OrderPlaced({ order }: { order: CompletedOrder }) {
+  return (
+    <div className="space-y-3 rounded-card bg-surface p-4 shadow-card" role="status">
+      <div className="flex items-start gap-2.5">
+        <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-green" aria-hidden="true" />
+        <div className="min-w-0">
+          <p className="text-[14px] font-medium text-ink">Order placed{order.storeName ? ` with ${order.storeName}` : ""}</p>
+          {order.orderNumber ? <p className="mt-0.5 text-[13px] text-ink-2">Order number <span className="font-mono text-ink">{order.orderNumber}</span></p> : null}
+        </div>
+      </div>
+      <Button className="w-full" size="lg" variant="outline" asChild>
+        <a href={order.url} target="_blank" rel="noopener noreferrer">View order</a>
+      </Button>
+    </div>
+  )
 }
 
 interface PaymentFormProps {
@@ -123,10 +141,10 @@ interface PaymentFormProps {
   onBeforePay?: PaymentUIProps['onBeforePay']
   paymentCompleted?: boolean
   completingOrder?: boolean
-  orderUrl?: string | null
+  order?: CompletedOrder | null
 }
 
-function StripePaymentForm({ paymentSession, cart, onPaymentComplete, onBeforePay, paymentCompleted, completingOrder, orderUrl }: PaymentFormProps) {
+function StripePaymentForm({ paymentSession, cart, onPaymentComplete, onBeforePay, paymentCompleted, completingOrder, order }: PaymentFormProps) {
   const [submitting, setSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const stripe = useStripe()
@@ -192,19 +210,7 @@ function StripePaymentForm({ paymentSession, cart, onPaymentComplete, onBeforePa
   }
 
   // Show success state if payment is completed
-  if (paymentCompleted && orderUrl) {
-    return (
-      <div className="space-y-3 rounded-card bg-surface p-4 shadow-card">
-        <Button className="w-full" size="lg" asChild>
-          <a href={orderUrl} target="_blank" rel="noopener noreferrer">
-            <CheckCircle2 className="mr-2 size-3.5 text-green" />
-            Order confirmation
-          </a>
-        </Button>
-        <p className="text-center text-[12px] text-green">Your order has been placed successfully.</p>
-      </div>
-    )
-  }
+  if (paymentCompleted && order) return <OrderPlaced order={order} />
 
   // Keep the form mounted during completion so an error does not reset it.
   // Show payment form
@@ -251,7 +257,7 @@ function StripePaymentForm({ paymentSession, cart, onPaymentComplete, onBeforePa
   )
 }
 
-function PayPalPaymentForm({ paymentSession, cart, onPaymentComplete, onBeforePay, paymentCompleted, completingOrder, orderUrl }: PaymentFormProps) {
+function PayPalPaymentForm({ paymentSession, cart, onPaymentComplete, onBeforePay, paymentCompleted, completingOrder, order }: PaymentFormProps) {
   const [submitting, setSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   // Once PayPal has captured, a retry only completes the order; it never captures again.
@@ -287,19 +293,7 @@ function PayPalPaymentForm({ paymentSession, cart, onPaymentComplete, onBeforePa
   }
 
   // Show success state if payment is completed
-  if (paymentCompleted && orderUrl) {
-    return (
-      <div className="space-y-3 rounded-card bg-surface p-4 shadow-card">
-        <Button className="w-full" size="lg" asChild>
-          <a href={orderUrl} target="_blank" rel="noopener noreferrer">
-            <CheckCircle2 className="mr-2 size-3.5 text-green" />
-            Order confirmation
-          </a>
-        </Button>
-        <p className="text-center text-[12px] text-green">Your order has been placed successfully.</p>
-      </div>
-    )
-  }
+  if (paymentCompleted && order) return <OrderPlaced order={order} />
 
   // Show completing state
   if (completingOrder) {

@@ -138,14 +138,13 @@ function PasteDetails({ onFill }: { onFill: (d: PastedDetails) => void }) {
   const fill = () => {
     const d = parsePastedDetails(text);
     const n = Object.keys(d).filter((k) => k !== 'name').length;
-    setNote(n ? 'Filled in below. Check them, then save.' : 'Could not find an address, email or phone in that text.');
+    setNote(n ? '' : 'No address, email or phone found.');
     if (n) onFill(d);
   };
   return (
     <div className="flex flex-col gap-2 border-b border-border pb-4">
       <TextArea
         label="Paste your details (optional)"
-        description="Name, email, phone and address in any format. We fill the fields below."
         rows={3}
         value={text}
         onChange={(e) => setText(e.target.value)}

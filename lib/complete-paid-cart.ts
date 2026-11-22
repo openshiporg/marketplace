@@ -8,6 +8,18 @@ export function completedOrderUrl(result: any, data: any): string {
   return data.redirectUrl;
 }
 
+export type CompletedOrder = { url: string; orderNumber: string | null; storeName: string | null };
+
+export function completedOrder(result: any, data: any): CompletedOrder {
+  const url = completedOrderUrl(result, data);
+  const n = data?.orderNumber;
+  return {
+    url,
+    orderNumber: n === undefined || n === null || n === '' ? null : String(n),
+    storeName: typeof data?.storeName === 'string' && data.storeName.trim() ? data.storeName.trim() : null,
+  };
+}
+
 /** A paid intent is an order-completion retry, not another card confirmation. */
 export async function retryPaidIntent(
   retrieve: () => Promise<{ error?: { message?: string }; paymentIntent?: { status: string } }>,

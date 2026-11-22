@@ -9,6 +9,13 @@ const ZERO_DECIMAL = ['BIF', 'CLP', 'DJF', 'GNF', 'JPY', 'KMF', 'KRW', 'MGA', 'P
 const str = (v: unknown) => (typeof v === 'string' ? v : v == null ? '' : String(v));
 const clean = (record: Record<string, unknown>) => Object.fromEntries(Object.entries(record).map(([k, v]) => [k, str(v)]).filter(([, v]) => v));
 
+/**
+ * Payment methods offered inside the chat. PayPal is left out: on live (11-22) its sandbox guest checkout refused
+ * PayPal's own test cards, so an order could not be finished in the chat. Shoppers still reach it through
+ * "Pay on the store checkout". Add 'paypal' back once a PayPal order is proven end to end here.
+ */
+const IN_CHAT_PROVIDERS = ['stripe'];
+
 export function storeMark(storeInfo: any): StoreMark | undefined {
   const src = storeLogoDataUri(storeInfo?.logoIcon);
   return src ? { src, hue: getStoreLogoHue(storeInfo?.logoColor) } : undefined;
@@ -48,7 +55,7 @@ export function retailCartData(params: { storeId: string; cartId: string; cart: 
     : !cart.shippingAddress ? { tab: 'address', label: 'Add shipping address' }
     : { tab: 'shipping', label: 'Choose shipping method' };
   const providers: PaymentChoice[] = [
-    ...(storeInfo?.paymentProviders ?? []).map((p: any) => p.provider).filter((p: string) => p === 'stripe' || p === 'paypal'),
+    ...(storeInfo?.paymentProviders ?? []).map((p: any) => p.provider).filter((p: string) => IN_CHAT_PROVIDERS.includes(p)),
     'checkout',
   ];
   const a = cart.shippingAddress ?? {};
@@ -99,7 +106,7 @@ export function restaurantCartData(params: { storeId: string; cartId: string; ca
     : issueCodes.includes('missing_contact') || issueCodes.includes('missing_delivery_address')
       ? { tab: 'details', label: `Complete ${orderType === 'delivery' ? 'delivery' : 'pickup'} details` }
       : { tab: 'fulfillment', label: 'Review fulfillment' };
-  const direct = (storeInfo?.paymentProviders ?? []).filter((p: any) => ['stripe', 'paypal'].includes(p.provider) && p.publishableKey).map((p: any) => p.provider as PaymentChoice);
+  const direct = (storeInfo?.paymentProviders ?? []).filter((p: any) => IN_CHAT_PROVIDERS.includes(p.provider) && p.publishableKey).map((p: any) => p.provider as PaymentChoice);
   const hasCash = (storeInfo?.paymentProviders ?? []).some((p: any) => ['cash', 'manual', 'pp_system_default'].includes(p.provider));
   const notes: string[] = [];
   if (orderType === 'delivery' && cart.deliveryMinimumNotMet) {
