@@ -50,7 +50,7 @@ export function CartCard({ initial, initialTab = 'cart' }: { initial: CartData; 
     }
   };
 
-  const items: ConfirmationItem[] = cart.items.map((i) => ({ id: i.id, label: i.label, detail: i.detail, amount: i.amount, quantity: i.quantity, editable: true, removable: true }));
+  const items: ConfirmationItem[] = cart.items.map((i) => ({ id: i.id, label: i.label, detail: i.detail, image: i.image, amount: i.amount, quantity: i.quantity, editable: true, removable: true }));
   const onItemsChange = (next: ConfirmationItem[]) => {
     const removed = items.find((i) => !next.some((n) => n.id === i.id));
     if (removed) return void run(() => mutate('removeCartItem', { lineItemId: removed.id }, 'Could not remove this item.'));

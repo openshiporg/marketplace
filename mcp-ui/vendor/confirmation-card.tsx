@@ -25,6 +25,7 @@ export type ConfirmationItem = {
   id: string;
   label: string;
   detail?: string;
+  image?: string;
   /** Price of one unit. */
   amount: number;
   quantity?: number;
@@ -115,13 +116,16 @@ export function ConfirmationCard({
                         className="overflow-hidden"
                       >
                         <div className="flex flex-col gap-2 rounded-xl px-2 py-2.5">
-                          <div className="min-w-0">
+                          <div className="flex min-w-0 items-start gap-3">
+                            {item.image && <img src={item.image} alt="" loading="lazy" className="size-14 shrink-0 rounded-md object-cover" onError={(event) => { event.currentTarget.hidden = true; }} />}
+                            <div className="min-w-0">
                             <p className="line-clamp-2 text-sm">{item.label}</p>
                             {item.detail && (
                               <p className="line-clamp-2 text-xs text-muted-foreground">
                                 {item.detail}
                               </p>
                             )}
+                            </div>
                           </div>
                           <div className="flex items-center gap-3">
                           {item.editable && (

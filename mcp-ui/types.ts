@@ -59,7 +59,7 @@ export type EmptyData = { title: string; message: string; query?: string };
 
 export type ProductData = { storeId: string; countryCode: string; product: SlimProduct; storeName?: string; logo?: StoreMark };
 
-export type CartLine = { id: string; label: string; detail?: string; amount: number; quantity: number };
+export type CartLine = { id: string; label: string; detail?: string; image?: string; amount: number; quantity: number };
 export type CartFee = { label: string; amount: number };
 export type PaymentChoice = 'stripe' | 'paypal' | 'checkout';
 

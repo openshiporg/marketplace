@@ -38,6 +38,7 @@ export function retailCartData(params: { storeId: string; cartId: string; cart: 
     id: str(item.id),
     label: str(item.title || item.productVariant?.product?.title),
     detail: str(item.productVariant?.title) || undefined,
+    image: safeHttpUrl(item.thumbnail || item.productVariant?.product?.thumbnail, storeInfo?.url) || undefined,
     amount: num(item.unitPrice) ?? 0,
     quantity: Number.isSafeInteger(item.quantity) ? Math.max(1, Math.min(99, item.quantity)) : 1,
   }));
