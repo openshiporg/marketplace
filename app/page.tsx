@@ -223,7 +223,7 @@ export default function HomePage() {
     }),
   }), []);
 
-  const { messages, status, sendMessage, stop, setMessages } =
+  const { messages, status, error: chatError, regenerate, sendMessage, stop, setMessages } =
     useChat({
       transport: chatTransport,
       onError: (error) => {
@@ -660,6 +660,12 @@ export default function HomePage() {
                           ) : null}
                           {isLoading && messages.length > 0 && messages[messages.length - 1].role === "user" ? (
                             <LoadingState label="Thinking" variant="Drive" />
+                          ) : null}
+                          {status === "error" && chatError ? (
+                            <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-control bg-red-tint px-3 py-2 text-[13px] text-red">
+                              <span>The assistant could not answer. Nothing was ordered or charged.</span>
+                              <Button type="button" variant="outline" size="sm" onClick={() => regenerate()}>Try again</Button>
+                            </div>
                           ) : null}
                         </div>
                         <ChatContainerScrollAnchor />

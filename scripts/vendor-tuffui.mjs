@@ -28,6 +28,8 @@ for (const [n, src0] of Object.entries(sources)) {
   });
   // The Marketplace login card needs a password field; FormCard's text control already passes `type` through.
   if (n === 'form-card') src = src.replace('"text" | "email" | "number"', '"text" | "email" | "password" | "number"');
+  // A sandboxed card frame without allow-forms never fires submit, so the button and Enter call the handler directly.
+  if (n === 'form-card') for (const [from, to] of [["  const submit = async (e: React.FormEvent) => {\n    e.preventDefault();", "  const submit = async (e?: React.SyntheticEvent) => {\n    e?.preventDefault();"], ["                noValidate\n                onSubmit={submit}", "                noValidate\n                onSubmit={submit}\n                onKeyDown={(e) => { if (e.key === \"Enter\" && e.target instanceof HTMLInputElement) void submit(e); }}"], ["                    type=\"submit\"\n                    loading={status === \"submitting\"}", "                    type=\"button\"\n                    onClick={() => void submit()}\n                    loading={status === \"submitting\"}"]]) src = src.replace(from, to);
   for (const m of src.matchAll(/import\s*(?:type\s*)?\{([^}]*)\}\s*from\s*"\.\/icons"/g)) for (const p of m[1].split(',')) { const c = p.trim().replace(/^type\s+/, '').split(/\s+as\s+/)[0]; if (c && c !== 'Icon' && c !== 'IconProps') names.add(c); }
   writeFileSync(OUT + n + (n === 'motion-tokens' ? '.ts' : '.tsx'), src);
 }

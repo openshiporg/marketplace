@@ -112,8 +112,8 @@ export function FormCard({
   };
   const blur = (name: string) => setTouched((t) => (t.includes(name) ? t : [...t, name]));
 
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const submit = async (e?: React.SyntheticEvent) => {
+    e?.preventDefault();
     setAttempted(true);
     const count = Object.values(errors).filter(Boolean).length;
     if (count) {
@@ -185,6 +185,7 @@ export function FormCard({
                 key="form"
                 noValidate
                 onSubmit={submit}
+                onKeyDown={(e) => { if (e.key === "Enter" && e.target instanceof HTMLInputElement) void submit(e); }}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1, transition: enter }}
                 exit={{ opacity: 0, transition: exit }}
@@ -209,7 +210,8 @@ export function FormCard({
                   </p>
                   <Button
                     variant="primary"
-                    type="submit"
+                    type="button"
+                    onClick={() => void submit()}
                     loading={status === "submitting"}
                   >
                     {status === "submitting" ? "Sending…" : submitLabel}
